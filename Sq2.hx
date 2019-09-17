@@ -166,6 +166,10 @@ class Sq2 {
     // working set of tasks
     public var workingSet:WorkingSet = new WorkingSet();
 
+    // used for debugging and unittesting
+    // set to null to disable adding conclusions to this array
+    public var conclusionStrArr:Array<String> = null;
+
     public function new() {}
 
     // puts new input from the outside of the system into the system
@@ -245,8 +249,15 @@ class Sq2 {
 
             trace("|-");
             for (iConclusion in conclusions) {
-                trace(TermUtils.convToStr(iConclusion.term) +  "."+" " + iConclusion.tv.convToStr());
+                var conclusionAsStr = TermUtils.convToStr(iConclusion.term) +  "."+" " + iConclusion.tv.convToStr();
+                trace(conclusionAsStr);
+
+                if (conclusionStrArr != null) { // used for debugging and unittesting
+                    conclusionStrArr.push(conclusionAsStr);
+                }
             }
+
+
 
             trace("");
             trace("");
@@ -256,7 +267,7 @@ class Sq2 {
             // put conclusions back into working set
             for (iConclusion in conclusions) {
                 var stamp:Stamp = new Stamp(new StructuralOriginsStamp(iConclusion.structuralOrigins));
-                var sentence = new Sentence(iConclusion.term, iConclusion.tv, stamp, ".");
+                var sentence = new Sentence(iConclusion.term, iConclusion.tv, stamp, iConclusion.punctation);
 
                 var workingSetEntity = new WorkingSetEntity(sentence);
                 
@@ -294,6 +305,7 @@ class Sq2 {
 
         trace("Summary: ");
         trace('   #concepts= $numberOfConcepts');
+        trace('   #workingset.entities= ${workingSet.entities.length}');
 
 
     }
@@ -549,7 +561,7 @@ class Sq2 {
                         trace('DEBUG   NAL6-two impl  ${TermUtils.convToStr(unified1)}');
                         trace('DEBUG   NAL6-two impl  |- ${TermUtils.convToStr(unifiedImplPred)}');
 
-                        conclusions.push({term: unifiedImplPred, tv:premiseBTv, punctation:".", structuralOrigins:[], ruleName:"NAL6-two impl"});
+                        conclusions.push({term: unifiedImplPred, tv:Tv.deduction(premiseATv, premiseBTv), punctation:".", structuralOrigins:[], ruleName:"NAL6-two impl"});
                     }
 
 
@@ -672,7 +684,8 @@ class Sq2 {
 
         { // prototype of unittest
             var reasoner:Sq2 = new Sq2();
-            
+            reasoner.conclusionStrArr = []; // enable output logging
+
             // (&&, <A --> x>, <B --> y>) ==> <Q --> c>.
             // (&&, <A --> x>, <B --> y>).
             // |-
@@ -688,8 +701,10 @@ class Sq2 {
 
             reasoner.process();
 
-            // TODO< test for output must contain "< Q --> c >. {1 0.9}" >
-
+            // test for output must contain "< Q --> c >. {1 0.81}"
+            if (reasoner.conclusionStrArr.indexOf("< Q --> c >. {1 0.81}", null) == -1) {
+                throw "Unittest failed!";
+            }
 
         }
 
