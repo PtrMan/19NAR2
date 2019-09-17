@@ -305,7 +305,7 @@ class Sq2 {
             for (iConclusion in conclusions) {
                 var stamp:Stamp = new Stamp(new StructuralOriginsStamp(iConclusion.structuralOrigins));
 
-                var sentence = new Sentence(iConclusion.term, iConclusion.tv, stamp, ".");
+                var sentence = new Sentence(iConclusion.term, iConclusion.tv, stamp, iConclusion.punctation);
                 mem.updateConceptsForJudgment(sentence);
             }
 
@@ -360,7 +360,7 @@ class Sq2 {
         }
 
         // we store the structural origin to avoid doing the same conversion over and over again
-        var conclusions:Array<{term:Term, tv:Tv, structuralOrigins:Array<Term>, ruleName:String}> = [];
+        var conclusions:Array<{term:Term, tv:Tv, punctation:String, structuralOrigins:Array<Term>, ruleName:String}> = [];
 
         if (premiseAPunctation == "." && premiseBPunctation == ".") {
 
@@ -379,26 +379,26 @@ class Sq2 {
                     var copAsymZ = copAsym; // TODO< replace time >
 
                     switch (premiseATerm) {
-                        case Cop(copAsym, a0, b0):
+                        case Cop(copAsym0, a0, b0) if (copAsym0 == copAsym):
 
                         switch (premiseBTerm) {
-                            case Cop(copAsymZ, b1, c) if (TermUtils.equal(b0,b1)):
+                            case Cop(copAsymZ0, b1, c) if (copAsymZ0 == copAsym && TermUtils.equal(b0,b1)):
 
                             // print ("(A "+copAsym+" B),\t(B "+copAsymZ+" C)\t\t\t|-\t(A "+ival(copAsym,"t+z")+" C)\t\t(Truth:Deduction"+OmitForHOL(", Desire:Strong")+")")
                             var conclusionTerm = Cop(copAsym, a0, c);
-                            conclusions.push({term:conclusionTerm, tv:Tv.deduction(premiseATv, premiseBTv), structuralOrigins:[], ruleName:"NAL-2.two ded"});
+                            conclusions.push({term:conclusionTerm, tv:Tv.deduction(premiseATv, premiseBTv), punctation:".", structuralOrigins:[], ruleName:"NAL-2.two ded"});
                             
-                            case Cop(copAsymZ, c, b1) if (TermUtils.equal(b0,b1)):
+                            case Cop(copAsymZ0, c, b1) if (copAsymZ0 == copAsym && TermUtils.equal(b0,b1)):
 
                             // print ("(A "+copAsym+" B),\t(C "+copAsymZ+" B)\t\t\t|-\t(A "+copAsym+" C)\t\t(Truth:Induction"+IntervalProjection+OmitForHOL(", Desire:Weak")+")")
                             var conclusionTerm = Cop(copAsym, a0, c);
-                            conclusions.push({term:conclusionTerm, tv:Tv.induction(premiseATv, premiseBTv), structuralOrigins:[], ruleName:"NAL-2.two ind"});
+                            conclusions.push({term:conclusionTerm, tv:Tv.induction(premiseATv, premiseBTv), punctation:".", structuralOrigins:[], ruleName:"NAL-2.two ind"});
                             
-                            case Cop(copAsymZ, a1, c) if (TermUtils.equal(a0,a1)):
+                            case Cop(copAsymZ0, a1, c) if (copAsymZ0 == copAsym && TermUtils.equal(a0,a1)):
 
                             // print ("(A "+copAsym+" B),\t(A "+copAsymZ+" C)\t\t\t|-\t(B "+copAsym+" C)\t\t(Truth:Abduction"+IntervalProjection+OmitForHOL(", Desire:Strong")+")")
                             var conclusionTerm = Cop(copAsym, a0, c);
-                            conclusions.push({term:conclusionTerm, tv:Tv.abduction(premiseATv, premiseBTv), structuralOrigins:[], ruleName:"NAL-2.two abd"});
+                            conclusions.push({term:conclusionTerm, tv:Tv.abduction(premiseATv, premiseBTv), punctation:".", structuralOrigins:[], ruleName:"NAL-2.two abd"});
 
                             case _:null;
 
@@ -408,17 +408,17 @@ class Sq2 {
                             var copSymZ = copSym; //.replace("t","z");
 
                             switch (premiseBTerm) {                                
-                                case Cop(copSymZ, c, b1) if (TermUtils.equal(b0,b1)):
+                                case Cop(copSymZ0, c, b1) if (copSymZ0 == copSym && TermUtils.equal(b0,b1)):
 
                                 //print ("(A "+copAsym+" B),\t(C "+copSymZ+" B)\t\t\t|-\t(A "+copAsym+" C)\t\t(Truth:Analogy"+IntervalProjection+OmitForHOL(", Desire:Strong")+")")
                                 var conclusionTerm = Cop(copAsym, a0, c);
-                                conclusions.push({term:conclusionTerm, tv:Tv.analogy(premiseATv, premiseBTv), structuralOrigins:[], ruleName:"NAL-2.two ana1"});
+                                conclusions.push({term:conclusionTerm, tv:Tv.analogy(premiseATv, premiseBTv), punctation:".", structuralOrigins:[], ruleName:"NAL-2.two ana1"});
 
-                                case Cop(copSymZ, c, a1) if (TermUtils.equal(a0,a1)):
+                                case Cop(copSymZ0, c, a1) if (copSymZ0 == copSym && TermUtils.equal(a0,a1)):
 
                                 //print ("(A "+copAsym+" B),\t(C "+copSymZ+" A)\t\t\t|-\t(C "+ival(copSym,"t+z")+" B)\t\t(Truth:Analogy"+OmitForHOL(", Desire:Strong")+")")
                                 var conclusionTerm = Cop(copSym, c, b0);
-                                conclusions.push({term:conclusionTerm, tv:Tv.analogy(premiseATv, premiseBTv), structuralOrigins:[], ruleName:"NAL-2.two ana2"});
+                                conclusions.push({term:conclusionTerm, tv:Tv.analogy(premiseATv, premiseBTv), punctation:".", structuralOrigins:[], ruleName:"NAL-2.two ana2"});
 
 
                                 // TODO
@@ -440,11 +440,11 @@ class Sq2 {
                             var copSymZ = copSym; //.replace("t","z");
 
                             switch (premiseBTerm) {                        
-                                case Cop(copAsymZ, b1, c) if (TermUtils.equal(b0,b1)):
+                                case Cop(copAsymZ0, b1, c) if (copAsymZ0 == copAsym && TermUtils.equal(b0,b1)):
 
                                 //print ("(A "+copSym+" B),\t(B "+copSymZ+" C)\t\t\t|-\t(A "+ival(copSym,"t+z")+" C)\t\t(Truth:Resemblance"+OmitForHOL(", Desire:Strong")+")")
                                 var conclusionTerm = Cop(copSym, a0, c);
-                                conclusions.push({term:conclusionTerm, tv:Tv.resemblance(premiseATv, premiseBTv), structuralOrigins:[], ruleName:"NAL-2.two res"});
+                                conclusions.push({term:conclusionTerm, tv:Tv.resemblance(premiseATv, premiseBTv), punctation:".", structuralOrigins:[], ruleName:"NAL-2.two res"});
 
                                 case _: null;
                             }
@@ -466,14 +466,116 @@ class Sq2 {
                         // #R[(P --> M) (S --> M) |- ((S & P) --> M) :post (:t/union))
                         var conclusionSubj = fold("&", Compound("&",[subjA, subjB]));
                         var conclusionTerm = Cop("-->", conclusionSubj, predA);
-                        conclusions.push({term:conclusionTerm, tv:Tv.union(premiseATv, premiseBTv), structuralOrigins:[], ruleName:"NAL-3.two union"});
+                        conclusions.push({term:conclusionTerm, tv:Tv.union(premiseATv, premiseBTv), punctation:".", structuralOrigins:[], ruleName:"NAL-3.two union"});
                     }
 
                     {
                         // #R[(P --> M) (S --> M) |- ((S | P) --> M) :post (:t/intersection)
                         var conclusionSubj = fold("|", Compound("|",[subjA, subjB]));
                         var conclusionTerm = Cop("-->", conclusionSubj, predA);
-                        conclusions.push({term:conclusionTerm, tv:Tv.intersection(premiseATv, premiseBTv), structuralOrigins:[], ruleName:"NAL-3.two intersection"});
+                        conclusions.push({term:conclusionTerm, tv:Tv.intersection(premiseATv, premiseBTv), punctation:".", structuralOrigins:[], ruleName:"NAL-3.two intersection"});
+                    }
+
+
+                    case _: null;
+                }
+
+                case _: null;
+            }            
+        }
+
+        // checks if the two terms unify
+        // TODO< return variables of unifaction
+        function checkUnify(a:Term, b:Term) {
+            // TODO< do real unification >
+            return TermUtils.equal(a, b);
+        }
+
+        // tries to unify a with b and return the unified term, returns null if it can't get unified
+        // /param unificationType "indep" for only independent and question var unification
+        function unifiesWithReplace(a, b, unifcationType:String): Null<Term> {
+            if (!checkUnify(a, b)) {
+                return null;
+            }
+
+            // TODO< apply variables and return substitution result >
+            return a;
+        }
+
+        // handling of implications for backward inference with detachment
+        // ex:
+        // <($0 * $1) --> c>?
+        // (&&, <({0} * $0) --> x>, <({1} * $1) --> y>) ==> <($0 * $1) --> c>.
+        // |-
+        // (&&, <({0} * ?0) --> x>, <({1} * ?1) --> y>)?
+        if (premiseAPunctation == "?" && premiseBPunctation == ".") {
+            switch(premiseBTerm) {
+                case Cop("==>", implSubj, implPred) if (checkUnify(premiseATerm, implPred)):
+                    conclusions.push({term:implSubj, tv:null, punctation:"?", structuralOrigins:[], ruleName:"NAL-6.two impl detachment"});
+                
+                case _: null;
+            }
+        }
+
+
+
+        if (premiseAPunctation == "?" && premiseBPunctation == ".") {
+            switch (premiseATerm) {
+                // rule for helping with backward inference of implication
+                // (&&, A, B)?
+                // Z.
+                // |-  if unifies(A,Z,AZ, "indep")
+                // (&&, AZ, B).
+                // (&&, AZ, B)?
+                case Compound("&&", [a, b]) if (unifiesWithReplace(a, premiseBTerm, "indep") != null):
+                var az:Term = unifiesWithReplace(a, premiseBTerm, "indep");
+                conclusions.push({term:az, tv:null, punctation:"?", structuralOrigins:[], ruleName:"NAL-6.two conj q&a 1"});
+                conclusions.push({term:az, tv:premiseBTv, punctation:".", structuralOrigins:[], ruleName:"NAL-6.two conj q&a 1"});
+            
+
+                // rule for helping with backward inference of implication
+                // (&&, A, B)?
+                // Z.
+                // |-  if unifies(B,Z,BZ, "indep")
+                // (&&, A, BZ).
+                // (&&, A, BZ)?
+                case Compound("&&", [a, b]) if (unifiesWithReplace(b, premiseBTerm, "indep") != null):
+                var bz:Term = unifiesWithReplace(b, premiseBTerm, "indep");
+                conclusions.push({term:bz, tv:null, punctation:"?", structuralOrigins:[], ruleName:"NAL-6.two conj q&a 2"});
+                conclusions.push({term:bz, tv:premiseBTv, punctation:".", structuralOrigins:[], ruleName:"NAL-6.two conj q&a 2"});
+
+                case _: null;
+            }
+        }
+
+        if (premiseAPunctation == "." && premiseBPunctation == ".") {
+            // rule for forward inference of implication
+            //ex:
+            // (&&, <({0} * $0) --> x>, <({1} * $1) --> y>) ==> <($0 * $1) --> c>.
+            // (&&, <({0} * X) --> x>, <({1} * Y) --> y>).
+            // |-
+            // <(X * Y) --> c>.
+            switch (premiseATerm) {
+                case Cop("==>", Compound("&&", [compoundA0, compoundA1]), implPred):
+                switch (premiseBTerm) {
+                    case Compound("&&", [compoundB0, compoundB1]):
+
+                    // TODO< handle variable assignment correctly >
+                    var unified0:Term = unifiesWithReplace(compoundA0, compoundB0, "dep");
+                    var unified1:Term = unifiesWithReplace(compoundA1, compoundB1, "dep");
+                    
+                    if (unified0 != null && unified1 != null) { // check if unification results are valid
+
+
+                        // TODO< apply variable substition from unification >
+                        var unifiedImplPred = implPred; // the predicate with the unified variables
+
+                        trace("---");
+                        trace('DEBUG   NAL6-two impl  ${TermUtils.convToStr(unified0)}');
+                        trace('DEBUG   NAL6-two impl  ${TermUtils.convToStr(unified1)}');
+                        trace('DEBUG   NAL6-two impl  |- ${TermUtils.convToStr(unifiedImplPred)}');
+
+                        conclusions.push({term: unifiedImplPred, tv:premiseBTv, punctation:".", structuralOrigins:[], ruleName:"NAL6-two impl"});
                     }
 
 
@@ -484,6 +586,7 @@ class Sq2 {
             }
         }
 
+
         return conclusions;
     }
 
@@ -491,7 +594,7 @@ class Sq2 {
     public static function deriveSinglePremise(premiseTerm:Term,premiseTermStructuralOrigins:Array<Term>,premiseTv:Tv,premisePunctation:String) {
 
         // we store the structural origin to avoid doing the same conversion over and over again
-        var conclusions:Array<{term:Term, tv:Tv, structuralOrigins:Array<Term>, ruleName:String}> = [];
+        var conclusions:Array<{term:Term, tv:Tv, punctation:String, structuralOrigins:Array<Term>, ruleName:String}> = [];
 
         
 
@@ -504,7 +607,7 @@ class Sq2 {
             var conclusionTerm = Cop(copula, pred,subj);
             
             if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
-                conclusions.push({term:conclusionTerm, tv:Tv.conversion(premiseTv), structuralOrigins:premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]), ruleName:"NAL-2.single contraposition"});
+                conclusions.push({term:conclusionTerm, tv:Tv.conversion(premiseTv), punctation:".", structuralOrigins:premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]), ruleName:"NAL-2.single contraposition"});
             }
 
             case _: null;
@@ -521,7 +624,7 @@ class Sq2 {
             
             if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
                 // <prod0 --> (/,inhPred,_,prod1)>
-                conclusions.push({term:conclusionTerm, tv:premiseTv,  structuralOrigins:premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]), ruleName:"NAL-6.single prod->img"});
+                conclusions.push({term:conclusionTerm, tv:premiseTv, punctation:".",   structuralOrigins:premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]), ruleName:"NAL-6.single prod->img"});
             }
 
             conclusionTerm = Cop("-->", prod1, Img(inhPred, [prod0, ImgWild]));
@@ -529,7 +632,7 @@ class Sq2 {
             if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
 
                 // <prod1 --> (/,inhPred,prod0,_)>
-                conclusions.push({term:conclusionTerm, tv:premiseTv,  structuralOrigins:premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]), ruleName:"NAL-6.single prod->img"});
+                conclusions.push({term:conclusionTerm, tv:premiseTv, punctation:".",  structuralOrigins:premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]), ruleName:"NAL-6.single prod->img"});
             }
 
             case _: null;
