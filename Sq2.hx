@@ -161,85 +161,25 @@ class WorkingSet {
 
 // TODO< safe structuralOrigins correctly by appending >
 class Sq2 {
-    public static function main() {
-        var mem:Memory = new Memory();
+    public var mem:Memory = new Memory();
 
-        // working set of tasks
-        var workingSet:WorkingSet = new WorkingSet();
+    // working set of tasks
+    public var workingSet:WorkingSet = new WorkingSet();
 
-        /* TODO< add interesting unittest once it can build "&"
-        { // create "seed" premise and put it into working set
-            var premiseTerm:Term = Cop("-->", Prod([Name("a"), Name("a")]), Name("c"));
-            var premiseTermStructuralOrigins:Array<Term> = [];
-            var premiseTv:Tv = new Tv(1.0, 0.9);
+    public function new() {}
 
-            var sentence = new Sentence(premiseTerm, premiseTv, new Stamp(new StructuralOriginsStamp([])), ".");
+    // puts new input from the outside of the system into the system
+    public function input(term:Term, tv:Tv, punctation:String) {
+        var sentence = new Sentence(term, tv, new Stamp(new StructuralOriginsStamp([])), punctation);
+        mem.updateConceptsForJudgment(sentence);
 
-            var workingSetEntity = new WorkingSetEntity(sentence);
+        var workingSetEntity = new WorkingSetEntity(sentence);
 
-            workingSet.entities.push(workingSetEntity);
-        }
-        */
+        workingSet.entities.push(workingSetEntity);
+    }
 
-
-        /* small test experiment #2
-        { // create "seed" premise and put it into working set
-            var premiseTerm:Term = Cop("-->", Name("a"), Name("c"));
-            var premiseTermStructuralOrigins:Array<Term> = [];
-            var premiseTv:Tv = new Tv(1.0, 0.9);
-
-            var sentence = new Sentence(premiseTerm, premiseTv, new Stamp(new StructuralOriginsStamp([])), ".");
-            mem.updateConceptsForJudgment(sentence);
-
-            var workingSetEntity = new WorkingSetEntity(sentence);
-
-            workingSet.entities.push(workingSetEntity);
-        }
-
-        { // create "seed" premise and put it into working set
-            var premiseTerm:Term = Cop("-->", Name("b"), Name("c"));
-            var premiseTermStructuralOrigins:Array<Term> = [];
-            var premiseTv:Tv = new Tv(1.0, 0.9);
-
-            var sentence = new Sentence(premiseTerm, premiseTv, new Stamp(new StructuralOriginsStamp([])), ".");
-            mem.updateConceptsForJudgment(sentence);
-
-            var workingSetEntity = new WorkingSetEntity(sentence);
-
-            workingSet.entities.push(workingSetEntity);
-        }
-
-        */
-
-
-        { // prototype of unittest
-            // (&&, <A --> x>, <B --> y>) ==> <Q --> c>.
-            // (&&, <A --> x>, <B --> y>).
-            // |-
-            // <Q --> c>.
-            var unittestPremises:Array<Term> = [
-                Cop("==>", Compound("&&", [Cop("-->", Name("A"), Name("x")), Cop("-->", Name("B"), Name("y"))]), Cop("-->", Name("Q"), Name("c"))),
-                Compound("&&", [Cop("-->", Name("A"), Name("x")), Cop("-->", Name("B"), Name("y"))])
-            ];
-
-            // TODO< test for output must contain "<Q --> c>."
-
-            for (iUnittestPremise in unittestPremises) {
-                var premiseTermStructuralOrigins:Array<Term> = [];
-                var premiseTv:Tv = new Tv(1.0, 0.9);
-
-                var sentence = new Sentence(iUnittestPremise, premiseTv, new Stamp(new StructuralOriginsStamp([])), ".");
-                mem.updateConceptsForJudgment(sentence);
-
-                var workingSetEntity = new WorkingSetEntity(sentence);
-
-                workingSet.entities.push(workingSetEntity);
-            }
-        }
-
-
-
-
+    // run the reasoner for a number of cycles
+    public function process() {
         var cycleCounter = -1;
         while(true) { // main loop
             cycleCounter++;
@@ -357,6 +297,7 @@ class Sq2 {
 
 
     }
+    
 
     public static function deriveTwoPremise(premiseATerm:Term,premiseATv:Tv,premiseAPunctation:String,  premiseBTerm:Term,premiseBTv:Tv,premiseBPunctation:String) {
         
@@ -677,6 +618,81 @@ class Sq2 {
 
         return conclusions;
         
+    }
+
+
+    public static function main() {
+        
+
+
+        /* TODO< add interesting unittest once it can build "&"
+        { // create "seed" premise and put it into working set
+            var premiseTerm:Term = Cop("-->", Prod([Name("a"), Name("a")]), Name("c"));
+            var premiseTermStructuralOrigins:Array<Term> = [];
+            var premiseTv:Tv = new Tv(1.0, 0.9);
+
+            var sentence = new Sentence(premiseTerm, premiseTv, new Stamp(new StructuralOriginsStamp([])), ".");
+
+            var workingSetEntity = new WorkingSetEntity(sentence);
+
+            workingSet.entities.push(workingSetEntity);
+        }
+        */
+
+
+        /* small test experiment #2
+        { // create "seed" premise and put it into working set
+            var premiseTerm:Term = Cop("-->", Name("a"), Name("c"));
+            var premiseTermStructuralOrigins:Array<Term> = [];
+            var premiseTv:Tv = new Tv(1.0, 0.9);
+
+            var sentence = new Sentence(premiseTerm, premiseTv, new Stamp(new StructuralOriginsStamp([])), ".");
+            mem.updateConceptsForJudgment(sentence);
+
+            var workingSetEntity = new WorkingSetEntity(sentence);
+
+            workingSet.entities.push(workingSetEntity);
+        }
+
+        { // create "seed" premise and put it into working set
+            var premiseTerm:Term = Cop("-->", Name("b"), Name("c"));
+            var premiseTermStructuralOrigins:Array<Term> = [];
+            var premiseTv:Tv = new Tv(1.0, 0.9);
+
+            var sentence = new Sentence(premiseTerm, premiseTv, new Stamp(new StructuralOriginsStamp([])), ".");
+            mem.updateConceptsForJudgment(sentence);
+
+            var workingSetEntity = new WorkingSetEntity(sentence);
+
+            workingSet.entities.push(workingSetEntity);
+        }
+
+        */
+
+
+        { // prototype of unittest
+            var reasoner:Sq2 = new Sq2();
+            
+            // (&&, <A --> x>, <B --> y>) ==> <Q --> c>.
+            // (&&, <A --> x>, <B --> y>).
+            // |-
+            // <Q --> c>.
+            var unittestPremises:Array<Term> = [
+                Cop("==>", Compound("&&", [Cop("-->", Name("A"), Name("x")), Cop("-->", Name("B"), Name("y"))]), Cop("-->", Name("Q"), Name("c"))),
+                Compound("&&", [Cop("-->", Name("A"), Name("x")), Cop("-->", Name("B"), Name("y"))])
+            ];
+
+            for (iUnittestPremise in unittestPremises) {
+                reasoner.input(iUnittestPremise, new Tv(1.0, 0.9), ".");
+            }
+
+            reasoner.process();
+
+            // TODO< test for output must contain "< Q --> c >. {1 0.9}" >
+
+
+        }
+
     }
 }
 
