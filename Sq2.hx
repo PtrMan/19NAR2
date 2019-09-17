@@ -181,6 +181,8 @@ class Sq2 {
         }
         */
 
+
+        /* small test experiment #2
         { // create "seed" premise and put it into working set
             var premiseTerm:Term = Cop("-->", Name("a"), Name("c"));
             var premiseTermStructuralOrigins:Array<Term> = [];
@@ -206,6 +208,37 @@ class Sq2 {
 
             workingSet.entities.push(workingSetEntity);
         }
+
+        */
+
+
+        { // prototype of unittest
+            // (&&, <A --> x>, <B --> y>) ==> <Q --> c>.
+            // (&&, <A --> x>, <B --> y>).
+            // |-
+            // <Q --> c>.
+            var unittestPremises:Array<Term> = [
+                Cop("==>", Compound("&&", [Cop("-->", Name("A"), Name("x")), Cop("-->", Name("B"), Name("y"))]), Cop("-->", Name("Q"), Name("c"))),
+                Compound("&&", [Cop("-->", Name("A"), Name("x")), Cop("-->", Name("B"), Name("y"))])
+            ];
+
+            // TODO< test for output must contain "<Q --> c>."
+
+            for (iUnittestPremise in unittestPremises) {
+                var premiseTermStructuralOrigins:Array<Term> = [];
+                var premiseTv:Tv = new Tv(1.0, 0.9);
+
+                var sentence = new Sentence(iUnittestPremise, premiseTv, new Stamp(new StructuralOriginsStamp([])), ".");
+                mem.updateConceptsForJudgment(sentence);
+
+                var workingSetEntity = new WorkingSetEntity(sentence);
+
+                workingSet.entities.push(workingSetEntity);
+            }
+        }
+
+
+
 
         var cycleCounter = -1;
         while(true) { // main loop
