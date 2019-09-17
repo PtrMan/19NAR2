@@ -362,94 +362,126 @@ class Sq2 {
         // we store the structural origin to avoid doing the same conversion over and over again
         var conclusions:Array<{term:Term, tv:Tv, structuralOrigins:Array<Term>, ruleName:String}> = [];
 
-        // NAL-2 inspired by metaGen.py
-        {
-            // TODO< autogenerate code here >
+        if (premiseAPunctation == "." && premiseBPunctation == ".") {
 
-            var copulaTypes = [
-                {copAsym:"-->",copSym:"<->",ConjCops:["& "],DisjCop:"| ",MinusCops:["-","~"]}
-            ];
+            // NAL-2 inspired by metaGen.py
+            {
+                // TODO< autogenerate code here >
 
-            for (iCopulaInfo in copulaTypes) {
-                var copAsym = iCopulaInfo.copAsym;
-                var copSym = iCopulaInfo.copSym;
+                var copulaTypes = [
+                    {copAsym:"-->",copSym:"<->",ConjCops:["& "],DisjCop:"| ",MinusCops:["-","~"]}
+                ];
 
-                var copAsymZ = copAsym; // TODO< replace time >
+                for (iCopulaInfo in copulaTypes) {
+                    var copAsym = iCopulaInfo.copAsym;
+                    var copSym = iCopulaInfo.copSym;
 
-                switch (premiseATerm) {
-                    case Cop(copAsym, a0, b0):
+                    var copAsymZ = copAsym; // TODO< replace time >
 
-                    switch (premiseBTerm) {
-                        case Cop(copAsymZ, b1, c) if (TermUtils.equal(b0,b1)):
+                    switch (premiseATerm) {
+                        case Cop(copAsym, a0, b0):
 
-                        // print ("(A "+copAsym+" B),\t(B "+copAsymZ+" C)\t\t\t|-\t(A "+ival(copAsym,"t+z")+" C)\t\t(Truth:Deduction"+OmitForHOL(", Desire:Strong")+")")
-                        var conclusionTerm = Cop(copAsym, a0, c);
-                        conclusions.push({term:conclusionTerm, tv:Tv.deduction(premiseATv, premiseBTv), structuralOrigins:[], ruleName:"NAL-2.two ded"});
-                        
-                        case Cop(copAsymZ, c, b1) if (TermUtils.equal(b0,b1)):
+                        switch (premiseBTerm) {
+                            case Cop(copAsymZ, b1, c) if (TermUtils.equal(b0,b1)):
 
-                        // print ("(A "+copAsym+" B),\t(C "+copAsymZ+" B)\t\t\t|-\t(A "+copAsym+" C)\t\t(Truth:Induction"+IntervalProjection+OmitForHOL(", Desire:Weak")+")")
-                        var conclusionTerm = Cop(copAsym, a0, c);
-                        conclusions.push({term:conclusionTerm, tv:Tv.induction(premiseATv, premiseBTv), structuralOrigins:[], ruleName:"NAL-2.two ind"});
-                        
-                        case Cop(copAsymZ, a1, c) if (TermUtils.equal(a0,a1)):
+                            // print ("(A "+copAsym+" B),\t(B "+copAsymZ+" C)\t\t\t|-\t(A "+ival(copAsym,"t+z")+" C)\t\t(Truth:Deduction"+OmitForHOL(", Desire:Strong")+")")
+                            var conclusionTerm = Cop(copAsym, a0, c);
+                            conclusions.push({term:conclusionTerm, tv:Tv.deduction(premiseATv, premiseBTv), structuralOrigins:[], ruleName:"NAL-2.two ded"});
+                            
+                            case Cop(copAsymZ, c, b1) if (TermUtils.equal(b0,b1)):
 
-                        // print ("(A "+copAsym+" B),\t(A "+copAsymZ+" C)\t\t\t|-\t(B "+copAsym+" C)\t\t(Truth:Abduction"+IntervalProjection+OmitForHOL(", Desire:Strong")+")")
-                        var conclusionTerm = Cop(copAsym, a0, c);
-                        conclusions.push({term:conclusionTerm, tv:Tv.abduction(premiseATv, premiseBTv), structuralOrigins:[], ruleName:"NAL-2.two abd"});
+                            // print ("(A "+copAsym+" B),\t(C "+copAsymZ+" B)\t\t\t|-\t(A "+copAsym+" C)\t\t(Truth:Induction"+IntervalProjection+OmitForHOL(", Desire:Weak")+")")
+                            var conclusionTerm = Cop(copAsym, a0, c);
+                            conclusions.push({term:conclusionTerm, tv:Tv.induction(premiseATv, premiseBTv), structuralOrigins:[], ruleName:"NAL-2.two ind"});
+                            
+                            case Cop(copAsymZ, a1, c) if (TermUtils.equal(a0,a1)):
 
-                        case _:null;
+                            // print ("(A "+copAsym+" B),\t(A "+copAsymZ+" C)\t\t\t|-\t(B "+copAsym+" C)\t\t(Truth:Abduction"+IntervalProjection+OmitForHOL(", Desire:Strong")+")")
+                            var conclusionTerm = Cop(copAsym, a0, c);
+                            conclusions.push({term:conclusionTerm, tv:Tv.abduction(premiseATv, premiseBTv), structuralOrigins:[], ruleName:"NAL-2.two abd"});
+
+                            case _:null;
+
+                        }
+
+                        if (copSym != null) {
+                            var copSymZ = copSym; //.replace("t","z");
+
+                            switch (premiseBTerm) {                                
+                                case Cop(copSymZ, c, b1) if (TermUtils.equal(b0,b1)):
+
+                                //print ("(A "+copAsym+" B),\t(C "+copSymZ+" B)\t\t\t|-\t(A "+copAsym+" C)\t\t(Truth:Analogy"+IntervalProjection+OmitForHOL(", Desire:Strong")+")")
+                                var conclusionTerm = Cop(copAsym, a0, c);
+                                conclusions.push({term:conclusionTerm, tv:Tv.analogy(premiseATv, premiseBTv), structuralOrigins:[], ruleName:"NAL-2.two ana1"});
+
+                                case Cop(copSymZ, c, a1) if (TermUtils.equal(a0,a1)):
+
+                                //print ("(A "+copAsym+" B),\t(C "+copSymZ+" A)\t\t\t|-\t(C "+ival(copSym,"t+z")+" B)\t\t(Truth:Analogy"+OmitForHOL(", Desire:Strong")+")")
+                                var conclusionTerm = Cop(copSym, c, b0);
+                                conclusions.push({term:conclusionTerm, tv:Tv.analogy(premiseATv, premiseBTv), structuralOrigins:[], ruleName:"NAL-2.two ana2"});
+
+
+                                // TODO
+                                //print ("(A "+copAsym+" B),\t(C "+copSymZ+" B)\t\t\t|-\t(A "+copSym+" C)\t\t(Truth:Comparison"+IntervalProjection+OmitForHOL(", Desire:Weak")+")")
+                                //print ("(A "+copAsym+" B),\t(A "+copSymZ+" C)\t\t\t|-\t(C "+copSym+" B)\t\t(Truth:Comparison"+IntervalProjection+OmitForHOL(", Desire:Weak")+")")                    
+
+                                case _:null;
+                            }
+                        }
 
                         case _:null;
                     }
 
-                    case _:null;
-                }
+                    switch (premiseATerm) {
+                        case Cop(copSym, a0, b0):
 
-                switch (premiseATerm) {
-                    case Cop(copAsym, a, b0):
 
-                    switch (premiseBTerm) {
-                        case Cop(copAsymZ, c, b1) if (TermUtils.equal(b0,b1)):
+                        if (copSym != null) {
+                            var copSymZ = copSym; //.replace("t","z");
 
-                        // print ("(A "+copAsym+" B),\t(B "+copAsymZ+" C)\t\t\t|-\t(A "+ival(copAsym,"t+z")+" C)\t\t(Truth:Deduction"+OmitForHOL(", Desire:Strong")+")")
-                        var conclusionTerm = Cop(copAsym, a, c);
-                        conclusions.push({term:conclusionTerm, tv:Tv.deduction(premiseATv, premiseBTv), structuralOrigins:[], ruleName:"NAL-2.two ded"});
-                        
-                        case _:null;
+                            switch (premiseBTerm) {                        
+                                case Cop(copAsymZ, b1, c) if (TermUtils.equal(b0,b1)):
+
+                                //print ("(A "+copSym+" B),\t(B "+copSymZ+" C)\t\t\t|-\t(A "+ival(copSym,"t+z")+" C)\t\t(Truth:Resemblance"+OmitForHOL(", Desire:Strong")+")")
+                                var conclusionTerm = Cop(copSym, a0, c);
+                                conclusions.push({term:conclusionTerm, tv:Tv.resemblance(premiseATv, premiseBTv), structuralOrigins:[], ruleName:"NAL-2.two res"});
+
+                                case _: null;
+                            }
+                        }
+
+                        case _: null;
                     }
-
-                    case _:null;
                 }
             }
-        }
 
-        // NAL-3 union, intersection
-        switch (premiseATerm) {
-            case Cop("-->", subjA, predA):
+            // NAL-3 union, intersection
+            switch (premiseATerm) {
+                case Cop("-->", subjA, predA):
 
-            switch (premiseBTerm) {
-                case Cop("-->", subjB, predB) if (TermUtils.equal(predA, predB) && !TermUtils.equal(subjA, subjB) && !checkSet(subjA) && !checkSet(subjB) && checkNoCommonSubterm(subjA, subjB)):
+                switch (premiseBTerm) {
+                    case Cop("-->", subjB, predB) if (TermUtils.equal(predA, predB) && !TermUtils.equal(subjA, subjB) && !checkSet(subjA) && !checkSet(subjB) && checkNoCommonSubterm(subjA, subjB)):
 
-                {
-                    // #R[(P --> M) (S --> M) |- ((S & P) --> M) :post (:t/union))
-                    var conclusionSubj = fold("&", Compound("&",[subjA, subjB]));
-                    var conclusionTerm = Cop("-->", conclusionSubj, predA);
-                    conclusions.push({term:conclusionTerm, tv:Tv.union(premiseATv, premiseBTv), structuralOrigins:[], ruleName:"NAL-3.two union"});
+                    {
+                        // #R[(P --> M) (S --> M) |- ((S & P) --> M) :post (:t/union))
+                        var conclusionSubj = fold("&", Compound("&",[subjA, subjB]));
+                        var conclusionTerm = Cop("-->", conclusionSubj, predA);
+                        conclusions.push({term:conclusionTerm, tv:Tv.union(premiseATv, premiseBTv), structuralOrigins:[], ruleName:"NAL-3.two union"});
+                    }
+
+                    {
+                        // #R[(P --> M) (S --> M) |- ((S | P) --> M) :post (:t/intersection)
+                        var conclusionSubj = fold("|", Compound("|",[subjA, subjB]));
+                        var conclusionTerm = Cop("-->", conclusionSubj, predA);
+                        conclusions.push({term:conclusionTerm, tv:Tv.intersection(premiseATv, premiseBTv), structuralOrigins:[], ruleName:"NAL-3.two intersection"});
+                    }
+
+
+                    case _: null;
                 }
-
-                {
-                    // #R[(P --> M) (S --> M) |- ((S | P) --> M) :post (:t/intersection)
-                    var conclusionSubj = fold("|", Compound("|",[subjA, subjB]));
-                    var conclusionTerm = Cop("-->", conclusionSubj, predA);
-                    conclusions.push({term:conclusionTerm, tv:Tv.intersection(premiseATv, premiseBTv), structuralOrigins:[], ruleName:"NAL-3.two intersection"});
-                }
-
 
                 case _: null;
             }
-
-            case _: null;
         }
 
         return conclusions;
@@ -461,8 +493,10 @@ class Sq2 {
         // we store the structural origin to avoid doing the same conversion over and over again
         var conclusions:Array<{term:Term, tv:Tv, structuralOrigins:Array<Term>, ruleName:String}> = [];
 
+        
+
         // NAL-2 conversion
-        switch (premiseTerm) {
+        if (premisePunctation == ".") switch (premiseTerm) {
             case Cop(copula, subj, pred) if (copula == "-->" || copula == "<->"):
 
             // TODO< bump derivation depth >
@@ -478,7 +512,7 @@ class Sq2 {
 
 
         // NAL-6  product to image transform
-        switch (premiseTerm) {
+        if (premisePunctation == ".") switch (premiseTerm) {
             case Cop("-->", Prod([prod0, prod1]), inhPred):
 
             // TODO< bump derivation depth >
@@ -708,6 +742,21 @@ class Tv {
         var c = w2c(w);
         return new Tv(a.freq, c);
     }
+
+    public static function resemblance(a, b) {
+        var f = and(a.freq, b.freq);
+        var c = and3(a.conf, b.conf, or(a.freq, b.freq));
+        return new Tv(f, c);
+    }
+
+    public static function analogy(a, b) {
+        var f = and(a.freq, b.freq);
+        var c = and3(a.conf, b.conf, b.freq);
+        return new Tv(f, c);
+    }
+
+
+
 
     public static function intersection(a, b) {
         var f = and(a.freq, b.freq);
