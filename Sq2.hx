@@ -2,7 +2,6 @@
 //    haxe --interp -main Sq2.hx
 
 
-// TODO< concepts: check if judgment exists already >
 
 // TODO< most NAL-2 like in patricks code generator >
 
@@ -58,8 +57,6 @@ class Memory {
 
     // puts judgment into corresponding concepts
     public function updateConceptsForJudgment(sentence:Sentence) {
-        // TODO< check if it is already in concept >
-
         for (iTermName in TermUtils.enumTerms(sentence.term)) {
             var conceptOfTerm;
             
@@ -72,9 +69,23 @@ class Memory {
                 addConcept(conceptOfTerm);
             }
 
+            // we need to check for the existence of a judgment with the same stamp and TV
+            var exists = false;
+            for (iJudgment in conceptOfTerm.judgments) {
+                if (Sentence.equal(iJudgment, sentence)) {
+                    exists = true;
+                    break;
+                }
+            }
+
+            if (exists) {
+                continue;
+            }
+
             // update
-            // TODO< check for existence of sentence with same stamp and TV >
             conceptOfTerm.judgments.push(sentence);
+
+            // TODO< sort judgments by metric >
         }
     }
 }
