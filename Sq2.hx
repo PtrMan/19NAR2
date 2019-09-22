@@ -2,11 +2,14 @@
 //    haxe --interp -main Sq2.hx
 
 
-// TODO< basic Q&A >
+// TODO< concepts: check if judgment exists already >
 
 // TODO< most NAL-2 like in patricks code generator >
 
-// TODO< concepts: check if judgment exists already >
+
+// TODO< variables >
+//    TODO< q&a with variables >
+//    TODO< var unification >
 
 // TODO< manage stamp >
 
@@ -15,6 +18,14 @@
 // TODO< revision >
 
 // TODO< attention mechansim : questions have way higher priority than judgments >
+
+// TODO< attention mechanism : stresstest attention >
+
+// TODO< add sets >
+
+// TODO COMPLICATED< Q&A - do structural transformations on question side without adding the question to the memory or the tasks, sample all possible structural transformations and remember which transformations were done, etc >
+
+
 
 // TODO< rename to Node like in ALANN >
 class Concept {
@@ -121,9 +132,24 @@ class Sentence {
         this.punctation = punctation;
     }
 
+    public function convToStr():String {
+        var res = TermUtils.convToStr(term) +  punctation+" ";
+        if (tv != null) { // can be null
+            res += tv.convToStr();
+        }
+        return res;
+    }
+
     public static function equal(a:Sentence, b:Sentence):Bool {
         var epsilon = 0.00001;
-        var isTruthEqual = Math.abs(a.tv.freq-b.tv.freq) < epsilon && Math.abs(a.tv.conf-b.tv.conf) < epsilon;
+        var isTruthEqual = false;
+        if (a.tv == null && b.tv == null) {
+            isTruthEqual = true;
+        }
+        else if (a.tv != null && b.tv != null) {
+            isTruthEqual = Math.abs(a.tv.freq-b.tv.freq) < epsilon && Math.abs(a.tv.conf-b.tv.conf) < epsilon;
+        }
+
         var isTermEqual = TermUtils.equal(a.term, b.term);
         return isTruthEqual && isTermEqual && a.punctation == b.punctation && Stamp.checkOverlap(a.stamp, b.stamp);
     }
@@ -131,6 +157,8 @@ class Sentence {
 
 class WorkingSetEntity {
     public var sentence:Sentence;
+
+    public var bestAnswerExp:Float = 0.0;
 
     public function new(sentence) {
         this.sentence = sentence;
@@ -178,7 +206,10 @@ class Sq2 {
     // puts new input from the outside of the system into the system
     public function input(term:Term, tv:Tv, punctation:String) {
         var sentence = new Sentence(term, tv, new Stamp(new StructuralOriginsStamp([])), punctation);
-        mem.updateConceptsForJudgment(sentence);
+        
+        if (punctation == ".") { // only add to memory for judgments
+            mem.updateConceptsForJudgment(sentence);
+        }
 
         var workingSetEntity = new WorkingSetEntity(sentence);
 
@@ -187,6 +218,16 @@ class Sq2 {
 
     // run the reasoner for a number of cycles
     public function process() {
+        function reportAnswer(sentence:Sentence) {
+            var str = 'Answer:[  ?ms]${sentence.convToStr()}'; // report with ALANN formalism
+
+            if (conclusionStrArr != null) { // used for debugging and unittesting
+                conclusionStrArr.push(str);
+            }
+
+            trace(str);
+        }
+
         var cycleCounter = -1;
         while(true) { // main loop
             cycleCounter++;
@@ -202,6 +243,32 @@ class Sq2 {
             // select random element from working set
             var idx:Int = Std.random(workingSet.entities.length);
             var chosenWorkingSetEntity = workingSet.entities[idx];
+
+            var premiseSentence = chosenWorkingSetEntity.sentence;
+
+            // Q&A
+            if (premiseSentence.punctation == "?") {
+                // TODO LATER< enumerate subterms>
+                // checked terms for enumeration of subterms of question
+                var checkedTerms = [premiseSentence.term];
+
+                for (iTermName in checkedTerms) {
+                    // try to retrieve concept
+                    if (!mem.hasConceptByName(TermUtils.convToStr(iTermName))) {
+                        continue;
+                    }
+                    var conceptOfTerm: Concept = mem.retConceptByName(TermUtils.convToStr(iTermName));
+
+                    // try to find better answer
+                    for (iBelief in conceptOfTerm.judgments) {
+                        if (iBelief.tv.exp() > chosenWorkingSetEntity.bestAnswerExp && TermUtils.checkUnify(premiseSentence.term, iBelief.term) ) {
+                            // found a better answer
+                            chosenWorkingSetEntity.bestAnswerExp = iBelief.tv.exp();
+                            reportAnswer(iBelief);
+                        }
+                    }
+                }
+            }
 
             var premiseTerm = chosenWorkingSetEntity.sentence.term;
             var premiseTermStructuralOrigins = chosenWorkingSetEntity.sentence.stamp.structuralOrigins.arr;
@@ -473,17 +540,10 @@ class Sq2 {
             }            
         }
 
-        // checks if the two terms unify
-        // TODO< return variables of unifaction
-        function checkUnify(a:Term, b:Term) {
-            // TODO< do real unification >
-            return TermUtils.equal(a, b);
-        }
-
         // tries to unify a with b and return the unified term, returns null if it can't get unified
         // /param unificationType "indep" for only independent and question var unification
         function unifiesWithReplace(a, b, unifcationType:String): Null<Term> {
-            if (!checkUnify(a, b)) {
+            if (!TermUtils.checkUnify(a, b)) {
                 return null;
             }
 
@@ -499,12 +559,14 @@ class Sq2 {
         // (&&, <({0} * ?0) --> x>, <({1} * ?1) --> y>)?
         if (premiseAPunctation == "?" && premiseBPunctation == ".") {
             switch(premiseBTerm) {
-                case Cop("==>", implSubj, implPred) if (checkUnify(premiseATerm, implPred)):
+                case Cop("==>", implSubj, implPred) if (TermUtils.checkUnify(premiseATerm, implPred)):
                     conclusions.push({term:implSubj, tv:null, punctation:"?", structuralOrigins:[], ruleName:"NAL-6.two impl detachment"});
                 
                 case _: null;
             }
         }
+
+        
 
 
         /* commented because BS
@@ -591,7 +653,7 @@ class Sq2 {
                 // <c --> x> ==> <X --> Y>.
                 if (TermUtils.equal(compoundA0, premiseBTerm)) {
                     var conclusion = Cop("==>", compoundA1, implPred);
-                    conclusions.push({term: conclusion, tv:Tv.deduction(premiseATv, premiseBTv)/*TODO check*/, punctation:".", structuralOrigins:[], ruleName:"NAL6-two impl ==> detach"});
+                    conclusions.push({term: conclusion, tv:Tv.deduction(premiseATv, premiseBTv)/*TODO check*/, punctation:".", structuralOrigins:[], ruleName:"NAL6-two impl ==> detach conj[0]"});
                 }
 
                 // TODO< var unification >
@@ -602,6 +664,18 @@ class Sq2 {
                 // <a --> x> ==> <X --> Y>.
                 if (TermUtils.equal(compoundA1, premiseBTerm)) {
                     var conclusion = Cop("==>", compoundA0, implPred);
+                    conclusions.push({term: conclusion, tv:Tv.deduction(premiseATv, premiseBTv)/*TODO check*/, punctation:".", structuralOrigins:[], ruleName:"NAL6-two impl ==> detach conj[1]"});
+                }
+
+                case Cop("==>", implSubj, implPred):
+                // TODO< var unification >
+                // ex:
+                // <a --> x> ==> <X --> Y>>.
+                // <a-->x>.
+                // |-
+                // <X --> Y>.
+                if (TermUtils.equal(implSubj, premiseBTerm)) {
+                    var conclusion = implPred;
                     conclusions.push({term: conclusion, tv:Tv.deduction(premiseATv, premiseBTv)/*TODO check*/, punctation:".", structuralOrigins:[], ruleName:"NAL6-two impl ==> detach"});
                 }
                 
@@ -768,6 +842,54 @@ class Sq2 {
             }
 
         }
+
+        { // unittest ==> single premise impl detach
+            var reasoner:Sq2 = new Sq2();
+            reasoner.conclusionStrArr = []; // enable output logging
+
+            // <<B --> x> ==> <Q --> c>>.
+            // <B --> x>.
+            // |-
+            // <Q --> c>.
+            var unittestPremises:Array<Term> = [
+                Cop("==>", Cop("-->", Name("B"), Name("x")), Cop("-->", Name("Q"), Name("c"))),
+                Cop("-->", Name("B"), Name("x"))
+            ];
+
+            for (iUnittestPremise in unittestPremises) {
+                reasoner.input(iUnittestPremise, new Tv(1.0, 0.9), ".");
+            }
+
+            reasoner.process();
+
+            if (reasoner.conclusionStrArr.indexOf("< Q --> c >. {1 0.81}", null) == -1) {
+                throw "Unittest failed!";
+            }
+
+        }
+
+        { // unittest Q&A 
+            var reasoner:Sq2 = new Sq2();
+            reasoner.conclusionStrArr = []; // enable output logging
+
+            // <B --> x>?
+            // <B --> x>.
+            // has to get answered
+            var unittestPremise = Cop("-->", Name("B"), Name("x"));
+
+            reasoner.input(unittestPremise, null, "?");
+            reasoner.input(unittestPremise, new Tv(1.0, 0.9), ".");
+            
+
+            reasoner.process();
+
+            if (reasoner.conclusionStrArr.indexOf("Answer:[  ?ms]< B --> x >. {1 0.9}", null) == -1) {
+                throw "Unittest failed!";
+            }
+
+        }
+
+
         /* commented because BS
         { // unittest ==> detachment with swizzled premise 
             var reasoner:Sq2 = new Sq2();
@@ -943,6 +1065,14 @@ class TermUtils {
             case _: throw "Internal Error";
         }
     }
+
+    // checks if the two terms unify
+    // TODO< return variables of unifaction
+    public static function checkUnify(a:Term, b:Term) {
+        // TODO< do real unification >
+        return TermUtils.equal(a, b);
+    }
+
 }
 
 class Utils {
