@@ -14,6 +14,9 @@
 
 // TODO< revision >
 
+// TODO< attention mechansim : questions have way higher priority than judgments >
+
+// TODO< rename to Node like in ALANN >
 class Concept {
     public var name:Term; // name of the concept
 
@@ -504,7 +507,7 @@ class Sq2 {
         }
 
 
-
+        /* commented because BS
         if (premiseAPunctation == "?" && premiseBPunctation == ".") {
             switch (premiseATerm) {
                 // rule for helping with backward inference of implication
@@ -533,9 +536,11 @@ class Sq2 {
                 case _: null;
             }
         }
+        */
 
+        /* commented because it is BS because the conjuction has to talk about common sub-terms
         if (premiseAPunctation == "." && premiseBPunctation == ".") {
-            // rule for forward inference of implication
+            // rule for forward inference of implication (detachment)
             //ex:
             // (&&, <({0} * $0) --> x>, <({1} * $1) --> y>) ==> <($0 * $1) --> c>.
             // (&&, <({0} * X) --> x>, <({1} * Y) --> y>).
@@ -561,13 +566,45 @@ class Sq2 {
                         trace('DEBUG   NAL6-two impl  ${TermUtils.convToStr(unified1)}');
                         trace('DEBUG   NAL6-two impl  |- ${TermUtils.convToStr(unifiedImplPred)}');
 
-                        conclusions.push({term: unifiedImplPred, tv:Tv.deduction(premiseATv, premiseBTv), punctation:".", structuralOrigins:[], ruleName:"NAL6-two impl"});
+                        conclusions.push({term: unifiedImplPred, tv:Tv.deduction(premiseATv, premiseBTv), punctation:".", structuralOrigins:[], ruleName:"NAL6-two impl detach"});
                     }
 
 
                     case _: null;
                 }
 
+                case _: null;
+            }
+        }
+         */
+        
+
+
+        if (premiseAPunctation == "." && premiseBPunctation == ".") {
+            switch (premiseATerm) {
+                case Cop("==>", Compound("&&", [compoundA0, compoundA1]), implPred):
+                // TODO< var unification >
+                // ex:
+                // <(&&,<a --> x>,<c --> x>) ==> <X --> Y>>.
+                // <a-->x>.
+                // |-
+                // <c --> x> ==> <X --> Y>.
+                if (TermUtils.equal(compoundA0, premiseBTerm)) {
+                    var conclusion = Cop("==>", compoundA1, implPred);
+                    conclusions.push({term: conclusion, tv:Tv.deduction(premiseATv, premiseBTv)/*TODO check*/, punctation:".", structuralOrigins:[], ruleName:"NAL6-two impl ==> detach"});
+                }
+
+                // TODO< var unification >
+                // ex:
+                // <(&&,<a --> x>,<c --> x>) ==> <X --> Y>>.
+                // <c-->x>.
+                // |-
+                // <a --> x> ==> <X --> Y>.
+                if (TermUtils.equal(compoundA1, premiseBTerm)) {
+                    var conclusion = Cop("==>", compoundA0, implPred);
+                    conclusions.push({term: conclusion, tv:Tv.deduction(premiseATv, premiseBTv)/*TODO check*/, punctation:".", structuralOrigins:[], ruleName:"NAL6-two impl ==> detach"});
+                }
+                
                 case _: null;
             }
         }
@@ -682,17 +719,67 @@ class Sq2 {
         */
 
 
-        { // prototype of unittest
+        { // unittest ==> detachment 
+            var reasoner:Sq2 = new Sq2();
+            reasoner.conclusionStrArr = []; // enable output logging
+
+            // (&&, <A --> x>, <B --> x>) ==> <Q --> c>.
+            // <A --> x>.
+            // |-
+            // <B --> x> ==> <Q --> c>.
+            var unittestPremises:Array<Term> = [
+                Cop("==>", Compound("&&", [Cop("-->", Name("A"), Name("x")), Cop("-->", Name("B"), Name("x"))]), Cop("-->", Name("Q"), Name("c"))),
+                Cop("-->", Name("A"), Name("x"))
+            ];
+
+            for (iUnittestPremise in unittestPremises) {
+                reasoner.input(iUnittestPremise, new Tv(1.0, 0.9), ".");
+            }
+
+            reasoner.process();
+
+            if (reasoner.conclusionStrArr.indexOf("< < B --> x > ==> < Q --> c > >. {1 0.81}", null) == -1) {
+                throw "Unittest failed!";
+            }
+
+        }
+
+        { // unittest ==> detachment 
+            var reasoner:Sq2 = new Sq2();
+            reasoner.conclusionStrArr = []; // enable output logging
+
+            // (&&, <A --> x>, <B --> x>) ==> <Q --> c>.
+            // <B --> x>.
+            // |-
+            // <A --> x> ==> <Q --> c>.
+            var unittestPremises:Array<Term> = [
+                Cop("==>", Compound("&&", [Cop("-->", Name("A"), Name("x")), Cop("-->", Name("B"), Name("x"))]), Cop("-->", Name("Q"), Name("c"))),
+                Cop("-->", Name("B"), Name("x"))
+            ];
+
+            for (iUnittestPremise in unittestPremises) {
+                reasoner.input(iUnittestPremise, new Tv(1.0, 0.9), ".");
+            }
+
+            reasoner.process();
+
+            if (reasoner.conclusionStrArr.indexOf("< < A --> x > ==> < Q --> c > >. {1 0.81}", null) == -1) {
+                throw "Unittest failed!";
+            }
+
+        }
+        /* commented because BS
+        { // unittest ==> detachment with swizzled premise 
             var reasoner:Sq2 = new Sq2();
             reasoner.conclusionStrArr = []; // enable output logging
 
             // (&&, <A --> x>, <B --> y>) ==> <Q --> c>.
-            // (&&, <A --> x>, <B --> y>).
+            // (&&, <B --> y>, <A --> x>).
             // |-
             // <Q --> c>.
             var unittestPremises:Array<Term> = [
                 Cop("==>", Compound("&&", [Cop("-->", Name("A"), Name("x")), Cop("-->", Name("B"), Name("y"))]), Cop("-->", Name("Q"), Name("c"))),
-                Compound("&&", [Cop("-->", Name("A"), Name("x")), Cop("-->", Name("B"), Name("y"))])
+                Compound("&&", [Cop("-->", Name("B"), Name("y")), Cop("-->", Name("A"), Name("x"))])
             ];
 
             for (iUnittestPremise in unittestPremises) {
@@ -706,7 +793,7 @@ class Sq2 {
                 throw "Unittest failed!";
             }
 
-        }
+        } */
 
     }
 }
