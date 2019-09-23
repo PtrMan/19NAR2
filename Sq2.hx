@@ -10,7 +10,6 @@
 //    TODO< q&a with variables >
 //    TODO< var unification >
 
-// TODO< check stamp overlap of two premises! >
 
 // TODO< attention mechanism : sort after epoch and limit size for next epoch >
 
@@ -112,6 +111,13 @@ class StructuralOriginsStamp {
 
         return true;
     }
+
+    public static function checkOverlap(a:StructuralOriginsStamp, b:StructuralOriginsStamp):Bool {
+        if (a.arr.length == 0 && b.arr.length == 0) {
+            return false; // false because it is a special case because both structural stamps are empty
+        }
+        return StructuralOriginsStamp.equal(a, b);
+    }
 }
 
 class Stamp {
@@ -164,7 +170,7 @@ class Stamp {
             return false;
         }
 
-        if (checkStructural && !StructuralOriginsStamp.equal(a.structuralOrigins, b.structuralOrigins)) {
+        if (checkStructural && !StructuralOriginsStamp.checkOverlap(a.structuralOrigins, b.structuralOrigins)) {
             return false;
         }
         return true;
@@ -356,11 +362,18 @@ class Sq2 {
                     var secondaryPunctation = secondarySentence.punctation;
                     var secondaryStamp = secondarySentence.stamp;
 
-                    trace("   " +  TermUtils.convToStr(premiseTerm) +     "   ++++    "+TermUtils.convToStr(secondaryTerm));
+                    trace("inf   " +  TermUtils.convToStr(premiseTerm) +     "   ++++    "+TermUtils.convToStr(secondaryTerm));
 
-                    var conclusionsTwoPremisesAB = deriveTwoPremise(premiseTerm, premiseTv, premisePunctation, premiseStamp,   secondaryTerm, secondaryTv, secondaryPunctation, secondaryStamp);
-                    var conclusionsTwoPremisesBA = deriveTwoPremise(secondaryTerm, secondaryTv, secondaryPunctation, secondaryStamp,   premiseTerm, premiseTv, premisePunctation, premiseStamp);
-                    conclusionsTwoPremises = [].concat(conclusionsTwoPremisesAB).concat(conclusionsTwoPremisesBA);
+                    if (!Stamp.checkOverlap(premiseStamp, secondaryStamp)) {
+                        
+
+                        var conclusionsTwoPremisesAB = deriveTwoPremise(premiseTerm, premiseTv, premisePunctation, premiseStamp,   secondaryTerm, secondaryTv, secondaryPunctation, secondaryStamp);
+                        var conclusionsTwoPremisesBA = deriveTwoPremise(secondaryTerm, secondaryTv, secondaryPunctation, secondaryStamp,   premiseTerm, premiseTv, premisePunctation, premiseStamp);
+                        conclusionsTwoPremises = [].concat(conclusionsTwoPremisesAB).concat(conclusionsTwoPremisesBA);
+                    }
+                    else {
+                        trace('   stampOverlap a=${premiseStamp.ids.map(v -> haxe.Int64.toStr(v))}  b=${secondaryStamp.ids.map(v -> haxe.Int64.toStr(v))}');
+                    }
                 }
             }
 
@@ -851,6 +864,29 @@ class Sq2 {
 
         */
 
+        { // unittest stamp overlap
+            if (Stamp.checkOverlap(
+                new Stamp([haxe.Int64.make(0, 0)], new StructuralOriginsStamp([])), 
+                new Stamp([haxe.Int64.make(0, 1)], new StructuralOriginsStamp([])))
+            ) {
+                throw "Stamp overlap unittest (0) failed!";
+            }
+
+            if (!Stamp.checkOverlap(
+                new Stamp([haxe.Int64.make(0, 1)], new StructuralOriginsStamp([])), 
+                new Stamp([haxe.Int64.make(0, 1)], new StructuralOriginsStamp([])))
+            ) {
+                throw "Stamp overlap unittest (1) failed!";
+            }
+
+            if (!Stamp.checkOverlap(
+                new Stamp([haxe.Int64.make(0, 2), haxe.Int64.make(0, 1)], new StructuralOriginsStamp([])), 
+                new Stamp([haxe.Int64.make(0, 1)], new StructuralOriginsStamp([])))
+            ) {
+                throw "Stamp overlap unittest (2) failed!";
+            }
+            
+        }
 
         { // unittest ==> detachment 
             var reasoner:Sq2 = new Sq2();
