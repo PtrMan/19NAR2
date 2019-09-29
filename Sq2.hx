@@ -3,15 +3,21 @@
 
 
 
-// TODO< most NAL-2 like in patricks code generator >
+// TODO< most NAL-2 like in new meta rules >
 
 
 // TODO< variables >
 //    TODO< q&a with variables >
 //    TODO< var unification >
 
+// todo< equivalence >
+
+// TODO< structural transformation of <-> and <=> >
+
 
 // TODO< attention mechanism : sort after epoch and limit size for next epoch >
+
+// TODO< test attention mechanism with A-->I example from ALANN >
 
 // TODO< revision >
 
@@ -1022,6 +1028,8 @@ enum Term {
     Prod(terms:Array<Term>); // product
     Img(base:Term, content:Array<Term>); // image
     ImgWild; // wildcard for image NAL:"_"
+
+    Var(type:String,name:String); // variable, type can be "?","#","$"
 }
 
 class TermUtils {
@@ -1034,6 +1042,7 @@ class TermUtils {
             case Prod(content): Prod(content);
             case Img(base, content): Img(base, content); 
             case ImgWild: ImgWild;
+            case Var(type,name): Var(type,name);
             case _: throw "Internal Error";
         }
     }
@@ -1063,6 +1072,7 @@ class TermUtils {
             res.push(base);
             res;
             case ImgWild: [];
+            case Var(_,_): [];
             case _: throw "Internal Error";
         });
     }
@@ -1082,6 +1092,7 @@ class TermUtils {
             case Prod(content):
             var narseseContent = content.map(function(i) {return convToStr(i);}).join(" * ");
             '( $narseseContent )';
+            case Var(type,name): '$type$name';
             case _: throw "Internal Error";
         }
     }
@@ -1154,6 +1165,13 @@ class TermUtils {
                     }
                 }
                 return true;
+                case _:
+                return false;
+            }
+            case Var(typeA,nameA):
+            switch(b) {
+                case Var(typeB,nameB):
+                return typeA==typeB && nameA==nameB;
                 case _:
                 return false;
             }
