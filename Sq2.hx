@@ -8,9 +8,10 @@
 
 // TODO< variables >
 //    TODO< q&a with variables >
-//    TODO< var unification >
+//    TODO< var subst >
 
-// todo< equivalence >
+// todo< equivalence structural transformation >
+// TODO< impl structural transformation >
 
 // TODO< structural transformation of <-> and <=> >
 
@@ -329,7 +330,7 @@ class Sq2 {
 
                     // try to find better answer
                     for (iBelief in conceptOfTerm.judgments) {
-                        if (iBelief.tv.exp() > chosenWorkingSetEntity.bestAnswerExp && TermUtils.checkUnify(premiseSentence.term, iBelief.term) ) {
+                        if (iBelief.tv.exp() > chosenWorkingSetEntity.bestAnswerExp && Unifier.checkUnify(premiseSentence.term, iBelief.term) ) {
                             // found a better answer
                             chosenWorkingSetEntity.bestAnswerExp = iBelief.tv.exp();
                             reportAnswer(iBelief);
@@ -618,11 +619,11 @@ class Sq2 {
         // tries to unify a with b and return the unified term, returns null if it can't get unified
         // /param unificationType "indep" for only independent and question var unification
         function unifiesWithReplace(a, b, unifcationType:String): Null<Term> {
-            if (!TermUtils.checkUnify(a, b)) {
+            if (!Unifier.checkUnify(a, b)) {
                 return null;
             }
 
-            // TODO< apply variables and return substitution result >
+            // TODO TODO TODO TODO TODO< apply variables and return substitution result >
             return a;
         }
 
@@ -632,14 +633,16 @@ class Sq2 {
         // (&&, <({0} * $0) --> x>, <({1} * $1) --> y>) ==> <($0 * $1) --> c>.
         // |-
         // (&&, <({0} * ?0) --> x>, <({1} * ?1) --> y>)?
+        /* commented because not necessary for now
         if (premiseAPunctation == "?" && premiseBPunctation == ".") {
             switch(premiseBTerm) {
-                case Cop("==>", implSubj, implPred) if (TermUtils.checkUnify(premiseATerm, implPred)):
+                case Cop("==>", implSubj, implPred) if (Unifier.checkUnify(premiseATerm, implPred)):
                     conclusions.push({term:implSubj, tv:null, punctation:"?", stamp:mergedStamp, ruleName:"NAL-6.two impl detachment"});
                 
                 case _: null;
             }
         }
+        */
 
         
 
@@ -1043,7 +1046,6 @@ class TermUtils {
             case Img(base, content): Img(base, content); 
             case ImgWild: ImgWild;
             case Var(type,name): Var(type,name);
-            case _: throw "Internal Error";
         }
     }
 
@@ -1073,7 +1075,6 @@ class TermUtils {
             res;
             case ImgWild: [];
             case Var(_,_): [];
-            case _: throw "Internal Error";
         });
     }
 
@@ -1093,7 +1094,6 @@ class TermUtils {
             var narseseContent = content.map(function(i) {return convToStr(i);}).join(" * ");
             '( $narseseContent )';
             case Var(type,name): '$type$name';
-            case _: throw "Internal Error";
         }
     }
 
@@ -1175,17 +1175,15 @@ class TermUtils {
                 case _:
                 return false;
             }
-            case _: throw "Internal Error";
         }
     }
 
-    // checks if the two terms unify
-    // TODO< return variables of unifaction
-    public static function checkUnify(a:Term, b:Term) {
-        // TODO< do real unification >
-        return TermUtils.equal(a, b);
+    public static function isVar(term:Term): Bool {
+        return switch (term) {
+            case Var(_,_): true;
+            case _ : false;
+        }
     }
-
 }
 
 class Utils {
@@ -1287,5 +1285,122 @@ class Tv {
     static function w2c(w) { 
         var horizon = 1.0;
         return w / (w + horizon);
+    }
+}
+
+// TODO< substitute >
+
+class Unifier {
+    // checks if the two terms unify
+    public static function checkUnify(a:Term, b:Term) {
+        return unify(a, b, new Map<String, Term>());
+    }
+
+
+    // /param unifiedMap map my variable names and their assignments
+    // /return can it be unified?
+    public static function unify(a:Term, b:Term, unifiedMap:Map<String, Term>): Bool {
+        if (TermUtils.isVar(a) && !TermUtils.isVar(b)) {
+            return unifyVarWithNonVar(a, b, unifiedMap);
+        }
+        else if (!TermUtils.isVar(a) && TermUtils.isVar(b)) {
+            return unifyVarWithNonVar(b, a, unifiedMap);
+        }
+        else if (TermUtils.isVar(a) && TermUtils.isVar(b)) {
+            return false; // can't unify variable with variable!
+        }
+        // else we handle all other cases here
+        
+        if (TermUtils.equal(a, b) && !containsVar(a) && !containsVar(b)) {
+            return true;
+        }
+
+        // a or b are not variables and are not equal
+
+        // unifies array
+        function unifyArr(aArr:Array<Term>, bArr:Array<Term>): Bool {
+            if (aArr.length != bArr.length) {
+                return false;
+            }
+            for (idx in 0...aArr.length) {
+                if (!unify(aArr[idx],bArr[idx],unifiedMap)) {
+                    return false;
+                }
+            }
+            return true;
+        } 
+
+        switch (a) {
+            case Name(nameA):
+            return false; // doesn't unify because not equal
+            case Compound(typeA, contentA):
+            switch (b) {
+                case Compound(typeB, contentB) if (typeA==typeB):
+                return unifyArr(contentA, contentB);
+                case _:
+                return false; // can't unify because it is different
+            }
+            case Cop(copulaA, subjA, predA):
+            switch (b) {
+                case Cop(copulaB, subjB, predB) if (copulaA == copulaB):
+                return unify(subjA, subjB, unifiedMap) && unify(predA, predB, unifiedMap);
+                case _:
+                return false; // can't unify because it is different
+            }
+            case Prod(contentA):
+            switch (b) {
+                case Prod(contentB):
+                return unifyArr(contentA, contentB);
+                case _:
+                return false; // can't unify because it is different
+            }
+            case Img(baseA, contentA):
+            switch (b) {
+                case Img(baseB, contentB):
+                if (!unify(baseA, baseB, unifiedMap) ) {
+                    return false;
+                }
+                return unifyArr(contentA, contentB);
+                case _:
+                return false; // can't unify because it is different
+            }
+            case ImgWild:
+            return false; // doesn't unify because not equal
+            case Var(typeA,nameA):
+            throw "Internal error - should be handled earilier in function!";
+        }
+
+        return true; // can unify
+    }
+
+    // tries to unify a variable with a non-variable
+    // /return null if it can't get unified, otherwise the unified term
+    private static function unifyVarWithNonVar(varTerm:Term, nonvarTerm:Term, unifiedMap:Map<String, Term>): Bool {
+        var varType;
+        var varName;
+        switch (varTerm) {
+            case Var(varType2,varName2):
+            varType = varType2;
+            varName = varName2;
+            case _: throw "Internal Error - varTerm must be a variable!";
+        }
+
+        var fusedVarTypeName = '$varType$varName';
+
+        // lookup
+        var lookupResultTerm:Term = unifiedMap.get(fusedVarTypeName);
+        if( lookupResultTerm != null ) { // if variable has already a assigment
+            return TermUtils.equal(lookupResultTerm, nonvarTerm); // lookuped term must be the same term, else it doesn't unify!
+        }
+
+        // assign term to variable
+        unifiedMap.set(fusedVarTypeName, nonvarTerm);
+
+        return true;
+    }
+
+    private static function containsVar(a:Term): Bool {
+        // TODO TODO TODO
+        return false;
     }
 }
