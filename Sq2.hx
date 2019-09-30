@@ -5,15 +5,13 @@
 
 // TODO< most NAL-2 like in new meta rules >
 
-
-// TODO< variables >
-//    TODO< q&a with variables >
-//    TODO< var subst >
-
-// todo< equivalence structural transformation >
-// TODO< impl structural transformation >
-
 // TODO< structural transformation of <-> and <=> >
+// TODO< unittest structural transformation of <-> and <=> >
+
+// todo< equivalence structural transformation with two premises ded >
+// TODO< impl structural transformation with two premises ded >
+
+
 
 
 // TODO< attention mechanism : sort after epoch and limit size for next epoch >
@@ -32,7 +30,7 @@
 
 // TODO COMPLICATED< Q&A - do structural transformations on question side without adding the question to the memory or the tasks, sample all possible structural transformations and remember which transformations were done, etc >
 
-
+// DONE< variables >
 
 // TODO< rename to Node like in ALANN >
 class Concept {
@@ -317,9 +315,9 @@ class Sq2 {
 
             // Q&A
             if (premiseSentence.punctation == "?") {
-                // TODO LATER< enumerate subterms>
+                // enumerate subterms
                 // checked terms for enumeration of subterms of question
-                var checkedTerms = [premiseSentence.term];
+                var checkedTerms = TermUtils.enumTerms(premiseSentence.term);
 
                 for (iTermName in checkedTerms) {
                     // try to retrieve concept
@@ -358,7 +356,7 @@ class Sq2 {
 
                 // select random secondary premise
                 var primaryConcept = mem.retConceptByName(TermUtils.convToStr(selectedSecondaryPremiseTerm));
-                if (primaryConcept.judgments.length > 0) {
+                if (primaryConcept != null && primaryConcept.judgments.length > 0) {
                     trace("two premise derivation !");
 
                     var secondaryIdx = Std.random(primaryConcept.judgments.length);
@@ -617,14 +615,18 @@ class Sq2 {
         }
 
         // tries to unify a with b and return the unified term, returns null if it can't get unified
-        // /param unificationType "indep" for only independent and question var unification
-        function unifiesWithReplace(a, b, unifcationType:String): Null<Term> {
-            if (!Unifier.checkUnify(a, b)) {
+        // /param a contains variables
+        // /param b contains values for the variables
+        // /param varTypes
+        function unifiesWithReplace(a, b, varTypes:String): Null<Term> {
+            var unifiedMap = new Map<String, Term>();
+
+            if (!Unifier.unify(a, b, unifiedMap)) {
                 return null;
             }
 
-            // TODO TODO TODO TODO TODO< apply variables and return substitution result >
-            return a;
+            // apply variables and return substitution result
+            return Unifier.substitute(a, unifiedMap, varTypes);
         }
 
         // handling of implications for backward inference with detachment
@@ -873,6 +875,12 @@ class Sq2 {
 
         */
 
+
+
+
+
+
+
         { // unittest stamp overlap
             if (Stamp.checkOverlap(
                 new Stamp([haxe.Int64.make(0, 0)], new StructuralOriginsStamp([])), 
@@ -983,6 +991,25 @@ class Sq2 {
 
             reasoner.input(unittestPremise, null, "?");
             reasoner.input(unittestPremise, new Tv(1.0, 0.9), ".");
+            
+
+            reasoner.process();
+
+            if (reasoner.conclusionStrArr.indexOf("Answer:[  ?ms]< B --> x >. {1 0.9}", null) == -1) {
+                throw "Unittest failed!";
+            }
+
+        }
+
+        { // unittest Q&A with var
+            var reasoner:Sq2 = new Sq2();
+            reasoner.conclusionStrArr = []; // enable output logging
+
+            // <?B --> x>?
+            // <B --> x>.
+            // has to get answered
+            reasoner.input(Cop("-->", Var("?","B"), Name("x")), null, "?");
+            reasoner.input(Cop("-->", Name("B"), Name("x")), new Tv(1.0, 0.9), ".");
             
 
             reasoner.process();
@@ -1288,9 +1315,41 @@ class Tv {
     }
 }
 
-// TODO< substitute >
-
 class Unifier {
+    // substitute variables with actual variables
+    // /param varTypes types of variables, can be any string of the combination "?","#","$"
+    public static function substitute(term:Term, unifiedMap:Map<String, Term>, varTypes:String): Term {
+        function substituteArr(arr:Array<Term>):Array<Term> {
+            return arr.map(term -> substitute(term, unifiedMap, varTypes));
+        }
+        
+        switch (term) {
+            case Name(name): return term;
+            case Compound(type, content): return Compound(type, substituteArr(content));
+            case Cop(copula, subj, pred): return Cop(copula, substitute(subj, unifiedMap, varTypes), substitute(pred, unifiedMap, varTypes));
+            case Prod(content):
+            return Prod(substituteArr(content));
+            case Img(base, content):
+            var substBase = substitute(base, unifiedMap, varTypes);
+            var substContent = substituteArr(content);
+            return Img(substBase, substContent); 
+            case ImgWild: return ImgWild;
+            case Var(type,name): 
+            if (varTypes.indexOf(type)!=-1) {
+                var varValue = unifiedMap.get('$type$name');
+                if (varValue == null) {
+                    return term; // return untouched because we couldn't find it
+                }
+                else {
+                    return varValue; // return substituted
+                }
+            }
+            else {
+                return term; // return untouched term because we can't substitute it anyways
+            }
+        }
+    }
+
     // checks if the two terms unify
     public static function checkUnify(a:Term, b:Term) {
         return unify(a, b, new Map<String, Term>());
