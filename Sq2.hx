@@ -5,13 +5,12 @@
 
 // TODO< most NAL-2 like in new meta rules >
 
-// TODO< structural transformation of <-> and <=> >
-// TODO< unittest structural transformation of <-> and <=> >
-
 // todo< equivalence structural transformation with two premises ded >
 // TODO< impl structural transformation with two premises ded >
 
-
+// TODO< structural transform from images back to products >
+// TODO TEST< structural transform from images back to products >
+// TODO TEST< structural transform from products to images >
 
 
 // TODO< attention mechanism : sort after epoch and limit size for next epoch >
@@ -31,6 +30,10 @@
 // TODO COMPLICATED< Q&A - do structural transformations on question side without adding the question to the memory or the tasks, sample all possible structural transformations and remember which transformations were done, etc >
 
 // DONE< variables >
+
+// DONE< structural transformation of <-> and <=> >
+// DONE TEST< unittest structural transformation of <-> and <=> >
+
 
 // TODO< rename to Node like in ALANN >
 class Concept {
@@ -791,6 +794,22 @@ class Sq2 {
             case _: null;
         }
 
+        // NAL-2 <-> / NAL-6 <=> structural transformation
+        if (premisePunctation == ".") switch (premiseTerm) {
+            case Cop(copula, subj, pred) if (copula == "<->" || copula == "<=>"):
+
+            // TODO< bump derivation depth >
+            
+            var conclusionTerm = Cop(copula, pred,subj);
+            
+            if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
+                var structuralOrigins = new StructuralOriginsStamp( premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]) );
+                conclusions.push({term:conclusionTerm, tv:premiseTv, punctation:".", stamp:new Stamp(premiseStamp.ids, structuralOrigins), ruleName:(copula == "<->" ? "NAL-2" : "NAL-6") + ".single structural"});
+            }
+
+            case _: null;
+        }
+
 
         // NAL-6  product to image transform
         if (premisePunctation == ".") switch (premiseTerm) {
@@ -1018,6 +1037,40 @@ class Sq2 {
                 throw "Unittest failed!";
             }
 
+        }
+
+        { // unittest structural <->
+            var reasoner:Sq2 = new Sq2();
+            reasoner.conclusionStrArr = []; // enable output logging
+
+            // <B <-> x>.
+            // has to get answered
+            var unittestPremise = Cop("<->", Name("B"), Name("x"));
+            reasoner.input(unittestPremise, new Tv(1.0, 0.9), ".");
+            
+
+            reasoner.process();
+
+            if (reasoner.conclusionStrArr.indexOf("< x <-> B >. {1 0.9}", null) == -1) {
+                throw "Unittest failed!";
+            }
+        }
+
+        { // unittest structural <=>
+            var reasoner:Sq2 = new Sq2();
+            reasoner.conclusionStrArr = []; // enable output logging
+
+            // <B <=> x>.
+            // has to get answered
+            var unittestPremise = Cop("<=>", Name("B"), Name("x"));
+            reasoner.input(unittestPremise, new Tv(1.0, 0.9), ".");
+            
+
+            reasoner.process();
+
+            if (reasoner.conclusionStrArr.indexOf("< x <=> B >. {1 0.9}", null) == -1) {
+                throw "Unittest failed!";
+            }
         }
 
 
