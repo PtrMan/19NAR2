@@ -94,7 +94,9 @@ class Memory {
             // update
             nodeOfTerm.judgments.push(sentence);
 
-            // TODO< sort judgments by metric >
+            // sort judgments by metric and limit size
+            nodeOfTerm.judgments.sort( (a, b) -> (a.tv.exp() < b.tv.exp() ? 1 : ((a.tv.exp() == b.tv.exp()) ? 0 : -1) ));
+            nodeOfTerm.judgments = nodeOfTerm.judgments.slice(0, Config.beliefsPerNode);
         }
     }
 }
@@ -256,6 +258,9 @@ class WorkingSet {
     }
 }
 
+class Config {
+    public static var beliefsPerNode:Int = 30;
+}
 
 // TODO< safe structuralOrigins correctly by appending >
 class Sq2 {
