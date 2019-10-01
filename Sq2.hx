@@ -8,9 +8,6 @@
 // todo< equivalence structural transformation with two premises ded >
 // TODO< impl structural transformation with two premises ded >
 
-// TODO< structural transform from images back to products >
-// TODO TEST< structural transform from images back to products >
-// TODO TEST< structural transform from products to images >
 
 
 // TODO< attention mechanism : sort after epoch and limit size for next epoch >
@@ -35,6 +32,10 @@
 // DONE TEST< unittest structural transformation of <-> and <=> >
 
 // DONE< rename to Node like in ALANN >
+
+// DONE< structural transform from images back to products >
+// DONE TEST< structural transform from images back to products >
+// DONE TEST< structural transform from products to images >
 
 class Node {
     public var name:Term; // name of the concept
@@ -842,7 +843,35 @@ class Sq2 {
             case _: null;
         }
 
-        // TODO< from image to product >
+        // NAL-6  image to product transform
+        if (premisePunctation == ".") switch (premiseTerm) {
+            case Cop("-->", inhSubj, Img(inhPred, [ImgWild, prod1])):
+
+            // TODO< bump derivation depth >
+
+            var conclusionTerm = Cop("-->", Prod([inhSubj, prod1]), inhPred);
+            
+            if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
+                // <(*, inhSubj, prod1) --> inhPred>
+                var structuralOrigins = new StructuralOriginsStamp( premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]) );
+                conclusions.push({term:conclusionTerm, tv:premiseTv, punctation:".", stamp:new Stamp(premiseStamp.ids, structuralOrigins), ruleName:"NAL-6.single img->prod"});
+            }
+
+
+            case Cop("-->", inhSubj, Img(inhPred, [prod0, ImgWild])):
+
+            // TODO< bump derivation depth >
+
+            var conclusionTerm = Cop("-->", Prod([prod0, inhSubj]), inhPred);
+            
+            if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
+                // <(*, prod0, inhSubj) --> inhPred>
+                var structuralOrigins = new StructuralOriginsStamp( premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]) );
+                conclusions.push({term:conclusionTerm, tv:premiseTv, punctation:".", stamp:new Stamp(premiseStamp.ids, structuralOrigins), ruleName:"NAL-6.single img->prod"});
+            }
+
+            case _: null;
+        }
 
         trace(TermUtils.convToStr(premiseTerm)+premisePunctation);
 
@@ -869,35 +898,6 @@ class Sq2 {
         }
         */
 
-
-        /* small test experiment #2
-        { // create "seed" premise and put it into working set
-            var premiseTerm:Term = Cop("-->", Name("a"), Name("c"));
-            var premiseTermStructuralOrigins:Array<Term> = [];
-            var premiseTv:Tv = new Tv(1.0, 0.9);
-
-            var sentence = new Sentence(premiseTerm, premiseTv, new Stamp(new StructuralOriginsStamp([])), ".");
-            mem.updateConceptsForJudgment(sentence);
-
-            var workingSetEntity = new WorkingSetEntity(sentence);
-
-            workingSet.entities.push(workingSetEntity);
-        }
-
-        { // create "seed" premise and put it into working set
-            var premiseTerm:Term = Cop("-->", Name("b"), Name("c"));
-            var premiseTermStructuralOrigins:Array<Term> = [];
-            var premiseTv:Tv = new Tv(1.0, 0.9);
-
-            var sentence = new Sentence(premiseTerm, premiseTv, new Stamp(new StructuralOriginsStamp([])), ".");
-            mem.updateConceptsForJudgment(sentence);
-
-            var workingSetEntity = new WorkingSetEntity(sentence);
-
-            workingSet.entities.push(workingSetEntity);
-        }
-
-        */
 
 
 
@@ -927,6 +927,79 @@ class Sq2 {
                 throw "Stamp overlap unittest (2) failed!";
             }
             
+        }
+
+        { // unittest prod to img
+            var reasoner:Sq2 = new Sq2();
+            reasoner.conclusionStrArr = []; // enable output logging
+
+            // <(a * b) --> prod>.
+            // |-
+            // <a --> (prod / _ b)>.
+            // <b --> (prod / a _)>.
+
+            var unittestPremises:Array<Term> = [
+                Cop("-->", Prod([Name("a"),Name("b")]), Name("prod"))
+            ];
+
+            for (iUnittestPremise in unittestPremises) {
+                reasoner.input(iUnittestPremise, new Tv(1.0, 0.9), ".");
+            }
+
+            reasoner.process();
+
+            if (reasoner.conclusionStrArr.indexOf("< a --> (/ prod _ b) >. {1 0.9}", null) == -1) {
+                throw "Unittest failed!";
+            }
+            if (reasoner.conclusionStrArr.indexOf("< b --> (/ prod a _) >. {1 0.9}", null) == -1) {
+                throw "Unittest failed!";
+            }
+        }
+
+        { // unittest img to prod
+            var reasoner:Sq2 = new Sq2();
+            reasoner.conclusionStrArr = []; // enable output logging
+
+            // <a --> (prod / _ b)>.
+            // |-
+            // <(a * b) --> prod>.
+
+            var unittestPremises:Array<Term> = [
+                Cop("-->", Name("a"), Img(Name("prod"), [ImgWild, Name("b")]))
+            ];
+
+            for (iUnittestPremise in unittestPremises) {
+                reasoner.input(iUnittestPremise, new Tv(1.0, 0.9), ".");
+            }
+
+            reasoner.process();
+
+            if (reasoner.conclusionStrArr.indexOf("< ( a * b ) --> prod >. {1 0.9}", null) == -1) {
+                throw "Unittest failed!";
+            }
+        }
+
+        { // unittest img to prod
+            var reasoner:Sq2 = new Sq2();
+            reasoner.conclusionStrArr = []; // enable output logging
+
+            // <b --> (prod / a _)>.
+            // |-
+            // <(a * b) --> prod>.
+
+            var unittestPremises:Array<Term> = [
+                Cop("-->", Name("b"), Img(Name("prod"), [Name("a"), ImgWild]))
+            ];
+
+            for (iUnittestPremise in unittestPremises) {
+                reasoner.input(iUnittestPremise, new Tv(1.0, 0.9), ".");
+            }
+
+            reasoner.process();
+
+            if (reasoner.conclusionStrArr.indexOf("< ( a * b ) --> prod >. {1 0.9}", null) == -1) {
+                throw "Unittest failed!";
+            }
         }
 
         { // unittest ==> detachment 
