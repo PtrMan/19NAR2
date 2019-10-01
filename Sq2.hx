@@ -34,9 +34,9 @@
 // DONE< structural transformation of <-> and <=> >
 // DONE TEST< unittest structural transformation of <-> and <=> >
 
+// DONE< rename to Node like in ALANN >
 
-// TODO< rename to Node like in ALANN >
-class Concept {
+class Node {
     public var name:Term; // name of the concept
 
     public var judgments: Array<Sentence> = []; // all judgments of the concept
@@ -48,7 +48,7 @@ class Concept {
 
 class Memory {
     // name key is name as string
-    public var conceptsByName:Map<String, Concept> = new Map<String, Concept>();
+    public var conceptsByName:Map<String, Node> = new Map<String, Node>();
 
     public function new() {}
 
@@ -56,31 +56,31 @@ class Memory {
         return conceptsByName.get(name) != null;
     }
 
-    public function retConceptByName(name:String): Concept {
+    public function retConceptByName(name:String): Node {
         return conceptsByName.get(name);
     }
 
-    public function addConcept(concept:Concept) {
+    public function addConcept(concept:Node) {
         conceptsByName.set( TermUtils.convToStr(concept.name) , concept);
     }
 
     // puts judgment into corresponding concepts
     public function updateConceptsForJudgment(sentence:Sentence) {
         for (iTermName in TermUtils.enumTerms(sentence.term)) {
-            var conceptOfTerm;
+            var nodeOfTerm;
             
             // retrieve or create concept
             if (hasConceptByName(TermUtils.convToStr(iTermName))) {
-                conceptOfTerm = retConceptByName(TermUtils.convToStr(iTermName));
+                nodeOfTerm = retConceptByName(TermUtils.convToStr(iTermName));
             }
             else {
-                conceptOfTerm = new Concept(iTermName);
-                addConcept(conceptOfTerm);
+                nodeOfTerm = new Node(iTermName);
+                addConcept(nodeOfTerm);
             }
 
             // we need to check for the existence of a judgment with the same stamp and TV
             var exists = false;
-            for (iJudgment in conceptOfTerm.judgments) {
+            for (iJudgment in nodeOfTerm.judgments) {
                 if (Sentence.equal(iJudgment, sentence)) {
                     exists = true;
                     break;
@@ -92,7 +92,7 @@ class Memory {
             }
 
             // update
-            conceptOfTerm.judgments.push(sentence);
+            nodeOfTerm.judgments.push(sentence);
 
             // TODO< sort judgments by metric >
         }
@@ -327,10 +327,10 @@ class Sq2 {
                     if (!mem.hasConceptByName(TermUtils.convToStr(iTermName))) {
                         continue;
                     }
-                    var conceptOfTerm: Concept = mem.retConceptByName(TermUtils.convToStr(iTermName));
+                    var nodeOfTerm: Node = mem.retConceptByName(TermUtils.convToStr(iTermName));
 
                     // try to find better answer
-                    for (iBelief in conceptOfTerm.judgments) {
+                    for (iBelief in nodeOfTerm.judgments) {
                         if (iBelief.tv.exp() > chosenWorkingSetEntity.bestAnswerExp && Unifier.checkUnify(premiseSentence.term, iBelief.term) ) {
                             // found a better answer
                             chosenWorkingSetEntity.bestAnswerExp = iBelief.tv.exp();
