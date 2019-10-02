@@ -6,8 +6,17 @@
 // TODO< most NAL-2 like in new meta rules >
 
 // todo< equivalence structural transformation with two premises ded >
+// ex:
+// <c-->d>. [1]
+// <<$x-->d> <=> <$x-->e>>. [2]
+// |-
+// <c-->e>. [1]
 // TODO< impl structural transformation with two premises ded >
-
+// ex:
+// <c-->d>. [1]
+// <<$x-->d> ==> <$x-->e>>. [2]
+// |-
+// <c-->e>. [1]
 
 
 // TODO< attention mechanism : sort after epoch and limit size for next epoch >
@@ -19,6 +28,8 @@
 // TODO< attention mechansim : questions have way higher priority than judgments >
 
 // TODO< attention mechanism : stresstest attention >
+
+// TODO< backward derivation >
 
 // TODO< keep concepts under AIKR (ask patrick how)>
 
@@ -756,8 +767,9 @@ class Sq2 {
                     conclusions.push({term: conclusion, tv:Tv.deduction(premiseATv, premiseBTv)/*TODO check*/, punctation:".", stamp:mergedStamp, ruleName:"NAL6-two impl ==> detach conj[1]"});
                 }
 
-                case Cop("==>", implSubj, implPred):
+                case Cop(copula, implSubj, implPred) if (copula == "==>" || copula == "<=>"):
                 // TODO< var unification >
+                // works for equivalence because equivalence is a "special case" of implication
                 // ex:
                 // <a --> x> ==> <X --> Y>>.
                 // <a-->x>.
@@ -1062,6 +1074,31 @@ class Sq2 {
             // <Q --> c>.
             var unittestPremises:Array<Term> = [
                 Cop("==>", Cop("-->", Name("B"), Name("x")), Cop("-->", Name("Q"), Name("c"))),
+                Cop("-->", Name("B"), Name("x"))
+            ];
+
+            for (iUnittestPremise in unittestPremises) {
+                reasoner.input(iUnittestPremise, new Tv(1.0, 0.9), ".");
+            }
+
+            reasoner.process();
+
+            if (reasoner.conclusionStrArr.indexOf("< Q --> c >. {1 0.81}", null) == -1) {
+                throw "Unittest failed!";
+            }
+
+        }
+
+        { // unittest <=> single premise impl detach
+            var reasoner:Sq2 = new Sq2();
+            reasoner.conclusionStrArr = []; // enable output logging
+
+            // <<B --> x> <=> <Q --> c>>.
+            // <B --> x>.
+            // |-
+            // <Q --> c>.
+            var unittestPremises:Array<Term> = [
+                Cop("<=>", Cop("-->", Name("B"), Name("x")), Cop("-->", Name("Q"), Name("c"))),
                 Cop("-->", Name("B"), Name("x"))
             ];
 
