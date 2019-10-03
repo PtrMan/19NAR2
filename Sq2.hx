@@ -23,8 +23,6 @@
 
 // TODO< test attention mechanism with A-->I example from ALANN >
 
-// TODO< revision >
-
 // TODO< attention mechansim : questions have way higher priority than judgments >
 
 // TODO< attention mechanism : stresstest attention >
@@ -47,6 +45,8 @@
 // DONE< structural transform from images back to products >
 // DONE TEST< structural transform from images back to products >
 // DONE TEST< structural transform from products to images >
+
+// DONE< revision >
 
 class Node {
     public var name:Term; // name of the concept
@@ -390,11 +390,26 @@ class Sq2 {
                     trace("inf   " +  TermUtils.convToStr(premiseTerm) +     "   ++++    "+TermUtils.convToStr(secondaryTerm));
 
                     if (!Stamp.checkOverlap(premiseStamp, secondaryStamp)) {
-                        
+                        if (premisePunctation == "." && secondaryPunctation == "." && TermUtils.equal(premiseTerm, secondaryTerm)) { // can do revision
+                            var tv = Tv.revision(premiseTv, secondaryTv);
+                            var mergedStamp = Stamp.merge(premiseStamp, secondaryStamp);
+                            var revisedSentence = new Sentence(premiseTerm, tv, mergedStamp, ".");
+                            primaryConcept.judgments[secondaryIdx] = revisedSentence;
 
-                        var conclusionsTwoPremisesAB = deriveTwoPremise(premiseTerm, premiseTv, premisePunctation, premiseStamp,   secondaryTerm, secondaryTv, secondaryPunctation, secondaryStamp);
-                        var conclusionsTwoPremisesBA = deriveTwoPremise(secondaryTerm, secondaryTv, secondaryPunctation, secondaryStamp,   premiseTerm, premiseTv, premisePunctation, premiseStamp);
-                        conclusionsTwoPremises = [].concat(conclusionsTwoPremisesAB).concat(conclusionsTwoPremisesBA);
+                            { // print and add for debugging
+                                var conclusionAsStr = TermUtils.convToStr(premiseTerm) +  premisePunctation+" " + tv.convToStr();
+                                trace(conclusionAsStr);
+
+                                if (conclusionStrArr != null) { // used for debugging and unittesting
+                                    conclusionStrArr.push(conclusionAsStr);
+                                }
+                            }
+                        }
+                        else { // can't do revision, try normal inference
+                            var conclusionsTwoPremisesAB = deriveTwoPremise(premiseTerm, premiseTv, premisePunctation, premiseStamp,   secondaryTerm, secondaryTv, secondaryPunctation, secondaryStamp);
+                            var conclusionsTwoPremisesBA = deriveTwoPremise(secondaryTerm, secondaryTv, secondaryPunctation, secondaryStamp,   premiseTerm, premiseTv, premisePunctation, premiseStamp);
+                            conclusionsTwoPremises = [].concat(conclusionsTwoPremisesAB).concat(conclusionsTwoPremisesBA);
+                        }
                     }
                     else {
                         trace('   stampOverlap a=${premiseStamp.ids.map(v -> haxe.Int64.toStr(v))}  b=${secondaryStamp.ids.map(v -> haxe.Int64.toStr(v))}');
@@ -941,6 +956,27 @@ class Sq2 {
             
         }
 
+        { // unittest revision
+            var reasoner:Sq2 = new Sq2();
+            reasoner.conclusionStrArr = []; // enable output logging
+
+
+            var unittestPremises:Array<Term> = [
+                Cop("-->", Name("a"),Name("b")),
+                Cop("-->", Name("a"),Name("b")),
+            ];
+
+            for (iUnittestPremise in unittestPremises) {
+                reasoner.input(iUnittestPremise, new Tv(1.0, 0.9), ".");
+            }
+
+            reasoner.process();
+
+            if (reasoner.conclusionStrArr.indexOf("< a --> b >. {1 0.94736842105263164}", null) == -1) {
+                throw "Unittest failed!";
+            }
+        }
+
         { // unittest prod to img
             var reasoner:Sq2 = new Sq2();
             reasoner.conclusionStrArr = []; // enable output logging
@@ -1415,6 +1451,13 @@ class Tv {
         return new Tv(0, c);
     }*/
 
+    public static function revision(a: Tv, b: Tv): Tv {
+        var w1 = c2w(a.conf);
+        var w2 = c2w(b.conf);
+        var w = w1 + w2;
+        return new Tv((w1 * a.freq + w2 * b.freq) / w, w2c(w));
+    }
+
     public static function conversion(tv:Tv) {
         var w = and(tv.freq, tv.conf);
         var c = w2c(w);
@@ -1480,6 +1523,11 @@ class Tv {
     static function w2c(w) { 
         var horizon = 1.0;
         return w / (w + horizon);
+    }
+
+    static function c2w(c: Float): Float {
+        var horizon = 1.0;
+        return horizon * c / (1.0 - c);
     }
 }
 
