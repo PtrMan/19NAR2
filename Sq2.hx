@@ -20,16 +20,28 @@
 
 
 
-// TODO< infer impl from premises >
+// TODO< infer impl only in backward way >
 //<cat --> [bites]>.
 //<dog --> [bites]>.
 //<<cat --> $1> ==> <dog --> $1>>?
 //
 //mr_nars4
 //Answer: <<cat --> $1> ==> <dog --> $1>>. %1.00;0.40%
+//
+//
+// other ex:
+//<(*,a,b) --> R>.
+//<(*,b,a) --> R>.
+//<<(,$1,$2) --> R> ==> <(,$2,$1) --> R>>?
+//mr_nars4
+//Answer: <<(*,$1,$2) --> R> ==> <(*,$2,$1) --> R>>. %1.00;0.40%
+
+
 
 
 // TODO BUG< do revision on input processing time too >
+
+// TODO< implement Unifier.containsVar() and unittest >
 
 // TODO< attention mechanism : sort after epoch and limit size for next epoch >
 
@@ -46,6 +58,8 @@
 // TODO< add sets >
 
 // TODO COMPLICATED< Q&A - do structural transformations on question side without adding the question to the memory or the tasks, sample all possible structural transformations and remember which transformations were done, etc >
+
+
 
 // DONE< variables >
 
@@ -2098,6 +2112,11 @@ class Lexer<EnumTokenOperationType> {
 
 // operation for narsese tokens
 enum EnumOperationType {
+	INHERITANCE; // -->
+    SIMILARITY; // <->
+	IMPLICATION; // ==>
+	EQUIVALENCE; // <=>
+
 	BRACEOPEN; // <
 	BRACECLOSE; // >
 	//ROUNDBRACEOPEN; // (
@@ -2105,13 +2124,10 @@ enum EnumOperationType {
     //BRACKETOPEN; // [
 	//BRACKETCLOSE; // ]
 	//KEY;
-	//POUNDKEY; // #
-	INHERITANCE; // -->
-    SIMILARITY; // <->
-	//IMPLCIATION; // ==>
-	//EQUIVALENCE; // <=>
-	//INDEPENDENTVAR; // $
-	//DEPENDENTVAR; // #
+
+	//INDEPENDENTVAR; // $XXX
+	//DEPENDENTVAR; // #XXX
+	//QUESTIONVAR; // ?XXX
 	
     DOT; // .
     QUESTIONMARK; // ?
@@ -2119,8 +2135,9 @@ enum EnumOperationType {
     //AT; // @
     //STAR; // *
     //COMMA; // ,
-    //AMPERSAND; // &
     //DOUBLEAMPERSAND; // &&
+    //AMPERSAND; // &
+
 
 	//HALFH; // |-    
 }
@@ -2131,13 +2148,15 @@ class NarseseLexer extends Lexer<EnumOperationType> {
 
         tokenRules = [
             /* 0 */"^\\ ", // special token for space
-            /* 1 */"^<",
-            /* 2 */"^>",
-            /* 3 */"^\\-\\->",
-            /* 4 */"^<\\->",
-            /* 5 */"^\\.",
-            /* 6 */"^\\?",
-            /* 7 */"^[a-z0-9A-Z_]+", // identifier // TODO< other letters >
+            /* 1 */"^\\-\\->",
+            /* 2 */"^<\\->",
+            /* 3 */"^==>",
+            /* 4 */"^<=>",
+            /* 5 */"^<",
+            /* 6 */"^>",
+            /* 7 */"^\\.",
+            /* 8 */"^\\?",
+            /* 9 */"^[a-z0-9A-Z_\\.]+", // identifier // TODO< other letters >
 
         ];
     }
@@ -2148,42 +2167,56 @@ class NarseseLexer extends Lexer<EnumOperationType> {
         switch (ruleIndex) { // switch on index of tokenRules
             case 0: // empty token
             return null;
-            
+
             case 1:
-            var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
-            res.contentOperation = EnumOperationType.BRACEOPEN;
-            return res;
-
-            case 2:
-            var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
-            res.contentOperation = EnumOperationType.BRACECLOSE;
-            return res;
-
-            case 3:
             var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
             res.contentOperation = EnumOperationType.INHERITANCE;
             res.contentString = matchedString;
             return res;
 
-            case 4:
+            case 2:
             var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
             res.contentOperation = EnumOperationType.SIMILARITY;
             res.contentString = matchedString;
             return res;
 
+            case 3:
+            var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
+            res.contentOperation = EnumOperationType.IMPLICATION;
+            res.contentString = matchedString;
+            return res;
+
+            case 4:
+            var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
+            res.contentOperation = EnumOperationType.EQUIVALENCE;
+            res.contentString = matchedString;
+            return res;
+
             case 5:
+            var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
+            res.contentOperation = EnumOperationType.BRACEOPEN;
+            return res;
+
+            case 6:
+            var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
+            res.contentOperation = EnumOperationType.BRACECLOSE;
+            return res;
+
+
+
+            case 7:
             var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
             res.contentOperation = EnumOperationType.DOT;
             res.contentString = matchedString;
             return res;
 
-            case 6:
+            case 8:
             var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
             res.contentOperation = EnumOperationType.QUESTIONMARK;
             res.contentString = matchedString;
             return res;
 
-            case 7:
+            case 9:
             var res = new Token<EnumOperationType>(EnumTokenType.IDENTIFIER);
             res.contentString = matchedString;
             return res;
@@ -2205,23 +2238,22 @@ class NarseseParser extends Parser<EnumOperationType> {
 
     public override function convOperationToCode(op: EnumOperationType): Int {
         return switch (op) {
+            case INHERITANCE: 1; // -->
+            case SIMILARITY: 2; // <->
+	        case IMPLICATION: 3; // ==>
+	        case EQUIVALENCE: 4; // <=>
 
-	        case BRACEOPEN: 1; // <
-	        case BRACECLOSE: 2; // >
+	        case BRACEOPEN: 5; // <
+	        case BRACECLOSE: 6; // >
 	//BRACKETOPEN; // [
 	//BRACKETCLOSE; // ]
 	//KEY;
-	//POUNDKEY; // #
-	        case INHERITANCE: 3; // -->
-            case SIMILARITY: 4; // <->
-	//IMPLCIATION; // ==>
-	//EQUIVALENCE; // <=>
-	//HALFH; // |-
+	        
 	//INDEPENDENTVAR; // $
 	//DEPENDENTVAR; // #
 	//CONJUNCTION; // &&
-            case DOT: 5; // .
-            case QUESTIONMARK: 6; // ?
+            case DOT: 7; // .
+            case QUESTIONMARK: 8; // ?
         }
     }
 }
@@ -2236,15 +2268,18 @@ class Line<EnumOperationType> {
 class ProtoLexer {
     public static function main() {
         // print printed terms to check right parsing manually
-        var printedTerms = [
-            TermUtils.convToStr( parse("< a_ --><b --> c >  >.")),
-            TermUtils.convToStr( parse("<a_--> b>?"))
+        var parseResults = [
+            parse("< a_ --><b --> c >  >."),
+            parse("<a_.5--> b>?"),
+            parse("<a_.5<-> b>?"),
+            parse("<<c-->d>==> b>?"),
+            parse("<<c-->d><=> <e-->f>>?"),
         ];
-        for (iPrintedTerm in printedTerms) {
-            trace(iPrintedTerm);
+        for (iParseResult in parseResults) {
+            trace(TermUtils.convToStr(iParseResult.term) + iParseResult.punctuation);
         }
     }
-    public static function parse(narsese: String): Term {
+    public static function parse(narsese: String): {term: Term, punctuation: String} {
         function statementBegin(parser : Parser<EnumOperationType>, currentToken : Token<EnumOperationType>) {
             if(ParserConfig.debugParser) trace("CALL statementBegin()");
         }
@@ -2305,6 +2340,14 @@ class ProtoLexer {
             parser2.stack.push(Name(currentToken.contentString)); // push the identifier as a Name term to the stack
         }
 
+        var punctuation: String = null;
+        // called to set the punctuation of this sentence
+        function setPunctuation(parser : Parser<EnumOperationType>, currentToken : Token<EnumOperationType>) {
+            if(ParserConfig.debugParser) trace("CALL setPunctuation()");
+
+            punctuation = currentToken.contentString;
+        }
+
 
 
         var lexer: NarseseLexer = new NarseseLexer();
@@ -2332,8 +2375,8 @@ class ProtoLexer {
             ///*   9 */new Arc<EnumOperationType>(EnumArcType.NIL  , 0, null, -1, null),
 
             /*   0 */new Arc<EnumOperationType>(EnumArcType.ARC, 20, null, 1, null),
-            /*   1 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 5, null, 3, 2), // .
-            /*   2 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 6, null, 3, null), // ?
+            /*   1 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 7, setPunctuation, 3, 2), // .
+            /*   2 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 8, setPunctuation, 3, null), // ?
             /*   3 */new Arc<EnumOperationType>(EnumArcType.END, 0, null, -1, null),
             /*   4 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
 
@@ -2357,7 +2400,7 @@ class ProtoLexer {
 
             // decide between identifies, statement
             /*  20 */new Arc<EnumOperationType>(EnumArcType.TOKEN, 1/*identifier*/, identifierStore, 24, 21),
-            /*  21 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 1, null, 22, null), // <
+            /*  21 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 5, null, 22, null), // <
             /*  22 */new Arc<EnumOperationType>(EnumArcType.ARC, 40, null, 24, null),
             /*  23 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
             /*  24 */new Arc<EnumOperationType>(EnumArcType.END, 0, null, -1, null),
@@ -2386,18 +2429,18 @@ class ProtoLexer {
             /*  41 */new Arc<EnumOperationType>(EnumArcType.ARC  , 20, null, 42, null),
             /*  42 */new Arc<EnumOperationType>(EnumArcType.NIL  , 0, statementStoreSubj, 43, null),
             //    * dispatch for copula
-            /*  43 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 3, statementSetCopula, 50, null), // -->
-            /*  44 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  43 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 1, statementSetCopula, 50, 44), // -->
+            /*  44 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 2, statementSetCopula, 50, 45), // <->
 
-            /*  45 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
-            /*  46 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  45 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 3, statementSetCopula, 50, 46), // ==>
+            /*  46 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 4, statementSetCopula, 50, null), // <=>
             /*  47 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
             /*  48 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
             /*  49 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
 
             /*  50 */new Arc<EnumOperationType>(EnumArcType.ARC  , 20, null, 51, null),
             /*  51 */new Arc<EnumOperationType>(EnumArcType.NIL  , 0, statementStorePred, 52, null),
-            /*  52 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 2, statementEnd, 53, null), // >
+            /*  52 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 6, statementEnd, 53, null), // >
             /*  53 */new Arc<EnumOperationType>(EnumArcType.END  , 0, null, -1, null),
             /*  54 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
 
@@ -2423,7 +2466,7 @@ class ProtoLexer {
 
         var resultTerm: Term = parser.stack[0];
 
-        return resultTerm;
+        return {term:resultTerm, punctuation:punctuation};
     }
 }
 
@@ -2432,6 +2475,3 @@ class ParserConfig {
     public static var debugParser: Bool = true;
 }
 
-// TODO< return punctation too in parse >
-// TODO< add ==> and <=> copulas >
-// TODO< add question var token type and parse it >
