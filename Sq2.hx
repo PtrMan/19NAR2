@@ -1702,9 +1702,6 @@ class Unifier {
 
 
 
-// TODO< store temporary information on stack >
-// TODO< build terms >
-
 enum EnumArcType {
     TOKEN;
     OPERATION;  // TODO< is actualy symbol? >
@@ -1905,7 +1902,7 @@ class Parser<EnumOperationType> {
             return false;
         }
         else if( recursionReturn == EnumRecursionReturn.BACKTRACK ) {
-            throw "Internal Error!";
+            return false; // commented because it can happen when it's not used correctly by the user //throw "Internal Error!";
         }
 
         // check if the last token was an EOF
@@ -2117,10 +2114,10 @@ enum EnumOperationType {
 	//DEPENDENTVAR; // #
 	
     DOT; // .
-    //STAR; // *
-    //QUESTIONMARK; // ?
+    QUESTIONMARK; // ?
     //EXCLAMATIONMARK; // !
     //AT; // @
+    //STAR; // *
     //COMMA; // ,
     //AMPERSAND; // &
     //DOUBLEAMPERSAND; // &&
@@ -2139,7 +2136,8 @@ class NarseseLexer extends Lexer<EnumOperationType> {
             /* 3 */"^\\-\\->",
             /* 4 */"^<\\->",
             /* 5 */"^\\.",
-            /* 6 */"^[a-z0-9A-Z_]+", // identifier // TODO< other letters >
+            /* 6 */"^\\?",
+            /* 7 */"^[a-z0-9A-Z_]+", // identifier // TODO< other letters >
 
         ];
     }
@@ -2176,9 +2174,16 @@ class NarseseLexer extends Lexer<EnumOperationType> {
             case 5:
             var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
             res.contentOperation = EnumOperationType.DOT;
+            res.contentString = matchedString;
             return res;
 
             case 6:
+            var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
+            res.contentOperation = EnumOperationType.QUESTIONMARK;
+            res.contentString = matchedString;
+            return res;
+
+            case 7:
             var res = new Token<EnumOperationType>(EnumTokenType.IDENTIFIER);
             res.contentString = matchedString;
             return res;
@@ -2216,8 +2221,7 @@ class NarseseParser extends Parser<EnumOperationType> {
 	//DEPENDENTVAR; // #
 	//CONJUNCTION; // &&
             case DOT: 5; // .
-    //STAR; // *
-    //QUESTIONMARK; // ?
+            case QUESTIONMARK: 6; // ?
         }
     }
 }
@@ -2231,6 +2235,16 @@ class Line<EnumOperationType> {
 
 class ProtoLexer {
     public static function main() {
+        // print printed terms to check right parsing manually
+        var printedTerms = [
+            TermUtils.convToStr( parse("< a_ --><b --> c >  >.")),
+            TermUtils.convToStr( parse("<a_--> b>?"))
+        ];
+        for (iPrintedTerm in printedTerms) {
+            trace(iPrintedTerm);
+        }
+    }
+    public static function parse(narsese: String): Term {
         function statementBegin(parser : Parser<EnumOperationType>, currentToken : Token<EnumOperationType>) {
             if(ParserConfig.debugParser) trace("CALL statementBegin()");
         }
@@ -2295,7 +2309,7 @@ class ProtoLexer {
 
         var lexer: NarseseLexer = new NarseseLexer();
 
-        lexer.setSource("< a_ --><b --> c >  >.");
+        lexer.setSource(narsese);
 
         var parser: NarseseParser = new NarseseParser();
         parser.arcs = [
@@ -2318,9 +2332,9 @@ class ProtoLexer {
             ///*   9 */new Arc<EnumOperationType>(EnumArcType.NIL  , 0, null, -1, null),
 
             /*   0 */new Arc<EnumOperationType>(EnumArcType.ARC, 20, null, 1, null),
-            /*   1 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 5, null, 2, null), // .
-            /*   2 */new Arc<EnumOperationType>(EnumArcType.END, 0, null, -1, null),
-            /*   3 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*   1 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 5, null, 3, 2), // .
+            /*   2 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 6, null, 3, null), // ?
+            /*   3 */new Arc<EnumOperationType>(EnumArcType.END, 0, null, -1, null),
             /*   4 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
 
             /*   5 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
@@ -2409,8 +2423,7 @@ class ProtoLexer {
 
         var resultTerm: Term = parser.stack[0];
 
-        trace(TermUtils.convToStr(resultTerm));
-
+        return resultTerm;
     }
 }
 
@@ -2418,3 +2431,7 @@ class ProtoLexer {
 class ParserConfig {
     public static var debugParser: Bool = true;
 }
+
+// TODO< return punctation too in parse >
+// TODO< add ==> and <=> copulas >
+// TODO< add question var token type and parse it >
