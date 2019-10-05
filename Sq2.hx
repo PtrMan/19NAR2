@@ -19,6 +19,18 @@
 // <c-->e>. [1]
 
 
+
+// TODO< infer impl from premises >
+//<cat --> [bites]>.
+//<dog --> [bites]>.
+//<<cat --> $1> ==> <dog --> $1>>?
+//
+//mr_nars4
+//Answer: <<cat --> $1> ==> <dog --> $1>>. %1.00;0.40%
+
+
+// TODO BUG< do revision on input processing time too >
+
 // TODO< attention mechanism : sort after epoch and limit size for next epoch >
 
 // TODO< test attention mechanism with A-->I example from ALANN >
@@ -908,7 +920,8 @@ class Sq2 {
 
 
     public static function main() {
-        
+        ProtoLexer.main(); // test parser
+        return;
 
 
         /* TODO< add interesting unittest once it can build "&"
@@ -1054,10 +1067,10 @@ class Sq2 {
             var reasoner:Sq2 = new Sq2();
             reasoner.conclusionStrArr = []; // enable output logging
 
-            // (&&, <A --> x>, <B --> x>) ==> <Q --> c>.
+            // <(&&, <A --> x>, <B --> x>) ==> <Q --> c>>.
             // <A --> x>.
             // |-
-            // <B --> x> ==> <Q --> c>.
+            // <<B --> x> ==> <Q --> c>>.
             var unittestPremises:Array<Term> = [
                 Cop("==>", Compound("&&", [Cop("-->", Name("A"), Name("x")), Cop("-->", Name("B"), Name("x"))]), Cop("-->", Name("Q"), Name("c"))),
                 Cop("-->", Name("A"), Name("x"))
@@ -1079,10 +1092,10 @@ class Sq2 {
             var reasoner:Sq2 = new Sq2();
             reasoner.conclusionStrArr = []; // enable output logging
 
-            // (&&, <A --> x>, <B --> x>) ==> <Q --> c>.
+            // <(&&, <A --> x>, <B --> x>) ==> <Q --> c>>.
             // <B --> x>.
             // |-
-            // <A --> x> ==> <Q --> c>.
+            // <<A --> x> ==> <Q --> c>.
             var unittestPremises:Array<Term> = [
                 Cop("==>", Compound("&&", [Cop("-->", Name("A"), Name("x")), Cop("-->", Name("B"), Name("x"))]), Cop("-->", Name("Q"), Name("c"))),
                 Cop("-->", Name("B"), Name("x"))
@@ -1258,6 +1271,8 @@ class Sq2 {
 enum Term {
     Name(name:String);
     Compound(type:String, content:Array<Term>); // intersection, difference, etc.
+    
+    // TODO< rename to statement >
     Cop(copula:String, subj:Term, pred:Term); // generalization of anything connected with a copula, for example "-->" "<->" etc.
     Prod(terms:Array<Term>); // product
     Img(base:Term, content:Array<Term>); // image
@@ -1678,4 +1693,728 @@ class Unifier {
         // TODO TODO TODO
         return false;
     }
+}
+
+
+
+
+
+
+
+
+// TODO< store temporary information on stack >
+// TODO< build terms >
+
+enum EnumArcType {
+    TOKEN;
+    OPERATION;  // TODO< is actualy symbol? >
+    ARC;        // another arc, info is the index of the start
+    KEYWORD;    // Info is the id of the Keyword
+
+    END;        // Arc end
+    NIL;        // Nil Arc
+
+    ERROR;      // not used Arc
+}
+
+@generic
+class Arc<EnumOperationType> {
+    public var type: EnumArcType;
+    public var callback: (parser : Parser<EnumOperationType>, currentToken : Token<EnumOperationType>) -> Void;
+    public var next: Int;
+    public var alternative: Null<Int>;
+
+    public var info: Int; // Token Type, Operation Type and so on
+
+    public function new(type, info, callback, next, alternative) {
+        this.type        = type;
+        this.info        = info;
+        this.callback    = callback;
+        this.next        = next;
+        this.alternative = alternative;
+    }
+}
+
+enum EnumRecursionReturn {
+    ERROR; // if some error happened, will be found in ErrorMessage
+    OK;
+    BACKTRACK; // if backtracking should be used from the caller
+}
+
+
+@generic
+class Parser<EnumOperationType> {
+    public function new() {
+        //this.Lines ~= new Line!EnumOperationType();
+    }
+
+    /*abstract*/ public function convOperationToCode(op: EnumOperationType): Int {
+        throw "Abstract method called!"; // must be implemented by class
+    }
+
+    /** \brief 
+     *
+     * \param arcTableIndex is the index in the ArcTable
+     * \return
+     */
+    // NOTE< this is written recursive because it is better understandable that way and i was too lazy to reformulate it >
+    private function parseRecursive(arcTableIndex:Int): EnumRecursionReturn {
+        var ateAnyToken = false;
+        var returnValue = EnumRecursionReturn.BACKTRACK;
+
+        while(true) {
+            if(ParserConfig.debugParser) trace("ArcTableIndex " + arcTableIndex);
+
+            switch( this.arcs[arcTableIndex].type ) {
+                ///// NIL
+                case NIL:
+                // if the alternative is null we just go to next, if it is not null we follow the alternative
+                // we do this to simplify later rewriting of the rule(s)
+                if( this.arcs[arcTableIndex].alternative == null ) {
+                    returnValue = EnumRecursionReturn.OK;
+                }
+                else {
+                    returnValue = EnumRecursionReturn.BACKTRACK;
+                }
+
+                ///// OPERATION
+                case OPERATION:
+                if( this.arcs[arcTableIndex].info == convOperationToCode(this.currentToken.contentOperation) ) {
+                    returnValue = EnumRecursionReturn.OK;
+                }
+                else {
+                    returnValue = EnumRecursionReturn.BACKTRACK;
+                }
+
+                ///// TOKEN
+                case TOKEN:
+                function convTokenTypeToInfoNumber(type) {
+                    return switch (type) {
+                        case EnumTokenType.NUMBER: 0;
+                        case EnumTokenType.IDENTIFIER: 1;
+                        case EnumTokenType.KEYWORD: 2;
+                        case EnumTokenType.OPERATION: 3;
+                        case EnumTokenType.ERROR: 4; //
+                        case EnumTokenType.STRING: 5;
+                        case EnumTokenType.EOF: 6;
+                    }
+                }
+
+                if( this.arcs[arcTableIndex].info == convTokenTypeToInfoNumber(this.currentToken.type) ) {
+                    returnValue = EnumRecursionReturn.OK;
+                }
+                else {
+                    returnValue = EnumRecursionReturn.BACKTRACK;
+                }
+
+
+                ///// ARC
+                case ARC:
+                returnValue = this.parseRecursive(this.arcs[arcTableIndex].info);
+                
+                ///// END
+                case END:
+
+                // TODO< check if we really are at the end of all tokens >
+
+                if(ParserConfig.debugParser) trace("end");
+
+                return EnumRecursionReturn.OK;
+
+                case ERROR:
+                throw "parsing error!";
+
+                case KEYWORD:
+                // TODO< implement >
+                throw "Internal error!";
+            }
+
+
+
+         if( returnValue == EnumRecursionReturn.ERROR ) {
+            return EnumRecursionReturn.ERROR;
+         }
+
+         if( returnValue == EnumRecursionReturn.OK ) {
+            if (this.arcs[arcTableIndex].callback != null) {
+                this.arcs[arcTableIndex].callback(this, this.currentToken);
+            }
+            returnValue = EnumRecursionReturn.OK;
+         }
+
+         if( returnValue == EnumRecursionReturn.BACKTRACK ) {
+            // we try alternative arcs
+            if(ParserConfig.debugParser) trace("backtracking");
+
+            if( this.arcs[arcTableIndex].alternative != null ) {
+               arcTableIndex = this.arcs[arcTableIndex].alternative;
+            }
+            else if( ateAnyToken ) {
+               return EnumRecursionReturn.ERROR;
+            }
+            else {
+               return EnumRecursionReturn.BACKTRACK;
+            }
+         }
+         else {
+            // accept formaly the token
+
+            if(
+               this.arcs[arcTableIndex].type == EnumArcType.OPERATION ||
+               this.arcs[arcTableIndex].type == EnumArcType.TOKEN
+            ) {
+
+               if(ParserConfig.debugParser) trace("eat token");
+
+               var calleeSuccess = this.eatToken();
+
+               if( !calleeSuccess ) {
+                  throw "Internal Error!\n";
+               }
+
+               ateAnyToken = true;
+            }
+
+            arcTableIndex = this.arcs[arcTableIndex].next;
+         }
+      }
+   }
+
+   /** \brief do the parsing
+    *
+    * \param ErrorMessage is the string that will contain the error message when an error happened
+    * \return true on success
+    */
+    public function parse(): Bool {
+        this.currentToken = null;
+
+        //this.setupBeforeParsing();
+        lines = [new Line<EnumOperationType>()]; // reset the lines
+
+        // read first token
+        var calleeSuccess = this.eatToken();
+        if( !calleeSuccess ) {
+            throw "Internal Error!";
+        }
+
+        if(ParserConfig.debugParser) this.currentToken.debugIt();
+
+        var recursionReturn = this.parseRecursive(0);
+
+        if( recursionReturn == EnumRecursionReturn.ERROR ) {
+            return false;
+        }
+        else if( recursionReturn == EnumRecursionReturn.BACKTRACK ) {
+            throw "Internal Error!";
+        }
+
+        // check if the last token was an EOF
+        if( currentToken.type != EnumTokenType.EOF ) {
+            // TODO< add line information and marker >
+
+            // TODO< get the string format of the last token >
+            throw "Unexpected Tokens after (Last) Token";
+        }
+
+        return true;
+    }
+
+    // /return success
+    private function eatToken(): Bool {
+        var lexerResultTuple = this.lexer.nextToken();
+
+        this.currentToken = lexerResultTuple.resultToken;
+        var lexerReturnValue: EnumLexerCode = lexerResultTuple.code;
+
+        var success = lexerReturnValue == EnumLexerCode.OK;
+        if( !success ) {
+            return false;
+        }
+
+        if(ParserConfig.debugParser) this.currentToken.debugIt();
+
+        this.addTokenToLines(this.currentToken.copy());
+
+        return success;
+    }
+
+    public function addTokenToLines(token: Token<EnumOperationType>) {
+        if( token.line != this.currentLineNumber ) {
+            currentLineNumber = token.line;
+            this.lines.push(new Line<EnumOperationType>());
+        }
+
+        this.lines[this.lines.length-1].tokens.push(token);
+    }
+
+
+    private var currentToken: Token<EnumOperationType>;
+
+    public var arcs: Array<Arc<EnumOperationType>> = [];
+    public var lexer: Lexer<EnumOperationType>;
+
+    private var lines: Array<Line<EnumOperationType>>;
+    private var currentLineNumber = 0;
+}
+
+enum EnumTokenType {
+    NUMBER;
+    IDENTIFIER;
+    KEYWORD;       // example: if do end then
+    OPERATION;     // example: := > < >= <=
+      
+    ERROR;         // if Lexer found an error
+    STRING;        // "..."
+      
+    EOF;           // end of file
+    // TODO< more? >
+}
+
+// TODO REFACTOR< build it as enum with content >
+@generic
+class Token<EnumOperationType> {
+   public var type: EnumTokenType;
+
+   public var contentString: String;
+   public var contentOperation: Null<EnumOperationType> = null;
+   public var contentNumber: Int = 0;
+
+   public var line: Int = 0;
+
+   public function new(type) {
+       this.type = type;
+   }
+   
+   public function debugIt() {
+      trace("Type: " + type);
+
+      if( type == EnumTokenType.OPERATION ) {
+         trace("Operation: " + contentOperation);
+      }
+      else if( type == EnumTokenType.NUMBER ) {
+         trace(contentNumber);
+      }
+      else if( type == EnumTokenType.IDENTIFIER ) {
+         trace(contentString);
+      }
+      else if( type == EnumTokenType.STRING ) {
+         trace(contentString);
+      }
+
+      trace("Line   : " + line);
+      //trace("Column : " + column);
+
+      trace("===");
+   }
+
+   public function copy(): Token<EnumOperationType> {
+      var result = new Token<EnumOperationType>(this.type);
+      result.contentString = this.contentString;
+      result.contentOperation = this.contentOperation;
+      result.contentNumber = this.contentNumber;
+      result.line = this.line;
+      //result.column = this.column;
+      return result;
+   }
+}
+
+enum EnumLexerCode {
+    OK;
+    INVALID;
+}
+
+@generic
+class Lexer<EnumTokenOperationType> {
+    public var remainingSource: String = null;
+
+    // regex rules of tokens
+    // token rule #0 is ignored, because it contains the pattern for spaces
+    public var tokenRules: Array<String>;
+
+    
+    public function new() {}
+
+    public function setSource(source: String) {
+        this.remainingSource = source;
+    }
+
+    
+    public function nextToken(): {resultToken: Token<EnumTokenOperationType>, code: EnumLexerCode} {
+        while(true) {
+            //size_t index;
+            //EnumLexerCode lexerCode = nextTokenInternal(resultToken, index);
+            var internalCalleeResult = nextTokenInternal();
+
+            var resultToken = internalCalleeResult.resultToken;
+            
+            if (internalCalleeResult.resultCode != EnumLexerCode.OK) {
+                return {resultToken: resultToken, code: internalCalleeResult.resultCode};
+            }
+
+            if (internalCalleeResult.index == 0) {
+                continue;
+            }
+
+            if (resultToken.type == EnumTokenType.EOF) {
+                return {resultToken: resultToken, code: internalCalleeResult.resultCode};
+            }
+
+            return {resultToken: resultToken, code: internalCalleeResult.resultCode};
+        }
+    }
+
+    /*abstract*/ public function createToken(ruleIndex: Int, matchedString: String): Token<EnumTokenOperationType> {
+        throw "Not implemented Abstract method called!";
+    }
+
+
+    private function nextTokenInternal(): {resultCode: EnumLexerCode, resultToken: Token<EnumTokenOperationType>, index: Null<Int>} {//out Token!EnumTokenOperationType resultToken, out size_t index) {
+        var endReached = remainingSource.length == 0;
+        if (endReached) {
+            var resultToken = new Token<EnumTokenOperationType>(EnumTokenType.EOF);
+            return {resultCode: EnumLexerCode.OK, resultToken: resultToken, index: null};
+        }
+
+        var iindex = 0;
+        for (iterationTokenRule in tokenRules) {
+            var r = new EReg(iterationTokenRule, "");
+            if( r.match(remainingSource) ) {
+                if (r.matchedPos().pos != 0) {
+                    // is a bug because all matches must start at the beginning of the remaining string!
+                    throw "Parsing error: position must be at the beginning!";
+                }
+
+                remainingSource = remainingSource.substring(r.matchedPos().len, remainingSource.length);
+
+                var matchedString: String = r.matched(0);
+
+                var resultToken = createToken(iindex, matchedString);
+                return {resultCode: EnumLexerCode.OK, resultToken: resultToken, index: iindex};
+            }
+            iindex++;
+        }
+
+        if(ParserConfig.debugParser) trace("<INVALID>");
+        return {resultCode: EnumLexerCode.INVALID, resultToken: null, index: null};
+    }
+}
+
+// operation for narsese tokens
+enum EnumOperationType {
+	BRACEOPEN; // <
+	BRACECLOSE; // >
+	//ROUNDBRACEOPEN; // (
+	//ROUNDBRACECLOSE; // )
+    //BRACKETOPEN; // [
+	//BRACKETCLOSE; // ]
+	//KEY;
+	//POUNDKEY; // #
+	INHERITANCE; // -->
+    SIMILARITY; // <->
+	//IMPLCIATION; // ==>
+	//EQUIVALENCE; // <=>
+	//INDEPENDENTVAR; // $
+	//DEPENDENTVAR; // #
+	
+    DOT; // .
+    //STAR; // *
+    //QUESTIONMARK; // ?
+    //EXCLAMATIONMARK; // !
+    //AT; // @
+    //COMMA; // ,
+    //AMPERSAND; // &
+    //DOUBLEAMPERSAND; // &&
+
+	//HALFH; // |-    
+}
+
+class NarseseLexer extends Lexer<EnumOperationType> {
+    public function new() {
+        super();
+
+        tokenRules = [
+            /* 0 */"^\\ ", // special token for space
+            /* 1 */"^<",
+            /* 2 */"^>",
+            /* 3 */"^\\-\\->",
+            /* 4 */"^<\\->",
+            /* 5 */"^\\.",
+            /* 6 */"^[a-z0-9A-Z_]+", // identifier // TODO< other letters >
+
+        ];
+    }
+
+    public override function createToken(ruleIndex: Int, matchedString: String): Token<EnumOperationType> {
+        if(ParserConfig.debugParser) trace('CALL createToken w/  ruleIndex=$ruleIndex   matchedString=$matchedString@');
+        
+        switch (ruleIndex) { // switch on index of tokenRules
+            case 0: // empty token
+            return null;
+            
+            case 1:
+            var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
+            res.contentOperation = EnumOperationType.BRACEOPEN;
+            return res;
+
+            case 2:
+            var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
+            res.contentOperation = EnumOperationType.BRACECLOSE;
+            return res;
+
+            case 3:
+            var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
+            res.contentOperation = EnumOperationType.INHERITANCE;
+            res.contentString = matchedString;
+            return res;
+
+            case 4:
+            var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
+            res.contentOperation = EnumOperationType.SIMILARITY;
+            res.contentString = matchedString;
+            return res;
+
+            case 5:
+            var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
+            res.contentOperation = EnumOperationType.DOT;
+            return res;
+
+            case 6:
+            var res = new Token<EnumOperationType>(EnumTokenType.IDENTIFIER);
+            res.contentString = matchedString;
+            return res;
+
+            default:
+            throw 'Not implemented regex rule index=$ruleIndex!';
+        }
+
+        throw "Not implemented Abstract method called!";
+    }
+}
+
+class NarseseParser extends Parser<EnumOperationType> {
+    public var stack: Array<Term> = []; // stack used for parsing
+    
+    public function new() {
+        super();
+    }
+
+    public override function convOperationToCode(op: EnumOperationType): Int {
+        return switch (op) {
+
+	        case BRACEOPEN: 1; // <
+	        case BRACECLOSE: 2; // >
+	//BRACKETOPEN; // [
+	//BRACKETCLOSE; // ]
+	//KEY;
+	//POUNDKEY; // #
+	        case INHERITANCE: 3; // -->
+            case SIMILARITY: 4; // <->
+	//IMPLCIATION; // ==>
+	//EQUIVALENCE; // <=>
+	//HALFH; // |-
+	//INDEPENDENTVAR; // $
+	//DEPENDENTVAR; // #
+	//CONJUNCTION; // &&
+            case DOT: 5; // .
+    //STAR; // *
+    //QUESTIONMARK; // ?
+        }
+    }
+}
+
+@generic
+class Line<EnumOperationType> {
+   public var tokens: Array<Token<EnumOperationType>> = [];
+
+   public function new() {}
+}
+
+class ProtoLexer {
+    public static function main() {
+        function statementBegin(parser : Parser<EnumOperationType>, currentToken : Token<EnumOperationType>) {
+            if(ParserConfig.debugParser) trace("CALL statementBegin()");
+        }
+
+        function statementSetCopula(parser : Parser<EnumOperationType>, currentToken : Token<EnumOperationType>) {
+            if(ParserConfig.debugParser) trace("CALL statementSetCopula()");
+
+            var parser2 = cast(parser, NarseseParser);
+            parser2.stack.push(Name(currentToken.contentString)); // WORKAROUND< push as name >
+        }
+
+        function statementEnd(parser : Parser<EnumOperationType>, currentToken : Token<EnumOperationType>) {
+            if(ParserConfig.debugParser) trace("CALL statementEnd()");
+
+            var parser2 = cast(parser, NarseseParser);
+
+            // build statement from stack
+            var pred = parser2.stack[parser2.stack.length-1];
+
+            var copulaTerm = parser2.stack[parser2.stack.length-2]; // copula encoded as Name
+
+            var copulaStr = "";
+            switch (copulaTerm) {
+                case Name(name):
+                copulaStr = name;
+                default:
+                throw "Expected Name!"; // internal error
+            }
+
+            //var copulaStr = cast(parser2.stack[parser2.stack.length-2], Name).; // copula encoded as Name
+            var subj = parser2.stack[parser2.stack.length-3];
+
+            parser2.stack.pop();
+            parser2.stack.pop();
+            parser2.stack.pop();
+
+            parser2.stack.push(Cop(copulaStr, subj, pred));
+        }
+
+
+        function statementStoreSubj(parser : Parser<EnumOperationType>, currentToken : Token<EnumOperationType>) {
+            // stores subject
+            
+            if(ParserConfig.debugParser) trace("CALL statementStoreSubj()");
+        }
+
+        function statementStorePred(parser : Parser<EnumOperationType>, currentToken : Token<EnumOperationType>) {
+            // stores predicate
+            
+            if(ParserConfig.debugParser) trace("CALL statementStorePred()");
+        }
+
+
+        function identifierStore(parser : Parser<EnumOperationType>, currentToken : Token<EnumOperationType>) {
+            if(ParserConfig.debugParser) trace("CALL identifierStore()");
+
+            var parser2 = cast(parser, NarseseParser);
+            parser2.stack.push(Name(currentToken.contentString)); // push the identifier as a Name term to the stack
+        }
+
+
+
+        var lexer: NarseseLexer = new NarseseLexer();
+
+        lexer.setSource("< a_ --><b --> c >  >.");
+
+        var parser: NarseseParser = new NarseseParser();
+        parser.arcs = [
+            //     public function new(type, info, callback, next, alternative) {
+
+            // decide on parsing a identifier or statement
+            // TODO< implement decision logic with correct ARC logic >
+
+            // old code which is hardcoded for <a --> b>.
+            ///*   0 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 1, null, 20, 1), // <
+            ///*   1 */new Arc<EnumOperationType>(EnumArcType.TOKEN, 1/*identifier*/, statementStoreSubj, 2, null),
+            ///*   2 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 3, statementSetCopula, 3, null), // -->
+            ///*   3 */new Arc<EnumOperationType>(EnumArcType.TOKEN, 1/*identifier*/, statementStorePred, 4, null),
+            ///*   4 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 2, statementEnd, 5, null), // >
+
+            ///*   5 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 5, null, 6, null), // .
+            ///*   6 */new Arc<EnumOperationType>(EnumArcType.END  , 0, null, -1, null),
+            ///*   7 */new Arc<EnumOperationType>(EnumArcType.NIL  , 0, null, -1, null),
+            ///*   8 */new Arc<EnumOperationType>(EnumArcType.NIL  , 0, null, -1, null),
+            ///*   9 */new Arc<EnumOperationType>(EnumArcType.NIL  , 0, null, -1, null),
+
+            /*   0 */new Arc<EnumOperationType>(EnumArcType.ARC, 20, null, 1, null),
+            /*   1 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 5, null, 2, null), // .
+            /*   2 */new Arc<EnumOperationType>(EnumArcType.END, 0, null, -1, null),
+            /*   3 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*   4 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+
+            /*   5 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*   6 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*   7 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*   8 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*   9 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+
+            /*  10 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  11 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  12 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  13 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  14 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+
+            /*  15 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  16 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  17 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  18 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  19 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+
+            // decide between identifies, statement
+            /*  20 */new Arc<EnumOperationType>(EnumArcType.TOKEN, 1/*identifier*/, identifierStore, 24, 21),
+            /*  21 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 1, null, 22, null), // <
+            /*  22 */new Arc<EnumOperationType>(EnumArcType.ARC, 40, null, 24, null),
+            /*  23 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  24 */new Arc<EnumOperationType>(EnumArcType.END, 0, null, -1, null),
+
+            /*  25 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  26 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  27 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  28 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  29 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+
+            /*  30 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  31 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  32 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  33 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  34 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+
+            /*  35 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  36 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  37 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  38 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  39 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+
+            // statement "<"pred copular subj">"
+            // "<"" was already consumed
+            /*  40 */new Arc<EnumOperationType>(EnumArcType.NIL  , 0, statementBegin, 41, null),
+            /*  41 */new Arc<EnumOperationType>(EnumArcType.ARC  , 20, null, 42, null),
+            /*  42 */new Arc<EnumOperationType>(EnumArcType.NIL  , 0, statementStoreSubj, 43, null),
+            //    * dispatch for copula
+            /*  43 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 3, statementSetCopula, 50, null), // -->
+            /*  44 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+
+            /*  45 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  46 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  47 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  48 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  49 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+
+            /*  50 */new Arc<EnumOperationType>(EnumArcType.ARC  , 20, null, 51, null),
+            /*  51 */new Arc<EnumOperationType>(EnumArcType.NIL  , 0, statementStorePred, 52, null),
+            /*  52 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 2, statementEnd, 53, null), // >
+            /*  53 */new Arc<EnumOperationType>(EnumArcType.END  , 0, null, -1, null),
+            /*  54 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+
+            /*  55 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  56 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  57 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  58 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  59 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+
+            
+        ];
+
+        parser.lexer = lexer;
+
+        var parsingSuccess: Bool = parser.parse();
+        if (!parsingSuccess) {
+            throw "Parsing failed!";
+        }
+
+        if (parser.stack.length != 1) {
+            throw "Parsing failed! Number of elements on stack != 1";
+        }
+
+        var resultTerm: Term = parser.stack[0];
+
+        trace(TermUtils.convToStr(resultTerm));
+
+    }
+}
+
+// parser configuration
+class ParserConfig {
+    public static var debugParser: Bool = true;
 }
