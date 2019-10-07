@@ -1817,7 +1817,7 @@ class Parser<EnumOperationType> {
 
                 ///// OPERATION
                 case OPERATION:
-                if( this.arcs[arcTableIndex].info == convOperationToCode(this.currentToken.contentOperation) ) {
+                if( this.currentToken.type == EnumTokenType.OPERATION && this.arcs[arcTableIndex].info == convOperationToCode(this.currentToken.contentOperation) ) {
                     returnValue = EnumRecursionReturn.OK;
                 }
                 else {
@@ -2186,10 +2186,10 @@ class NarseseLexer extends Lexer<EnumOperationType> {
             /* 8 */"^\\$[a-zA-Z0-9_\\.]+",
             /* 9 */"^#[a-zA-Z0-9_\\.]+",
 
-            /* 7  10 */"^\\.",
-            /* 8  11 */"^\\?",
-            /* 9  12 */"^[a-z0-9A-Z_\\.]+", // identifier // TODO< other letters >
-
+            /* 10 */"^\\.",
+            /* 11 */"^\\?",
+            /* 12 */"^[a-z0-9A-Z_\\.]+", // identifier // TODO< other letters >
+            /* 13 */"^\"[a-z0-9A-Z_!\\?:\\.,;\\ \\-\\(\\)\\[\\]{}<>]*\"", // string 
         ];
     }
 
@@ -2270,6 +2270,11 @@ class NarseseLexer extends Lexer<EnumOperationType> {
             res.contentString = matchedString;
             return res;
 
+            case 13:
+            var res = new Token<EnumOperationType>(EnumTokenType.STRING);
+            res.contentString = matchedString;
+            return res;
+
             default:
             throw 'Not implemented regex rule index=$ruleIndex!';
         }
@@ -2330,6 +2335,11 @@ class ProtoLexer {
             parse("<?x-->x>?"),
             parse("<$x-->x>."),
             parse("<#x-->x>."),
+
+            parse("<\"abc\"-->x>."), // string
+            parse("<\"a-b-c\"-->x>."), // string
+            parse("<\"a b c\"-->x>."), // string
+            parse("<\"!?.,:;][)(}{><\"-->x>."), // string
         ];
         for (iParseResult in parseResults) {
             trace(TermUtils.convToStr(iParseResult.term) + iParseResult.punctuation);
@@ -2398,13 +2408,20 @@ class ProtoLexer {
 
         // store variable
         function varStore(parser : Parser<EnumOperationType>, currentToken : Token<EnumOperationType>) {
-            if(ParserConfig.debugParser) trace("CALL identifierStore()");
+            if(ParserConfig.debugParser) trace("CALL varStore()");
 
             var parser2 = cast(parser, NarseseParser);
             
             var varType: String = currentToken.contentString.charAt(0);
             var varName: String = currentToken.contentString.substring(1, currentToken.contentString.length);
             parser2.stack.push(Var(varType, varName)); // push the variable
+        }
+
+        function stringStore(parser : Parser<EnumOperationType>, currentToken : Token<EnumOperationType>) {
+            if(ParserConfig.debugParser) trace("CALL stringStore()");
+
+            var parser2 = cast(parser, NarseseParser);
+            parser2.stack.push(Str(currentToken.contentString.substring(1, currentToken.contentString.length-1))); // push the variable
         }
 
         var punctuation: String = null;
@@ -2454,8 +2471,8 @@ class ProtoLexer {
             /*  23 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 7, varStore, 29, 24), // ?X
             /*  24 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 8, varStore, 29, 25), // $X
 
-            /*  25 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 9, varStore, 29, null), // #X
-            /*  26 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  25 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 9, varStore, 29, 26), // #X
+            /*  26 */new Arc<EnumOperationType>(EnumArcType.TOKEN, 5, stringStore, 29, null), // "..."
             /*  27 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
             /*  28 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
             /*  29 */new Arc<EnumOperationType>(EnumArcType.END, 0, null, -1, null),
@@ -2524,11 +2541,6 @@ class ParserConfig {
     public static var debugParser: Bool = true;
 }
 
-// TODO< add string Term  and comparision etc for it >
-
-// TODO< parse string terms
-// TODO< test string terms >
-
 // TODO< add support for ( * ) in lexer/parser
 // TODO< test ( * )
 
@@ -2536,3 +2548,6 @@ class ParserConfig {
 // TODO< add support for sets to lexer >
 // TODO< add support for sets to parser >
 // TODO< test sets parsing >
+
+// TODO< add tv to parsing >
+// TODO< add event occurence to parser >
