@@ -2166,7 +2166,7 @@ class NarseseLexer extends Lexer<EnumOperationType> {
             /* 6 */"^>",
 
             /* 7 */"^\\?[a-zA-Z0-9_\\.]+",
-            /* 8 */"^$[a-zA-Z0-9_\\.]+",
+            /* 8 */"^\\$[a-zA-Z0-9_\\.]+",
             /* 9 */"^#[a-zA-Z0-9_\\.]+",
 
             /* 7  10 */"^\\.",
@@ -2308,6 +2308,11 @@ class ProtoLexer {
             parse("<a_.5<-> b>?"),
             parse("<<c-->d>==> b>?"),
             parse("<<c-->d><=> <e-->f>>?"),
+
+            // variables
+            parse("<?x-->x>?"),
+            parse("<$x-->x>."),
+            parse("<#x-->x>."),
         ];
         for (iParseResult in parseResults) {
             trace(TermUtils.convToStr(iParseResult.term) + iParseResult.punctuation);
@@ -2374,6 +2379,17 @@ class ProtoLexer {
             parser2.stack.push(Name(currentToken.contentString)); // push the identifier as a Name term to the stack
         }
 
+        // store variable
+        function varStore(parser : Parser<EnumOperationType>, currentToken : Token<EnumOperationType>) {
+            if(ParserConfig.debugParser) trace("CALL identifierStore()");
+
+            var parser2 = cast(parser, NarseseParser);
+            
+            var varType: String = currentToken.contentString.charAt(0);
+            var varName: String = currentToken.contentString.substring(1, currentToken.contentString.length);
+            parser2.stack.push(Var(varType, varName)); // push the variable
+        }
+
         var punctuation: String = null;
         // called to set the punctuation of this sentence
         function setPunctuation(parser : Parser<EnumOperationType>, currentToken : Token<EnumOperationType>) {
@@ -2432,18 +2448,18 @@ class ProtoLexer {
             /*  18 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
             /*  19 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
 
-            // decide between identifies, statement
-            /*  20 */new Arc<EnumOperationType>(EnumArcType.TOKEN, 1/*identifier*/, identifierStore, 24, 21),
-            /*  21 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 5, null, 22, null), // <
-            /*  22 */new Arc<EnumOperationType>(EnumArcType.ARC, 40, null, 24, null),
-            /*  23 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
-            /*  24 */new Arc<EnumOperationType>(EnumArcType.END, 0, null, -1, null),
+            // decide between identifies, statement, vars, 
+            /*  20 */new Arc<EnumOperationType>(EnumArcType.TOKEN, 1/*identifier*/, identifierStore, 29, 21),
+            /*  21 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 5, null, 22, 23), // <
+            /*  22 */new Arc<EnumOperationType>(EnumArcType.ARC, 40, null, 29, null),
+            /*  23 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 7, varStore, 29, 24), // ?X
+            /*  24 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 8, varStore, 29, 25), // $X
 
-            /*  25 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  25 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 9, varStore, 29, null), // #X
             /*  26 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
             /*  27 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
             /*  28 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
-            /*  29 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  29 */new Arc<EnumOperationType>(EnumArcType.END, 0, null, -1, null),
 
             /*  30 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
             /*  31 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
