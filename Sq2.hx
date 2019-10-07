@@ -1303,6 +1303,8 @@ enum Term {
     ImgWild; // wildcard for image NAL:"_"
 
     Var(type:String,name:String); // variable, type can be "?","#","$"
+
+    Str(content:String); // "content" , " and \ are escaped
 }
 
 class TermUtils {
@@ -1316,6 +1318,7 @@ class TermUtils {
             case Img(base, content): Img(base, content); 
             case ImgWild: ImgWild;
             case Var(type,name): Var(type,name);
+            case Str(content): Str(content);
         }
     }
 
@@ -1345,6 +1348,7 @@ class TermUtils {
             res;
             case ImgWild: [];
             case Var(_,_): [];
+            case Str(_): [];
         });
     }
 
@@ -1364,6 +1368,7 @@ class TermUtils {
             var narseseContent = content.map(function(i) {return convToStr(i);}).join(" * ");
             '( $narseseContent )';
             case Var(type,name): '$type$name';
+            case Str(content): '"$content"'; // TODO< escape " and \   >
         }
     }
 
@@ -1442,6 +1447,14 @@ class TermUtils {
             switch(b) {
                 case Var(typeB,nameB):
                 return typeA==typeB && nameA==nameB;
+                case _:
+                return false;
+            }
+
+            case Str(contentA):
+            switch(b) {
+                case Str(contentB):
+                return contentA==contentB;
                 case _:
                 return false;
             }
@@ -1579,7 +1592,7 @@ class Unifier {
         }
         
         switch (term) {
-            case Name(name): return term;
+            case Name(_): return term;
             case Compound(type, content): return Compound(type, substituteArr(content));
             case Cop(copula, subj, pred): return Cop(copula, substitute(subj, unifiedMap, varTypes), substitute(pred, unifiedMap, varTypes));
             case Prod(content):
@@ -1602,6 +1615,8 @@ class Unifier {
             else {
                 return term; // return untouched term because we can't substitute it anyways
             }
+
+            case Str(_): return term;
         }
     }
 
@@ -1645,7 +1660,7 @@ class Unifier {
         } 
 
         switch (a) {
-            case Name(nameA):
+            case Name(_):
             return false; // doesn't unify because not equal
             case Compound(typeA, contentA):
             switch (b) {
@@ -1682,6 +1697,8 @@ class Unifier {
             return false; // doesn't unify because not equal
             case Var(typeA,nameA):
             throw "Internal error - should be handled earilier in function!";
+            case Str(_):
+            return false; // doesn't unify because not equal
         }
 
         return true; // can unify
@@ -2406,24 +2423,6 @@ class ProtoLexer {
 
         var parser: NarseseParser = new NarseseParser();
         parser.arcs = [
-            //     public function new(type, info, callback, next, alternative) {
-
-            // decide on parsing a identifier or statement
-            // TODO< implement decision logic with correct ARC logic >
-
-            // old code which is hardcoded for <a --> b>.
-            ///*   0 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 1, null, 20, 1), // <
-            ///*   1 */new Arc<EnumOperationType>(EnumArcType.TOKEN, 1/*identifier*/, statementStoreSubj, 2, null),
-            ///*   2 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 3, statementSetCopula, 3, null), // -->
-            ///*   3 */new Arc<EnumOperationType>(EnumArcType.TOKEN, 1/*identifier*/, statementStorePred, 4, null),
-            ///*   4 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 2, statementEnd, 5, null), // >
-
-            ///*   5 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 5, null, 6, null), // .
-            ///*   6 */new Arc<EnumOperationType>(EnumArcType.END  , 0, null, -1, null),
-            ///*   7 */new Arc<EnumOperationType>(EnumArcType.NIL  , 0, null, -1, null),
-            ///*   8 */new Arc<EnumOperationType>(EnumArcType.NIL  , 0, null, -1, null),
-            ///*   9 */new Arc<EnumOperationType>(EnumArcType.NIL  , 0, null, -1, null),
-
             /*   0 */new Arc<EnumOperationType>(EnumArcType.ARC, 20, null, 1, null),
             /*   1 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 10, setPunctuation, 3, 2), // .
             /*   2 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 11, setPunctuation, 3, null), // ?
@@ -2524,10 +2523,6 @@ class ProtoLexer {
 class ParserConfig {
     public static var debugParser: Bool = true;
 }
-
-// TODO parser< add $XXX and ?XXXX >
-
-// TODO< parse question var, dependent var and independent var >
 
 // TODO< add string Term  and comparision etc for it >
 
