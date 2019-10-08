@@ -2364,6 +2364,13 @@ class ProtoLexer {
             parse("<\"a-b-c\"-->x>."), // string
             parse("<\"a b c\"-->x>."), // string
             parse("<\"!?.,:;][)(}{><\"-->x>."), // string
+
+            // product
+            parse("(a*b)."),
+            parse("(a*b*c)."),
+            parse("(a*b*c*d)."),
+            parse("(<a-->c>*b)."),
+            parse("(a*<b-->c>)."),
         ];
         for (iParseResult in parseResults) {
             trace(TermUtils.convToStr(iParseResult.term) + iParseResult.punctuation);
@@ -2456,6 +2463,110 @@ class ProtoLexer {
             punctuation = currentToken.contentString;
         }
 
+        function roundBraceBegin(parser : Parser<EnumOperationType>, currentToken : Token<EnumOperationType>) {
+            var parser2 = cast(parser, NarseseParser);
+            parser2.stack.push(Name("(")); // HACK< simply push the content as a name >
+                                           // TODO< we need a better solution here which is safe against bugs >
+        }
+
+        function roundBraceEnd(parser : Parser<EnumOperationType>, currentToken : Token<EnumOperationType>) {
+            var parser2 = cast(parser, NarseseParser);
+            
+            // scan till the next "(" in stack and check if all seperators are the same, store content and create Prod
+
+
+            var braceContentStack: Array<Term> = []; // content of brace in reversed order
+            var braceType: String = null; // type of the round brace, "*" if it is a product, etc. is null if it is not initialized
+
+            var stackIdx = parser2.stack.length-1;
+
+            {
+                var idx = 0;
+                for (iStackElement in parser2.stack) {
+                    trace('roundBraceEnd()  stackContent[$idx] = ${TermUtils.convToStr(parser2.stack[idx])}');
+                    idx++;
+                }
+            }
+
+            while (true) { // loop to iterate over pairs of item and seperator
+
+                trace('roundBraceEnd()  stackIdx = $stackIdx');
+
+                { // parse item
+                    if (stackIdx < 0) {
+                        throw "Parsing failed!";
+                    }
+                    var iStack: Term = parser2.stack[stackIdx]; // iterator value of stack
+                    // last value on stack must not be "*" or "("
+                    switch (iStack) {
+                        case Name("*") | Name("("):
+                        throw "Parsing failed: Expected  element of round brace \"(\" ... \")\"";
+                        case _:
+                        braceContentStack.push(iStack); // add to elements
+                    }
+                    stackIdx--; // jump to previous element
+                }
+
+
+                { // parse seperator or ")" which ends the round brace
+                    trace("HERE2");
+                    
+                    if (stackIdx < 0) {
+                        throw "Parsing failed!";
+                    }
+                    var iStack: Term = parser2.stack[stackIdx]; // iterator value of stack
+                    // last value on stack must be "*" or "("
+                    switch (iStack) {
+                        case Name("("): // case for marker for the beginning of the brace on the stack
+                        // close round brace
+
+                        trace("HERE");
+                        
+                        // clean up stack and remove all elements till index
+                        parser2.stack = parser2.stack.slice(0, stackIdx);
+
+                        // invert order of stack to get real order
+                        var braceContent = braceContentStack.copy();
+                        braceContent.reverse();
+
+                        // push result term
+                        switch (braceType) {
+                            case "*":
+                            parser2.stack.push(Prod(braceContent));
+                            case _:
+                            throw "Parsing failed: unknown brace type!"; // internal error
+                        }
+
+                        break; // break out of for loop because we are done
+                        
+                        case Name(typeOnStack) if (braceType == null):
+                        braceType = typeOnStack; // first encounter with the seperator, store 
+                        case Name(typeOnStack) if (braceType != null && braceType == typeOnStack):
+                        // consume
+                        case _:
+                        // TODO< better error message >
+                        throw "Parsing failed: expected  valid seperator or \"";
+                    }
+                }
+
+                stackIdx--; // jump to previous element
+            }
+        }
+
+        // seperator of round brace
+        function roundBraceSeperator(parser : Parser<EnumOperationType>, currentToken : Token<EnumOperationType>) {
+            switch (currentToken.contentString) {
+                case "*":
+                case _:
+                throw "Parsing Error : invalid seperator!";
+            }
+            
+            var parser2 = cast(parser, NarseseParser);
+            parser2.stack.push(Name(currentToken.contentString)); // HACK< simply push the content as a name >
+                                                                  // TODO< we need a better solution here which is safe against bugs >
+        }
+
+
 
 
         var lexer: NarseseLexer = new NarseseLexer();
@@ -2488,7 +2599,7 @@ class ProtoLexer {
             /*  18 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
             /*  19 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
 
-            // decide between identifies, statement, vars, 
+            // decide between identifies, statement, vars, brace (for products, etc)
             /*  20 */new Arc<EnumOperationType>(EnumArcType.TOKEN, 1/*identifier*/, identifierStore, 29, 21),
             /*  21 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 5, null, 22, 23), // <
             /*  22 */new Arc<EnumOperationType>(EnumArcType.ARC, 40, null, 29, null),
@@ -2496,9 +2607,9 @@ class ProtoLexer {
             /*  24 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 10, varStore, 29, 25), // $X
 
             /*  25 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 11, varStore, 29, 26), // #X
-            /*  26 */new Arc<EnumOperationType>(EnumArcType.TOKEN, 5, stringStore, 29, null), // "..."
-            /*  27 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
-            /*  28 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  26 */new Arc<EnumOperationType>(EnumArcType.TOKEN, 5, stringStore, 29, 27), // "..."
+            /*  27 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 7, null, 28, null), // (
+            /*  28 */new Arc<EnumOperationType>(EnumArcType.ARC, 60, null, 29, null),
             /*  29 */new Arc<EnumOperationType>(EnumArcType.END, 0, null, -1, null),
 
             /*  30 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
@@ -2540,7 +2651,36 @@ class ProtoLexer {
             /*  58 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
             /*  59 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
 
+            // round brace enclosed term, "(" ??? ")", can be product or image, etc
+            // "(" was already consumed
+            /*  60 */new Arc<EnumOperationType>(EnumArcType.NIL  , 0, roundBraceBegin, 61, null),
+            /*  61 */new Arc<EnumOperationType>(EnumArcType.ARC, 20, null, 62, null), // expect next arc with term
+            /*  62 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 8, roundBraceEnd, 63, 64), // term finished, expect either ")" or "*"
+            /*  63 */new Arc<EnumOperationType>(EnumArcType.END, 0, null, -1, null), // finished "(" ... ")"
             
+            // store seperator of elements of round brace enclosed terms
+            //     check for "*" and store and go to 61
+            /*  64 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 14, roundBraceSeperator, 61, null), // check for "*" as the seperator
+
+            /*  65 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  66 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  67 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  68 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  69 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+
+            /*  70 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  71 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  72 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  73 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  74 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+
+            /*  75 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  76 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  77 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  78 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  79 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+
+
         ];
 
         parser.lexer = lexer;
@@ -2565,8 +2705,25 @@ class ParserConfig {
     public static var debugParser: Bool = true;
 }
 
-// TODO< add support for ( * ) in parser
-// TODO< test ( * )
+
+
+// TODO< negative parsing tests for braces >
+//    TODO< negative test "(a)" // products with one element are not valid
+//    TODO< negative test "(."
+//    TODO< negative test "()."
+//    TODO< negative test "(*."
+//    TODO< negative test "(*b."
+//    TODO< negative test "(a*)."
+//    TODO< negative test "(a*b#)." // test for not equal seperators
+//    TODO< negative test "(a*b#c)." // test for not equal seperators
+//    TODO< negative test "(*)."
+//    TODO< negative test ")."
+
+
+// TODO< add support for images in lexer >
+// TODO< add support for images in parser >
+
+
 
 // TODO< add support for sets in language >
 // TODO< add support for sets to lexer >
