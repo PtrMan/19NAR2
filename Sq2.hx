@@ -2174,7 +2174,7 @@ enum EnumOperationType {
     //AT; // @
     STAR; // *
     SLASH; // "/"
-    //UNDERSCORE; // _
+    UNDERSCORE; // _
     //COMMA; // ,
     //DOUBLEAMPERSAND; // &&
     //AMPERSAND; // &
@@ -2209,6 +2209,8 @@ class NarseseLexer extends Lexer<EnumOperationType> {
             /* 15*/"^\\/",
             /* 16*/"^[a-z0-9A-Z_\\.]+", // identifier // TODO< other letters >
             /* 17*/"^\"[a-z0-9A-Z_!\\?:\\.,;\\ \\-\\(\\)\\[\\]{}<>]*\"", // string 
+
+            /* 18*/"^\\_",
         ];
     }
 
@@ -2316,6 +2318,12 @@ class NarseseLexer extends Lexer<EnumOperationType> {
             res.contentString = matchedString;
             return res;
 
+            case 18:
+            var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
+            res.contentOperation = EnumOperationType.UNDERSCORE;
+            res.contentString = matchedString;
+            return res;
+
             default:
             throw 'Not implemented regex rule index=$ruleIndex!';
         }
@@ -2356,6 +2364,7 @@ class NarseseParser extends Parser<EnumOperationType> {
             case QUESTIONMARK: 13; // ?
             case STAR: 14; // *
             case SLASH: 15; // "/"
+            case UNDERSCORE: 18; // _
         }
     }
 }
