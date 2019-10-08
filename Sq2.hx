@@ -2173,6 +2173,8 @@ enum EnumOperationType {
     //EXCLAMATIONMARK; // !
     //AT; // @
     STAR; // *
+    SLASH; // "/"
+    //UNDERSCORE; // _
     //COMMA; // ,
     //DOUBLEAMPERSAND; // &&
     //AMPERSAND; // &
@@ -2204,8 +2206,9 @@ class NarseseLexer extends Lexer<EnumOperationType> {
             /* 12*/"^\\.",
             /* 13*/"^\\?",
             /* 14*/"^\\*",
-            /* 15*/"^[a-z0-9A-Z_\\.]+", // identifier // TODO< other letters >
-            /* 16*/"^\"[a-z0-9A-Z_!\\?:\\.,;\\ \\-\\(\\)\\[\\]{}<>]*\"", // string 
+            /* 15*/"^\\/",
+            /* 16*/"^[a-z0-9A-Z_\\.]+", // identifier // TODO< other letters >
+            /* 17*/"^\"[a-z0-9A-Z_!\\?:\\.,;\\ \\-\\(\\)\\[\\]{}<>]*\"", // string 
         ];
     }
 
@@ -2298,11 +2301,17 @@ class NarseseLexer extends Lexer<EnumOperationType> {
             return res;
 
             case 15:
-            var res = new Token<EnumOperationType>(EnumTokenType.IDENTIFIER);
+            var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
+            res.contentOperation = EnumOperationType.SLASH;
             res.contentString = matchedString;
             return res;
 
             case 16:
+            var res = new Token<EnumOperationType>(EnumTokenType.IDENTIFIER);
+            res.contentString = matchedString;
+            return res;
+
+            case 17:
             var res = new Token<EnumOperationType>(EnumTokenType.STRING);
             res.contentString = matchedString;
             return res;
@@ -2346,6 +2355,7 @@ class NarseseParser extends Parser<EnumOperationType> {
             case DOT: 12; // .
             case QUESTIONMARK: 13; // ?
             case STAR: 14; // *
+            case SLASH: 15; // "/"
         }
     }
 }
