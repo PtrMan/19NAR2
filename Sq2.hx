@@ -2146,8 +2146,8 @@ enum EnumOperationType {
 
 	BRACEOPEN; // <
 	BRACECLOSE; // >
-	//ROUNDBRACEOPEN; // (
-	//ROUNDBRACECLOSE; // )
+	ROUNDBRACEOPEN; // (
+	ROUNDBRACECLOSE; // )
     //BRACKETOPEN; // [
 	//BRACKETCLOSE; // ]
 	//KEY;
@@ -2182,14 +2182,17 @@ class NarseseLexer extends Lexer<EnumOperationType> {
             /* 5 */"^<",
             /* 6 */"^>",
 
-            /* 7 */"^\\?[a-zA-Z0-9_\\.]+",
-            /* 8 */"^\\$[a-zA-Z0-9_\\.]+",
-            /* 9 */"^#[a-zA-Z0-9_\\.]+",
+            /* 7 */"^\\(",
+            /* 8 */"^\\)",
 
-            /* 10 */"^\\.",
-            /* 11 */"^\\?",
-            /* 12 */"^[a-z0-9A-Z_\\.]+", // identifier // TODO< other letters >
-            /* 13 */"^\"[a-z0-9A-Z_!\\?:\\.,;\\ \\-\\(\\)\\[\\]{}<>]*\"", // string 
+            /* 7  9 */"^\\?[a-zA-Z0-9_\\.]+",
+            /* 8 10*/"^\\$[a-zA-Z0-9_\\.]+",
+            /* 9 11*/"^#[a-zA-Z0-9_\\.]+",
+
+            /* 10 12*/"^\\.",
+            /* 11 13*/"^\\?",
+            /* 12 14*/"^[a-z0-9A-Z_\\.]+", // identifier // TODO< other letters >
+            /* 13 15*/"^\"[a-z0-9A-Z_!\\?:\\.,;\\ \\-\\(\\)\\[\\]{}<>]*\"", // string 
         ];
     }
 
@@ -2236,41 +2239,51 @@ class NarseseLexer extends Lexer<EnumOperationType> {
 
             case 7:
             var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
+            res.contentOperation = EnumOperationType.ROUNDBRACEOPEN;
+            return res;
+
+            case 8:
+            var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
+            res.contentOperation = EnumOperationType.ROUNDBRACECLOSE;
+            return res;
+
+            case 9:
+            var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
             res.contentOperation = EnumOperationType.QUESTIONVAR;
             res.contentString = matchedString;
             return res;
 
-            case 8:
+            case 10:
             var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
             res.contentOperation = EnumOperationType.INDEPENDENTVAR;
             res.contentString = matchedString;
             return res;
 
-            case 9:
+            case 11:
             var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
             res.contentOperation = EnumOperationType.DEPENDENTVAR;
             res.contentString = matchedString;
             return res;
 
 
-            case 10:
+            case 12:
             var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
             res.contentOperation = EnumOperationType.DOT;
             res.contentString = matchedString;
             return res;
 
-            case 11:
+            case 13:
             var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
             res.contentOperation = EnumOperationType.QUESTIONMARK;
             res.contentString = matchedString;
             return res;
 
-            case 12:
+            case 14:
             var res = new Token<EnumOperationType>(EnumTokenType.IDENTIFIER);
             res.contentString = matchedString;
             return res;
 
-            case 13:
+            case 15:
             var res = new Token<EnumOperationType>(EnumTokenType.STRING);
             res.contentString = matchedString;
             return res;
@@ -2299,17 +2312,20 @@ class NarseseParser extends Parser<EnumOperationType> {
 
 	        case BRACEOPEN: 5; // <
 	        case BRACECLOSE: 6; // >
+
+            case ROUNDBRACEOPEN: 7; // (
+	        case ROUNDBRACECLOSE: 8; // )
 	//BRACKETOPEN; // [
 	//BRACKETCLOSE; // ]
 	//KEY;
 	        
-            case QUESTIONVAR: 7; // ?XXX
-            case INDEPENDENTVAR: 8; // $xxx
-            case DEPENDENTVAR: 9; // #xxx
+            case QUESTIONVAR: 9; // ?XXX
+            case INDEPENDENTVAR: 10; // $xxx
+            case DEPENDENTVAR: 11; // #xxx
 
 	//CONJUNCTION; // &&
-            case DOT: 10; // .
-            case QUESTIONMARK: 11; // ?
+            case DOT: 12; // .
+            case QUESTIONMARK: 13; // ?
         }
     }
 }
@@ -2441,8 +2457,8 @@ class ProtoLexer {
         var parser: NarseseParser = new NarseseParser();
         parser.arcs = [
             /*   0 */new Arc<EnumOperationType>(EnumArcType.ARC, 20, null, 1, null),
-            /*   1 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 10, setPunctuation, 3, 2), // .
-            /*   2 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 11, setPunctuation, 3, null), // ?
+            /*   1 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 12, setPunctuation, 3, 2), // .
+            /*   2 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 13, setPunctuation, 3, null), // ?
             /*   3 */new Arc<EnumOperationType>(EnumArcType.END, 0, null, -1, null),
             /*   4 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
 
@@ -2468,10 +2484,10 @@ class ProtoLexer {
             /*  20 */new Arc<EnumOperationType>(EnumArcType.TOKEN, 1/*identifier*/, identifierStore, 29, 21),
             /*  21 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 5, null, 22, 23), // <
             /*  22 */new Arc<EnumOperationType>(EnumArcType.ARC, 40, null, 29, null),
-            /*  23 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 7, varStore, 29, 24), // ?X
-            /*  24 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 8, varStore, 29, 25), // $X
+            /*  23 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 9, varStore, 29, 24), // ?X
+            /*  24 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 10, varStore, 29, 25), // $X
 
-            /*  25 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 9, varStore, 29, 26), // #X
+            /*  25 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 11, varStore, 29, 26), // #X
             /*  26 */new Arc<EnumOperationType>(EnumArcType.TOKEN, 5, stringStore, 29, null), // "..."
             /*  27 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
             /*  28 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
@@ -2541,7 +2557,7 @@ class ParserConfig {
     public static var debugParser: Bool = true;
 }
 
-// TODO< add support for ( * ) in lexer/parser
+// TODO< add support for ( * ) in parser
 // TODO< test ( * )
 
 // TODO< add support for sets in language >
