@@ -65,7 +65,10 @@
 
 // TODO< implement Unifier.containsVar() and unittest >
 
-// TODO< attention mechanism : sort after epoch and limit size for next epoch >
+// basic attention
+//     TODO OUTDATED< attention mechanism : sort after epoch and limit size for next epoch >
+//     TODO   < probabilistic selection of task by probability mass >
+//     TODO   < lazy update of propability mass after processing task >
 
 // TODO< test attention mechanism with A-->I example from ALANN >
 
@@ -338,7 +341,7 @@ class Sq2 {
     public function new() {}
 
     // puts new input from the outside of the system into the system
-    public function input(term:Term, tv:Tv, punctation:String) {
+    public function inputTerm(term:Term, tv:Tv, punctation:String) {
         var sentence = new Sentence(term, tv, new Stamp([stampIdCounter.copy()], new StructuralOriginsStamp([])), punctation);
         stampIdCounter = haxe.Int64.add(stampIdCounter, haxe.Int64.make(0,1));
 
@@ -349,6 +352,19 @@ class Sq2 {
         var workingSetEntity = new WorkingSetEntity(sentence);
 
         workingSet.entities.push(workingSetEntity);
+    }
+
+    // puts new narsese input from the outside into the system
+    public function input(narsese:String) {
+        var parseResult = ProtoLexer.parse(narsese);
+
+        var tv = new Tv(1.0, 0.9); // standard TV
+        if (parseResult.tvFreq != null) {
+            tv.freq = parseResult.tvFreq;
+            tv.conf = parseResult.tvConf;
+        }
+
+        inputTerm(parseResult.term, tv, parseResult.punctuation);
     }
 
     // run the reasoner for a number of cycles
@@ -956,9 +972,7 @@ class Sq2 {
 
 
     public static function main() {
-        ProtoLexer.main(); // test parser
-        return;
-
+        
 
         /* TODO< add interesting unittest once it can build "&"
         { // create "seed" premise and put it into working set
@@ -1016,7 +1030,7 @@ class Sq2 {
             ];
 
             for (iUnittestPremise in unittestPremises) {
-                reasoner.input(iUnittestPremise, new Tv(1.0, 0.9), ".");
+                reasoner.inputTerm(iUnittestPremise, new Tv(1.0, 0.9), ".");
             }
 
             reasoner.process();
@@ -1040,7 +1054,7 @@ class Sq2 {
             ];
 
             for (iUnittestPremise in unittestPremises) {
-                reasoner.input(iUnittestPremise, new Tv(1.0, 0.9), ".");
+                reasoner.inputTerm(iUnittestPremise, new Tv(1.0, 0.9), ".");
             }
 
             reasoner.process();
@@ -1066,7 +1080,7 @@ class Sq2 {
             ];
 
             for (iUnittestPremise in unittestPremises) {
-                reasoner.input(iUnittestPremise, new Tv(1.0, 0.9), ".");
+                reasoner.inputTerm(iUnittestPremise, new Tv(1.0, 0.9), ".");
             }
 
             reasoner.process();
@@ -1089,7 +1103,7 @@ class Sq2 {
             ];
 
             for (iUnittestPremise in unittestPremises) {
-                reasoner.input(iUnittestPremise, new Tv(1.0, 0.9), ".");
+                reasoner.inputTerm(iUnittestPremise, new Tv(1.0, 0.9), ".");
             }
 
             reasoner.process();
@@ -1113,7 +1127,7 @@ class Sq2 {
             ];
 
             for (iUnittestPremise in unittestPremises) {
-                reasoner.input(iUnittestPremise, new Tv(1.0, 0.9), ".");
+                reasoner.inputTerm(iUnittestPremise, new Tv(1.0, 0.9), ".");
             }
 
             reasoner.process();
@@ -1138,7 +1152,7 @@ class Sq2 {
             ];
 
             for (iUnittestPremise in unittestPremises) {
-                reasoner.input(iUnittestPremise, new Tv(1.0, 0.9), ".");
+                reasoner.inputTerm(iUnittestPremise, new Tv(1.0, 0.9), ".");
             }
 
             reasoner.process();
@@ -1163,7 +1177,7 @@ class Sq2 {
             ];
 
             for (iUnittestPremise in unittestPremises) {
-                reasoner.input(iUnittestPremise, new Tv(1.0, 0.9), ".");
+                reasoner.inputTerm(iUnittestPremise, new Tv(1.0, 0.9), ".");
             }
 
             reasoner.process();
@@ -1188,7 +1202,7 @@ class Sq2 {
             ];
 
             for (iUnittestPremise in unittestPremises) {
-                reasoner.input(iUnittestPremise, new Tv(1.0, 0.9), ".");
+                reasoner.inputTerm(iUnittestPremise, new Tv(1.0, 0.9), ".");
             }
 
             reasoner.process();
@@ -1203,14 +1217,9 @@ class Sq2 {
             var reasoner:Sq2 = new Sq2();
             reasoner.conclusionStrArr = []; // enable output logging
 
-            // <B --> x>?
-            // <B --> x>.
+            reasoner.input("<B --> x>?");
+            reasoner.input("<B --> x>.");
             // has to get answered
-            var unittestPremise = Cop("-->", Name("B"), Name("x"));
-
-            reasoner.input(unittestPremise, null, "?");
-            reasoner.input(unittestPremise, new Tv(1.0, 0.9), ".");
-            
 
             reasoner.process();
 
@@ -1224,12 +1233,9 @@ class Sq2 {
             var reasoner:Sq2 = new Sq2();
             reasoner.conclusionStrArr = []; // enable output logging
 
-            // <?B --> x>?
-            // <B --> x>.
+            reasoner.input("<?B --> x>?");
+            reasoner.input("<B --> x>.");
             // has to get answered
-            reasoner.input(Cop("-->", Var("?","B"), Name("x")), null, "?");
-            reasoner.input(Cop("-->", Name("B"), Name("x")), new Tv(1.0, 0.9), ".");
-            
 
             reasoner.process();
 
@@ -1243,12 +1249,8 @@ class Sq2 {
             var reasoner:Sq2 = new Sq2();
             reasoner.conclusionStrArr = []; // enable output logging
 
-            // <B <-> x>.
-            // has to get answered
-            var unittestPremise = Cop("<->", Name("B"), Name("x"));
-            reasoner.input(unittestPremise, new Tv(1.0, 0.9), ".");
+            reasoner.input("<B <-> x>.");
             
-
             reasoner.process();
 
             if (reasoner.conclusionStrArr.indexOf("< x <-> B >. {1 0.9}", null) == -1) {
@@ -1260,10 +1262,7 @@ class Sq2 {
             var reasoner:Sq2 = new Sq2();
             reasoner.conclusionStrArr = []; // enable output logging
 
-            // <B <=> x>.
-            // has to get answered
-            var unittestPremise = Cop("<=>", Name("B"), Name("x"));
-            reasoner.input(unittestPremise, new Tv(1.0, 0.9), ".");
+            reasoner.input("<B <=> x>.");
             
 
             reasoner.process();
@@ -1289,7 +1288,7 @@ class Sq2 {
             ];
 
             for (iUnittestPremise in unittestPremises) {
-                reasoner.input(iUnittestPremise, new Tv(1.0, 0.9), ".");
+                reasoner.inputTerm(iUnittestPremise, new Tv(1.0, 0.9), ".");
             }
 
             reasoner.process();
@@ -1300,6 +1299,10 @@ class Sq2 {
             }
 
         } */
+
+
+
+        ProtoLexer.main(); // test parser
 
     }
 }
@@ -2407,7 +2410,7 @@ class ProtoLexer {
             trace(TermUtils.convToStr(iParseResult.term) + iParseResult.punctuation);
         }
     }
-    public static function parse(narsese: String): {term: Term, punctuation: String} {
+    public static function parse(narsese: String): {term: Term, punctuation: String, tvFreq:Null<Float>, tvConf:Null<Float>} {
         function statementBegin(parser : Parser<EnumOperationType>, currentToken : Token<EnumOperationType>) {
             if(ParserConfig.debugParser) trace("CALL statementBegin()");
         }
@@ -2735,7 +2738,7 @@ class ProtoLexer {
 
         var resultTerm: Term = parser.stack[0];
 
-        return {term:resultTerm, punctuation:punctuation};
+        return {term:resultTerm, punctuation:punctuation, tvFreq:null, tvConf:null};
     }
 }
 
@@ -2760,9 +2763,8 @@ class ParserConfig {
 //    TODO< negative test ")."
 
 
-// TODO< add support for images in lexer >
-// TODO< add support for images in parser >
-
+// TODO< add support for images in parser grammar >
+// TODO< add support for images in parser brace function >
 
 
 // TODO< add support for sets in language >
