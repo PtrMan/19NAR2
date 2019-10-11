@@ -69,6 +69,8 @@
 //     TODO   < lazy update of propability mass after processing task >
 
 // TODO< test attention mechanism with A-->I example from ALANN >
+// TODO< test attention mechanism with other examples from ALANN >
+
 
 // TODO< attention mechansim : questions have way higher priority than judgments >
 
@@ -76,7 +78,7 @@
 
 // TODO< backward derivation >
 
-// TODO< keep concepts under AIKR (ask patrick how)>
+// TODO< keep concepts under AIKR (by calculating the max exp() and throwing the concepts out with lowest max exp() >
 
 // TODO< add sets >
 
@@ -311,6 +313,12 @@ class WorkingSetEntity {
     }
 
     public function calcUtility() {
+        if (sentence.punctation == "?") {
+            // TODO< take time into account >
+            // questions don't have a TV so we have to provide a specific base utility
+            return 0.8; // TODO< expose as tunable parameter >
+        }
+        
         // TODO< take time into account >
         return sentence.tv.conf;
     }
@@ -322,16 +330,151 @@ class WorkingSet {
 
     public function new() {}
 
-    public function sort() {
-        entities.sort(function (a, b) {
-            if (a.calcUtility() > b.calcUtility()) {
-                return 1;
+    // commented because not used
+    //public function sort() {
+    //    entities.sort(function (a, b) {
+    //        if (a.calcUtility() > b.calcUtility()) {
+    //            return 1;
+    //        }
+    //        else if (a.calcUtility() == b.calcUtility()) {
+    //            return 0;
+    //        }
+    //        return -1;
+    //    });
+    //}
+
+    // inserts a Task back into the entities list
+    // it assumes that entities is sorted!
+    public function insertSorted(entity:WorkingSetEntity, depth=0, minIdx=0, maxIdx=null) {
+        if (entities.length == 0) {
+            entities = [entity];
+            return;
+        }
+        
+        if (maxIdx == null) {
+            maxIdx = entities.length-1;
+        }
+
+        var insertedUtility = entity.calcUtility();
+
+        var minUtility = entities[minIdx].calcUtility();
+        var maxUtility = entities[maxIdx].calcUtility();
+
+
+        //if (depth > 5) {
+        //    throw "DEBUG ERROR";
+        //}
+        //
+        trace('l=${entities.length}');
+        trace('insertSorted minIdx=$minIdx maxIdx=$maxIdx');
+
+        if (minIdx == maxIdx - 1 || minIdx == maxIdx) {
+                trace("BEFORE");
+
+                for (iEntity in entities) {
+                    trace('   ${TermUtils.convToStr(iEntity.sentence.term)}${iEntity.sentence.punctation}  score=${iEntity.calcUtility()}');
+                }
+
+            
+            // we need to insert here
+            //if (entities[minIdx].calcUtility())
+            
+            if (insertedUtility < maxUtility) {
+                entities.insert(maxIdx+1, entity);
             }
-            else if (a.calcUtility() == b.calcUtility()) {
-                return 0;
+            else if (insertedUtility < minUtility) {
+                entities.insert(maxIdx, entity);
             }
-            return -1;
-        });
+            else {
+                entities.insert(minIdx, entity);
+            }
+            
+            
+
+            trace("AFTER");
+
+                for (iEntity in entities) {
+                    trace('   ${TermUtils.convToStr(iEntity.sentence.term)}${iEntity.sentence.punctation}  score=${iEntity.calcUtility()}');
+                }
+
+
+            // check if order is correct
+            {
+                var idx = 0;
+                while (idx < entities.length-1) {
+                    if (entities[idx].calcUtility() < entities[idx+1].calcUtility()) {
+                        throw "Validation failed!";
+                    }
+                    idx+=1;
+                }
+            }
+            
+        
+            
+
+            return;
+        }
+        /*
+        if (minIdx == maxIdx-1) {
+            if (insertedUtility < maxUtility) {
+                insertSorted(entity, maxIdx, maxIdx);
+            }
+            else {
+                insertSorted(entity, minIdx+1, minIdx+1);
+            }
+        }
+        */
+
+        /*
+        if (minIdx >= maxIdx-1) {
+            trace("BEFORE");
+
+                for (iEntity in entities) {
+                    trace('   ${TermUtils.convToStr(iEntity.sentence.term)}${iEntity.sentence.punctation}  score=${iEntity.calcUtility()}');
+                }
+
+            
+            // we need to insert here
+            if (entities[minIdx].calcUtility())
+            entities.insert(maxIdx+1, entity);
+            
+
+            trace("AFTER");
+
+                for (iEntity in entities) {
+                    trace('   ${TermUtils.convToStr(iEntity.sentence.term)}${iEntity.sentence.punctation}  score=${iEntity.calcUtility()}');
+                }
+
+
+            // check if order is correct
+            {
+                var idx = 0;
+                while (idx < entities.length-1) {
+                    if (entities[idx].calcUtility() < entities[idx+1].calcUtility()) {
+                        throw "Validation failed!";
+                    }
+                    idx+=1;
+                }
+            }
+            
+            
+            return;
+        }
+        */
+
+
+
+        // we use binary sort
+
+        var midIdx = Std.int((maxIdx+minIdx) / 2);
+        var utilityOfMid = entities[midIdx].calcUtility();
+
+        if (insertedUtility > utilityOfMid) {
+            insertSorted(entity, depth+1, minIdx, midIdx);
+        }
+        else {
+            insertSorted(entity, depth+1, midIdx, maxIdx);
+        }
     }
 }
 
@@ -365,7 +508,8 @@ class Sq2 {
 
         var workingSetEntity = new WorkingSetEntity(sentence);
 
-        workingSet.entities.push(workingSetEntity);
+        ///////workingSet.entities.push(workingSetEntity);
+        workingSet.insertSorted(workingSetEntity);
     }
 
     // puts new narsese input from the outside into the system
@@ -539,7 +683,8 @@ class Sq2 {
                 }
                 
                 if (!existsSentenceInWorkingSet) {
-                    workingSet.entities.push(workingSetEntity);
+                    workingSet.insertSorted(workingSetEntity);
+                    //////workingSet.entities.push(workingSetEntity);
                 }
             }
 
@@ -1165,12 +1310,26 @@ class Sq2 {
             reasoner.input("<a --> c>?");
             // has to get answered
 
-            reasoner.process();
+            reasoner.process(180); // needs a few more cycles
+
+            trace("content:");
+
+            for (iEntity in reasoner.workingSet.entities) {
+                trace('   ${TermUtils.convToStr(iEntity.sentence.term)}${iEntity.sentence.punctation}  score=${iEntity.calcUtility()}');
+            }
+                
+
 
             if (reasoner.conclusionStrArr.indexOf("Answer:[  ?ms]< a --> c >. {1 0.81}", null) == -1) {
+                trace("content:");
+
+                for (iEntity in reasoner.workingSet.entities) {
+                    trace('   ${TermUtils.convToStr(iEntity.sentence.term)}${iEntity.sentence.punctation}  score=${iEntity.calcUtility()}');
+                }
+                
+                
                 throw "Unittest failed!";
             }
-
         }
 
         { // unittest revision
@@ -1938,6 +2097,30 @@ class Unifier {
         return false;
     }
 }
+
+// commented because not used but it is in here because it may be useful someday
+/*
+class Utils {
+    @:generic public static function arrRemoveAt<T>(arr:Array<T>, idx:Int):Array<T> {
+        var before = arr.slice(0, idx);
+        var after = arr.slice(idx+1, arr.length);
+        return before.concat(after);
+    }
+    /+
+    public static function main() {
+        trace(arrRemoveAt([0], 0));
+        trace("---");
+        trace(arrRemoveAt([0, 1], 0));
+        trace(arrRemoveAt([0, 1], 1));
+        trace("---");
+        trace(arrRemoveAt([0, 1, 2], 0));
+        trace(arrRemoveAt([0, 1, 2], 1));
+        trace(arrRemoveAt([0, 1, 2], 2));
+    }
+    +/
+}
+*/
+
 
 
 
