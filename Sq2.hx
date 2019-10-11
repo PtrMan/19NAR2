@@ -70,7 +70,6 @@
 
 // basic attention
 //     TODO OUTDATED< attention mechanism : sort after epoch and limit size for next epoch >
-//     TODO   < probabilistic selection of task by probability mass >
 //     TODO   < lazy update of propability mass after processing task >
 
 // TODO< test attention mechanism with A-->I example from ALANN >
@@ -119,7 +118,7 @@
 // |-
 // <c-->e>. [1]
 
-
+// DONE< ATTENTION - probabilistic selection of task by probability mass >
 
 
 class Node {
@@ -363,6 +362,54 @@ class WorkingSet {
     //    });
     //}
 
+    // computes the index of the entity by chosen "score mass"
+    // necessary for fair probabilistic selection of tasks
+    public function calcIdxByScoreMass(mass:Float, depth=0, minIdx=0, maxIdx=null): Int {
+        if (maxIdx == null) {
+            maxIdx = entities.length-1;
+        }
+
+        var accuScoreAtMin = entities[minIdx].accuScore;
+        var accuScoreAtMax = entities[maxIdx].accuScore;
+
+
+        //if (depth > 5) {
+        //    throw "DEBUG ERROR";
+        //}
+        //
+        //trace('l=${entities.length}');
+        //trace('calcIdxByScoreMass() minIdx=$minIdx maxIdx=$maxIdx');
+
+        if (minIdx == maxIdx - 1) {
+            //trace("BEFORE");
+
+            //for (iEntity in entities) {
+            //    trace('   ${TermUtils.convToStr(iEntity.sentence.term)}${iEntity.sentence.punctation}  score=${iEntity.calcUtility()}');
+            //}
+
+            if (mass < accuScoreAtMin) {
+                return minIdx;
+            }
+            return maxIdx;
+        }
+        if (minIdx == maxIdx) {
+            return minIdx;
+        }
+
+
+        // we use binary search
+
+        var midIdx = Std.int((maxIdx+minIdx) / 2);
+        var accuScoreAtMid = entities[midIdx].accuScore;
+
+        if (mass < accuScoreAtMid) {
+            return calcIdxByScoreMass(mass, depth+1, minIdx, midIdx);
+        }
+        else {
+            return calcIdxByScoreMass(mass, depth+1, midIdx, maxIdx);
+        }
+    }
+
     /* commented because not used
     // inserts a Task back into the entities list
     // it assumes that entities is sorted!
@@ -523,8 +570,14 @@ class Sq2 {
             trace("");
 
             // select random element from working set
-            var idx:Int = Std.random(workingSet.entities.length);
-            var chosenWorkingSetEntity = workingSet.entities[idx];
+            var chosenWorkingSetEntity;
+            { // select element from working set by probabilistic selection by mass
+                var probabilityMass: Float = workingSet.entities[workingSet.entities.length-1].accuScore;
+                var chosenMass: Float = Math.random() * probabilityMass;
+
+                var idx:Int = workingSet.calcIdxByScoreMass(chosenMass); ///////Std.random(workingSet.entities.length);
+                chosenWorkingSetEntity = workingSet.entities[idx];
+            }
 
             var premiseSentence = chosenWorkingSetEntity.sentence;
 
