@@ -343,6 +343,7 @@ class WorkingSet {
     //    });
     //}
 
+    /* commented because not used
     // inserts a Task back into the entities list
     // it assumes that entities is sorted!
     public function insertSorted(entity:WorkingSetEntity, depth=0, minIdx=0, maxIdx=null) {
@@ -414,54 +415,6 @@ class WorkingSet {
 
             return;
         }
-        /*
-        if (minIdx == maxIdx-1) {
-            if (insertedUtility < maxUtility) {
-                insertSorted(entity, maxIdx, maxIdx);
-            }
-            else {
-                insertSorted(entity, minIdx+1, minIdx+1);
-            }
-        }
-        */
-
-        /*
-        if (minIdx >= maxIdx-1) {
-            trace("BEFORE");
-
-                for (iEntity in entities) {
-                    trace('   ${TermUtils.convToStr(iEntity.sentence.term)}${iEntity.sentence.punctation}  score=${iEntity.calcUtility()}');
-                }
-
-            
-            // we need to insert here
-            if (entities[minIdx].calcUtility())
-            entities.insert(maxIdx+1, entity);
-            
-
-            trace("AFTER");
-
-                for (iEntity in entities) {
-                    trace('   ${TermUtils.convToStr(iEntity.sentence.term)}${iEntity.sentence.punctation}  score=${iEntity.calcUtility()}');
-                }
-
-
-            // check if order is correct
-            {
-                var idx = 0;
-                while (idx < entities.length-1) {
-                    if (entities[idx].calcUtility() < entities[idx+1].calcUtility()) {
-                        throw "Validation failed!";
-                    }
-                    idx+=1;
-                }
-            }
-            
-            
-            return;
-        }
-        */
-
 
 
         // we use binary sort
@@ -476,6 +429,7 @@ class WorkingSet {
             insertSorted(entity, depth+1, midIdx, maxIdx);
         }
     }
+    */
 }
 
 class Config {
@@ -508,8 +462,7 @@ class Sq2 {
 
         var workingSetEntity = new WorkingSetEntity(sentence);
 
-        ///////workingSet.entities.push(workingSetEntity);
-        workingSet.insertSorted(workingSetEntity);
+        workingSet.entities.push(workingSetEntity);
     }
 
     // puts new narsese input from the outside into the system
@@ -683,8 +636,7 @@ class Sq2 {
                 }
                 
                 if (!existsSentenceInWorkingSet) {
-                    workingSet.insertSorted(workingSetEntity);
-                    //////workingSet.entities.push(workingSetEntity);
+                    workingSet.entities.push(workingSetEntity);
                 }
             }
 
