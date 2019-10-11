@@ -23,6 +23,11 @@
 //<{b}-->c>.
 //<{b a}-->c>?
 
+// TODO< ubuild union of sets (up to maximal size) >
+//<a-->[c]>.
+//<a-->[d]>.
+//<a-->[c d]>?
+
 
 // TODO< infer impl only if it leads to more than two vars , ex with one var
 //<cat --> [bites]>.
@@ -78,7 +83,9 @@
 
 // TODO< backward derivation >
 
-// TODO< keep concepts under AIKR (by calculating the max exp() and throwing the concepts out with lowest max exp() >
+// TODO< keep concepts(nodes) under AIKR (by calculating the max exp() and throwing the concepts out with lowest max exp() >
+
+// TODO< keep tasks under AIKR (by sorting by score(utility) and slicing)
 
 // TODO< add sets >
 
@@ -308,6 +315,8 @@ class WorkingSetEntity {
 
     public var bestAnswerExp:Float = 0.0;
 
+    public var accuScore = 0.0; // accumulated score of the items in working set up to this item, we store it here for efficiency
+
     public function new(sentence) {
         this.sentence = sentence;
     }
@@ -329,6 +338,17 @@ class WorkingSet {
     public var entities:Array<WorkingSetEntity> = [];
 
     public function new() {}
+
+    // append, maintains invariants
+    public function append(entity:WorkingSetEntity) {
+        entities.push(entity);
+
+        if (entities.length >= 2) {
+            entities[entities.length-1].accuScore = entities[entities.length-2].accuScore;
+        }
+
+        entities[entities.length-1].accuScore += entity.calcUtility();
+    }
 
     // commented because not used
     //public function sort() {
@@ -462,7 +482,7 @@ class Sq2 {
 
         var workingSetEntity = new WorkingSetEntity(sentence);
 
-        workingSet.entities.push(workingSetEntity);
+        workingSet.append(workingSetEntity);
     }
 
     // puts new narsese input from the outside into the system
@@ -636,7 +656,7 @@ class Sq2 {
                 }
                 
                 if (!existsSentenceInWorkingSet) {
-                    workingSet.entities.push(workingSetEntity);
+                    workingSet.append(workingSetEntity);
                 }
             }
 
