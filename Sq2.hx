@@ -5,19 +5,6 @@
 
 // TODO CONTINUE IMPL< most NAL-2 like in new meta rules >
 
-// todo< equivalence structural transformation with two premises ded >
-// ex:
-// <c-->d>. [1]
-// <<$x-->d> <=> <$x-->e>>. [2]
-// |-
-// <c-->e>. [1]
-// TODO< impl structural transformation with two premises ded >
-// ex:
-// <c-->d>. [1]
-// <<$x-->d> ==> <$x-->e>>. [2]
-// |-
-// <c-->e>. [1]
-
 
 // TODO< structural decomposition >
 //<(*,a,b) --> (*,c,d)>.
@@ -109,6 +96,22 @@
 // DONE TEST< structural transform from products to images >
 
 // DONE< revision >
+
+// DONE< equivalence structural transformation with two premises ded >
+// ex:
+// <<$x-->d> <=> <$x-->e>>. [2]
+// <c-->d>. [1]
+// |-
+// <c-->e>. [1]
+// DONE< impl structural transformation with two premises ded >
+// ex:
+// <<$x-->d> ==> <$x-->e>>. [2]
+// <c-->d>. [1]
+// |-
+// <c-->e>. [1]
+
+
+
 
 class Node {
     public var name:Term; // name of the concept
@@ -379,7 +382,7 @@ class Sq2 {
     }
 
     // run the reasoner for a number of cycles
-    public function process() {
+    public function process(cycles:Int = 20) {
         function reportAnswer(sentence:Sentence) {
             var str = 'Answer:[  ?ms]${sentence.convToStr()}'; // report with ALANN formalism
 
@@ -394,7 +397,7 @@ class Sq2 {
         while(true) { // main loop
             cycleCounter++;
 
-            if (cycleCounter > 20) {
+            if (cycleCounter > cycles) {
                 break;
             }
 
@@ -733,14 +736,14 @@ class Sq2 {
                             case Cop(copAsymZ0, b1, c) if (copAsymZ0 == copAsym && TermUtils.equal(b0,b1)):
 
                             // print ("(A "+copAsym+" B),\t(B "+copAsymZ+" C)\t\t\t|-\t(A "+ival(copAsym,"t+z")+" C)\t\t(Truth:Deduction"+OmitForHOL(", Desire:Strong")+")")
-                            var conclusionTerm = Cop(copAsym, a0, c);
-                            conclusions.push({term:conclusionTerm, tv:Tv.deduction(premiseATv, premiseBTv), punctation:".", stamp:mergedStamp, ruleName:"NAL-2.two ded"});
+                            //var conclusionTerm = Cop(copAsym, a0, c);
+                            //commented because handled by syllogistic code  //conclusions.push({term:conclusionTerm, tv:Tv.deduction(premiseATv, premiseBTv), punctation:".", stamp:mergedStamp, ruleName:"NAL-2.two ded"});
                             
                             case Cop(copAsymZ0, c, b1) if (copAsymZ0 == copAsym && TermUtils.equal(b0,b1)):
 
                             // print ("(A "+copAsym+" B),\t(C "+copAsymZ+" B)\t\t\t|-\t(A "+copAsym+" C)\t\t(Truth:Induction"+IntervalProjection+OmitForHOL(", Desire:Weak")+")")
-                            var conclusionTerm = Cop(copAsym, a0, c);
-                            conclusions.push({term:conclusionTerm, tv:Tv.induction(premiseATv, premiseBTv), punctation:".", stamp:mergedStamp, ruleName:"NAL-2.two ind"});
+                            //var conclusionTerm = Cop(copAsym, a0, c);
+                            //commented because handled by syllogistic code  conclusions.push({term:conclusionTerm, tv:Tv.induction(premiseATv, premiseBTv), punctation:".", stamp:mergedStamp, ruleName:"NAL-2.two ind"});
                             
                             case Cop(copAsymZ0, a1, c) if (copAsymZ0 == copAsym && TermUtils.equal(a0,a1)):
 
@@ -964,20 +967,36 @@ class Sq2 {
                     var conclusion = Cop("==>", compoundA0, implPred);
                     conclusions.push({term: conclusion, tv:Tv.deduction(premiseATv, premiseBTv)/*TODO check*/, punctation:".", stamp:mergedStamp, ruleName:"NAL6-two impl ==> detach conj[1]"});
                 }
-
-                case Cop(copula, implSubj, implPred) if (copula == "==>" || copula == "<=>"):
-                // TODO< var unification >
-                // works for equivalence because equivalence is a "special case" of implication
-                // ex:
-                // <a --> x> ==> <X --> Y>>.
-                // <a-->x>.
-                // |-
-                // <X --> Y>.
-                if (TermUtils.equal(implSubj, premiseBTerm)) {
-                    var conclusion = implPred;
-                    conclusions.push({term: conclusion, tv:Tv.deduction(premiseATv, premiseBTv)/*TODO check*/, punctation:".", stamp:mergedStamp, ruleName:"NAL6-two impl ==> detach"});
-                }
                 
+                
+                case _: null;
+            }
+        }
+
+
+        if (premiseAPunctation == "." && premiseBPunctation == ".") {
+            switch (premiseATerm) {
+                // impl structural transformation with two premises ded
+                case Cop(cop, subj, pred) if (cop == "<=>" || cop == "==>"):
+                                
+                //
+                // ex:
+                // <<$x-->d> <=> <$x-->e>>. [2]
+                // <c-->d>. [1]
+                // |-
+                // <c-->e>. [1]
+                //
+                // ex:
+                // <<$x-->d> ==> <$x-->e>>. [2]
+                // <c-->d>. [1]
+                // |-
+                // <c-->e>. [1]
+                var unifiedMap = new Map<String, Term>();
+                if (Unifier.unify(subj, premiseBTerm, unifiedMap)) { // try to unify the subj of the impl or equiv w/ the other premise                    
+                    var conclTerm = Unifier.substitute(pred, unifiedMap, "$");
+                    conclusions.push({term: conclTerm, tv:Tv.deduction(premiseATv, premiseBTv)/*TODO check*/, punctation:".", stamp:premiseBStamp, ruleName:"NAL6-two impl structural transformation with two premises"});
+                }
+
                 case _: null;
             }
         }
@@ -1106,7 +1125,6 @@ class Sq2 {
             workingSet.entities.push(workingSetEntity);
         }
         */
-
 
 
 
@@ -1316,7 +1334,7 @@ class Sq2 {
                 reasoner.inputTerm(iUnittestPremise, new Tv(1.0, 0.9), ".");
             }
 
-            reasoner.process();
+            reasoner.process(40); // needs some more cycles
 
             if (reasoner.conclusionStrArr.indexOf("< Q --> c >. {1 0.81}", null) == -1) {
                 throw "Unittest failed!";
@@ -1348,6 +1366,40 @@ class Sq2 {
             }
 
         }
+        
+        { // unittest ==> two premise impl structural transformation
+            var reasoner:Sq2 = new Sq2();
+            reasoner.conclusionStrArr = []; // enable output logging
+
+            reasoner.input("<<$x-->d> ==> <$x-->e>>.");
+            reasoner.input("<c-->d>.");
+            // |-
+            // <c-->e>. [1]
+
+            reasoner.process(140); // needs some more cycles
+
+            if (reasoner.conclusionStrArr.indexOf("< c --> e >. {1 0.81}", null) == -1) {
+                throw "Unittest failed!";
+            }
+        }
+
+        { // unittest <=> two premise impl structural transformation
+            var reasoner:Sq2 = new Sq2();
+            reasoner.conclusionStrArr = []; // enable output logging
+
+            reasoner.input("<<$x-->d> <=> <$x-->e>>.");
+            reasoner.input("<c-->d>.");
+            // |-
+            // <c-->e>. [1]
+
+            reasoner.process(140); // needs some more cycles
+
+            if (reasoner.conclusionStrArr.indexOf("< c --> e >. {1 0.81}", null) == -1) {
+                throw "Unittest failed!";
+            }
+        }
+
+
 
         { // unittest Q&A 
             var reasoner:Sq2 = new Sq2();
@@ -1357,7 +1409,7 @@ class Sq2 {
             reasoner.input("<B --> x>.");
             // has to get answered
 
-            reasoner.process();
+            reasoner.process(20);
 
             if (reasoner.conclusionStrArr.indexOf("Answer:[  ?ms]< B --> x >. {1 0.9}", null) == -1) {
                 throw "Unittest failed!";
