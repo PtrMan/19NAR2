@@ -121,387 +121,9 @@
 // DONE< ATTENTION - probabilistic selection of task by probability mass >
 
 
-class Node {
-    public var name:Term; // name of the concept
 
-    public var judgments: Array<Sentence> = []; // all judgments of the concept
 
-    public function new(name) {
-        this.name = name;
-    }
-}
 
-class Memory {
-    // name key is name as string
-    public var conceptsByName:Map<String, Node> = new Map<String, Node>();
-
-    public function new() {}
-
-    public function hasConceptByName(name:String) {
-        return conceptsByName.get(name) != null;
-    }
-
-    public function retConceptByName(name:String): Node {
-        return conceptsByName.get(name);
-    }
-
-    public function addConcept(concept:Node) {
-        conceptsByName.set( TermUtils.convToStr(concept.name) , concept);
-    }
-
-    // puts judgment into corresponding concepts
-    public function updateConceptsForJudgment(sentence:Sentence) {
-        for (iTermName in TermUtils.enumTerms(sentence.term)) {
-            var nodeOfTerm;
-            
-            // retrieve or create concept
-            if (hasConceptByName(TermUtils.convToStr(iTermName))) {
-                nodeOfTerm = retConceptByName(TermUtils.convToStr(iTermName));
-            }
-            else {
-                nodeOfTerm = new Node(iTermName);
-                addConcept(nodeOfTerm);
-            }
-
-            // we need to check for the existence of a judgment with the same stamp and TV
-            var exists = false;
-            for (iJudgment in nodeOfTerm.judgments) {
-                if (Sentence.equal(iJudgment, sentence)) {
-                    exists = true;
-                    break;
-                }
-            }
-
-            if (exists) {
-                continue;
-            }
-
-            // update
-            nodeOfTerm.judgments.push(sentence);
-
-            // sort judgments by metric and limit size
-            nodeOfTerm.judgments.sort( (a, b) -> (a.tv.exp() < b.tv.exp() ? 1 : ((a.tv.exp() == b.tv.exp()) ? 0 : -1) ));
-            nodeOfTerm.judgments = nodeOfTerm.judgments.slice(0, Config.beliefsPerNode);
-        }
-    }
-}
-
-class StructuralOriginsStamp {
-    public var arr:Array<Term> = [];
-
-    public function new(arr) {
-        this.arr = arr;
-    }
-
-    public static function equal(a:StructuralOriginsStamp, b:StructuralOriginsStamp):Bool {
-        if (a.arr.length != b.arr.length) {
-            return false;
-        }
-
-        for (idx in 0...a.arr.length) {
-            if (!TermUtils.equal(a.arr[idx], b.arr[idx])) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    public static function checkOverlap(a:StructuralOriginsStamp, b:StructuralOriginsStamp):Bool {
-        if (a.arr.length == 0 && b.arr.length == 0) {
-            return false; // false because it is a special case because both structural stamps are empty
-        }
-        return StructuralOriginsStamp.equal(a, b);
-    }
-}
-
-class Stamp {
-    // we store the structural origin to avoid doing the same conversion over and over again
-    public var structuralOrigins:StructuralOriginsStamp;
-
-    public var ids:Array<haxe.Int64>;
-
-    public function new(ids, structuralOrigins) {
-        this.ids = ids;
-        this.structuralOrigins = structuralOrigins;
-    }
-
-    public static function merge(a:Stamp, b:Stamp): Stamp {
-        var ids:Array<haxe.Int64> = [];
-
-        var commonIdx = Utils.min(a.ids.length, b.ids.length);
-        for (idx in 0...commonIdx) {
-            ids.push(a.ids[idx]);
-            ids.push(b.ids[idx]);
-        }
-
-        if (a.ids.length > b.ids.length) {
-            ids = ids.concat(a.ids.slice(commonIdx, a.ids.length));
-        }
-        else if (b.ids.length > a.ids.length) {
-            ids = ids.concat(b.ids.slice(commonIdx, b.ids.length));
-        }
-
-        // limit size of stamp
-        var maxStampLength = 2000;
-        ids = ids.slice(0, Utils.min(maxStampLength, ids.length));
-
-        return new Stamp(ids, new StructuralOriginsStamp([])); // throw structural orgin of parameters away because a merge invalidates it anyways
-    }
-
-    public static function checkOverlap(a:Stamp, b:Stamp, checkStructural=true):Bool {
-        // check normal stamp
-        for (iA in a.ids) {
-
-            // TODO< speedup with hashmap >
-            for (iB in b.ids) {
-                if (haxe.Int64.compare(iA, iB) == 0) {
-                    return true;
-                }
-            }
-        }
-
-        if (!checkStructural) {
-            return false;
-        }
-
-        if (checkStructural && !StructuralOriginsStamp.checkOverlap(a.structuralOrigins, b.structuralOrigins)) {
-            return false;
-        }
-        return true;
-    }
-}
-
-class Sentence {
-    public var term:Term;
-    public var tv:Tv;
-    public var stamp:Stamp;
-
-    public var punctation:String;
-
-    public function new(term, tv, stamp, punctation) {
-        this.term = term;
-        this.tv = tv;
-        this.stamp = stamp;
-        this.punctation = punctation;
-    }
-
-    public function convToStr():String {
-        var res = TermUtils.convToStr(term) +  punctation+" ";
-        if (tv != null) { // can be null
-            res += tv.convToStr();
-        }
-        return res;
-    }
-
-    public static function equal(a:Sentence, b:Sentence):Bool {
-        var epsilon = 0.00001;
-        var isTruthEqual = false;
-        if (a.tv == null && b.tv == null) {
-            isTruthEqual = true;
-        }
-        else if (a.tv != null && b.tv != null) {
-            isTruthEqual = Math.abs(a.tv.freq-b.tv.freq) < epsilon && Math.abs(a.tv.conf-b.tv.conf) < epsilon;
-        }
-
-        var isTermEqual = TermUtils.equal(a.term, b.term);
-        return isTruthEqual && isTermEqual && a.punctation == b.punctation && Stamp.checkOverlap(a.stamp, b.stamp);
-    }
-}
-
-class WorkingSetEntity {
-    public var sentence:Sentence;
-
-    public var bestAnswerExp:Float = 0.0;
-
-    public var accuScore = 0.0; // accumulated score of the items in working set up to this item, we store it here for efficiency
-
-    public function new(sentence) {
-        this.sentence = sentence;
-    }
-
-    public function calcUtility() {
-        if (sentence.punctation == "?") {
-            // TODO< take time into account >
-            // questions don't have a TV so we have to provide a specific base utility
-            return 0.8; // TODO< expose as tunable parameter >
-        }
-        
-        // TODO< take time into account >
-        return sentence.tv.conf;
-    }
-}
-
-
-class WorkingSet {
-    public var entities:Array<WorkingSetEntity> = [];
-
-    public function new() {}
-
-    // append, maintains invariants
-    public function append(entity:WorkingSetEntity) {
-        entities.push(entity);
-
-        if (entities.length >= 2) {
-            entities[entities.length-1].accuScore = entities[entities.length-2].accuScore;
-        }
-
-        entities[entities.length-1].accuScore += entity.calcUtility();
-    }
-
-    // commented because not used
-    //public function sort() {
-    //    entities.sort(function (a, b) {
-    //        if (a.calcUtility() > b.calcUtility()) {
-    //            return 1;
-    //        }
-    //        else if (a.calcUtility() == b.calcUtility()) {
-    //            return 0;
-    //        }
-    //        return -1;
-    //    });
-    //}
-
-    // computes the index of the entity by chosen "score mass"
-    // necessary for fair probabilistic selection of tasks
-    public function calcIdxByScoreMass(mass:Float, depth=0, minIdx=0, maxIdx=null): Int {
-        if (maxIdx == null) {
-            maxIdx = entities.length-1;
-        }
-
-        var accuScoreAtMin = entities[minIdx].accuScore;
-        var accuScoreAtMax = entities[maxIdx].accuScore;
-
-
-        //if (depth > 5) {
-        //    throw "DEBUG ERROR";
-        //}
-        //
-        //trace('l=${entities.length}');
-        //trace('calcIdxByScoreMass() minIdx=$minIdx maxIdx=$maxIdx');
-
-        if (minIdx == maxIdx - 1) {
-            //trace("BEFORE");
-
-            //for (iEntity in entities) {
-            //    trace('   ${TermUtils.convToStr(iEntity.sentence.term)}${iEntity.sentence.punctation}  score=${iEntity.calcUtility()}');
-            //}
-
-            if (mass < accuScoreAtMin) {
-                return minIdx;
-            }
-            return maxIdx;
-        }
-        if (minIdx == maxIdx) {
-            return minIdx;
-        }
-
-
-        // we use binary search
-
-        var midIdx = Std.int((maxIdx+minIdx) / 2);
-        var accuScoreAtMid = entities[midIdx].accuScore;
-
-        if (mass < accuScoreAtMid) {
-            return calcIdxByScoreMass(mass, depth+1, minIdx, midIdx);
-        }
-        else {
-            return calcIdxByScoreMass(mass, depth+1, midIdx, maxIdx);
-        }
-    }
-
-    /* commented because not used
-    // inserts a Task back into the entities list
-    // it assumes that entities is sorted!
-    public function insertSorted(entity:WorkingSetEntity, depth=0, minIdx=0, maxIdx=null) {
-        if (entities.length == 0) {
-            entities = [entity];
-            return;
-        }
-        
-        if (maxIdx == null) {
-            maxIdx = entities.length-1;
-        }
-
-        var insertedUtility = entity.calcUtility();
-
-        var minUtility = entities[minIdx].calcUtility();
-        var maxUtility = entities[maxIdx].calcUtility();
-
-
-        //if (depth > 5) {
-        //    throw "DEBUG ERROR";
-        //}
-        //
-        trace('l=${entities.length}');
-        trace('insertSorted minIdx=$minIdx maxIdx=$maxIdx');
-
-        if (minIdx == maxIdx - 1 || minIdx == maxIdx) {
-                trace("BEFORE");
-
-                for (iEntity in entities) {
-                    trace('   ${TermUtils.convToStr(iEntity.sentence.term)}${iEntity.sentence.punctation}  score=${iEntity.calcUtility()}');
-                }
-
-            
-            // we need to insert here
-            //if (entities[minIdx].calcUtility())
-            
-            if (insertedUtility < maxUtility) {
-                entities.insert(maxIdx+1, entity);
-            }
-            else if (insertedUtility < minUtility) {
-                entities.insert(maxIdx, entity);
-            }
-            else {
-                entities.insert(minIdx, entity);
-            }
-            
-            
-
-            trace("AFTER");
-
-                for (iEntity in entities) {
-                    trace('   ${TermUtils.convToStr(iEntity.sentence.term)}${iEntity.sentence.punctation}  score=${iEntity.calcUtility()}');
-                }
-
-
-            // check if order is correct
-            {
-                var idx = 0;
-                while (idx < entities.length-1) {
-                    if (entities[idx].calcUtility() < entities[idx+1].calcUtility()) {
-                        throw "Validation failed!";
-                    }
-                    idx+=1;
-                }
-            }
-            
-        
-            
-
-            return;
-        }
-
-
-        // we use binary sort
-
-        var midIdx = Std.int((maxIdx+minIdx) / 2);
-        var utilityOfMid = entities[midIdx].calcUtility();
-
-        if (insertedUtility > utilityOfMid) {
-            insertSorted(entity, depth+1, minIdx, midIdx);
-        }
-        else {
-            insertSorted(entity, depth+1, midIdx, maxIdx);
-        }
-    }
-    */
-}
-
-class Config {
-    public static var beliefsPerNode:Int = 30;
-}
 
 // TODO< safe structuralOrigins correctly by appending >
 class Sq2 {
@@ -565,9 +187,9 @@ class Sq2 {
                 break;
             }
 
-            trace("");
-            trace("");
-            trace("");
+            if (Config.debug_derivations)   trace("");
+            if (Config.debug_derivations)   trace("");
+            if (Config.debug_derivations)   trace("");
 
             // select random element from working set
             var chosenWorkingSetEntity;
@@ -625,7 +247,7 @@ class Sq2 {
                 // select random secondary premise
                 var primaryConcept = mem.retConceptByName(TermUtils.convToStr(selectedSecondaryPremiseTerm));
                 if (primaryConcept != null && primaryConcept.judgments.length > 0) {
-                    trace("two premise derivation !");
+                    if (Config.debug_derivations)   trace("two premise derivation !");
 
                     var secondaryIdx = Std.random(primaryConcept.judgments.length);
                     var secondarySentence = primaryConcept.judgments[secondaryIdx];
@@ -635,7 +257,7 @@ class Sq2 {
                     var secondaryPunctation = secondarySentence.punctation;
                     var secondaryStamp = secondarySentence.stamp;
 
-                    trace("inf   " +  TermUtils.convToStr(premiseTerm) +     "   ++++    "+TermUtils.convToStr(secondaryTerm));
+                    if (Config.debug_derivations)   trace("inf   " +  TermUtils.convToStr(premiseTerm) +     "   ++++    "+TermUtils.convToStr(secondaryTerm));
 
                     if (!Stamp.checkOverlap(premiseStamp, secondaryStamp)) {
                         if (premisePunctation == "." && secondaryPunctation == "." && TermUtils.equal(premiseTerm, secondaryTerm)) { // can do revision
@@ -646,7 +268,7 @@ class Sq2 {
 
                             { // print and add for debugging
                                 var conclusionAsStr = TermUtils.convToStr(premiseTerm) +  premisePunctation+" " + tv.convToStr();
-                                trace(conclusionAsStr);
+                                if (Config.debug_derivations)   trace(conclusionAsStr);
 
                                 if (conclusionStrArr != null) { // used for debugging and unittesting
                                     conclusionStrArr.push(conclusionAsStr);
@@ -660,7 +282,7 @@ class Sq2 {
                         }
                     }
                     else {
-                        trace('   stampOverlap a=${premiseStamp.ids.map(v -> haxe.Int64.toStr(v))}  b=${secondaryStamp.ids.map(v -> haxe.Int64.toStr(v))}');
+                        if (Config.debug_derivations)   trace('   stampOverlap a=${premiseStamp.ids.map(v -> haxe.Int64.toStr(v))}  b=${secondaryStamp.ids.map(v -> haxe.Int64.toStr(v))}');
                     }
                 }
             }
@@ -676,10 +298,10 @@ class Sq2 {
                 };
             });
 
-            trace("|-");
+            if (Config.debug_derivations)   trace("|-");
             for (iConclusion in conclusions) {
                 var conclusionAsStr = TermUtils.convToStr(iConclusion.term) +  iConclusion.punctation+" " + iConclusion.tv.convToStr();
-                trace(conclusionAsStr);
+                if (Config.debug_derivations)   trace(conclusionAsStr);
 
                 if (conclusionStrArr != null) { // used for debugging and unittesting
                     conclusionStrArr.push(conclusionAsStr);
@@ -688,9 +310,9 @@ class Sq2 {
 
 
 
-            trace("");
-            trace("");
-            trace("");
+            if (Config.debug_derivations)   trace("");
+            if (Config.debug_derivations)   trace("");
+            if (Config.debug_derivations)   trace("");
 
 
             // put conclusions back into working set
@@ -729,9 +351,9 @@ class Sq2 {
             }
         }
 
-        trace("Summary: ");
-        trace('   #concepts= $numberOfConcepts');
-        trace('   #workingset.entities= ${workingSet.entities.length}');
+        if (Config.debug_derivations)   trace("Summary: ");
+        if (Config.debug_derivations)   trace('   #concepts= $numberOfConcepts');
+        if (Config.debug_derivations)   trace('   #workingset.entities= ${workingSet.entities.length}');
 
 
     }
@@ -1272,7 +894,7 @@ class Sq2 {
             case _: null;
         }
 
-        trace(TermUtils.convToStr(premiseTerm)+premisePunctation);
+        if (Config.debug_derivations)   trace(TermUtils.convToStr(premiseTerm)+premisePunctation);
 
         return conclusions;
         
@@ -1576,7 +1198,7 @@ class Sq2 {
             // |-
             // <c-->e>. [1]
 
-            reasoner.process(140); // needs some more cycles
+            reasoner.process(240); // needs some more cycles
 
             if (reasoner.conclusionStrArr.indexOf("< c --> e >. {1 0.81}", null) == -1) {
                 throw "Unittest failed!";
@@ -1678,6 +1300,396 @@ class Sq2 {
 
     }
 }
+
+class Node {
+    public var name:Term; // name of the concept
+
+    public var judgments: Array<Sentence> = []; // all judgments of the concept
+
+    public function new(name) {
+        this.name = name;
+    }
+}
+
+class Memory {
+    // name key is name as string
+    public var conceptsByName:Map<String, Node> = new Map<String, Node>();
+
+    public function new() {}
+
+    public function hasConceptByName(name:String) {
+        return conceptsByName.get(name) != null;
+    }
+
+    public function retConceptByName(name:String): Node {
+        return conceptsByName.get(name);
+    }
+
+    public function addConcept(concept:Node) {
+        conceptsByName.set( TermUtils.convToStr(concept.name) , concept);
+    }
+
+    // puts judgment into corresponding concepts
+    public function updateConceptsForJudgment(sentence:Sentence) {
+        for (iTermName in TermUtils.enumTerms(sentence.term)) {
+            var nodeOfTerm;
+            
+            // retrieve or create concept
+            if (hasConceptByName(TermUtils.convToStr(iTermName))) {
+                nodeOfTerm = retConceptByName(TermUtils.convToStr(iTermName));
+            }
+            else {
+                nodeOfTerm = new Node(iTermName);
+                addConcept(nodeOfTerm);
+            }
+
+            // we need to check for the existence of a judgment with the same stamp and TV
+            var exists = false;
+            for (iJudgment in nodeOfTerm.judgments) {
+                if (Sentence.equal(iJudgment, sentence)) {
+                    exists = true;
+                    break;
+                }
+            }
+
+            if (exists) {
+                continue;
+            }
+
+            // update
+            nodeOfTerm.judgments.push(sentence);
+
+            // sort judgments by metric and limit size
+            nodeOfTerm.judgments.sort( (a, b) -> (a.tv.exp() < b.tv.exp() ? 1 : ((a.tv.exp() == b.tv.exp()) ? 0 : -1) ));
+            nodeOfTerm.judgments = nodeOfTerm.judgments.slice(0, Config.beliefsPerNode);
+        }
+    }
+}
+
+class StructuralOriginsStamp {
+    public var arr:Array<Term> = [];
+
+    public function new(arr) {
+        this.arr = arr;
+    }
+
+    public static function equal(a:StructuralOriginsStamp, b:StructuralOriginsStamp):Bool {
+        if (a.arr.length != b.arr.length) {
+            return false;
+        }
+
+        for (idx in 0...a.arr.length) {
+            if (!TermUtils.equal(a.arr[idx], b.arr[idx])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    public static function checkOverlap(a:StructuralOriginsStamp, b:StructuralOriginsStamp):Bool {
+        if (a.arr.length == 0 && b.arr.length == 0) {
+            return false; // false because it is a special case because both structural stamps are empty
+        }
+        return StructuralOriginsStamp.equal(a, b);
+    }
+}
+
+class Stamp {
+    // we store the structural origin to avoid doing the same conversion over and over again
+    public var structuralOrigins:StructuralOriginsStamp;
+
+    public var ids:Array<haxe.Int64>;
+
+    public function new(ids, structuralOrigins) {
+        this.ids = ids;
+        this.structuralOrigins = structuralOrigins;
+    }
+
+    public static function merge(a:Stamp, b:Stamp): Stamp {
+        var ids:Array<haxe.Int64> = [];
+
+        var commonIdx = Utils.min(a.ids.length, b.ids.length);
+        for (idx in 0...commonIdx) {
+            ids.push(a.ids[idx]);
+            ids.push(b.ids[idx]);
+        }
+
+        if (a.ids.length > b.ids.length) {
+            ids = ids.concat(a.ids.slice(commonIdx, a.ids.length));
+        }
+        else if (b.ids.length > a.ids.length) {
+            ids = ids.concat(b.ids.slice(commonIdx, b.ids.length));
+        }
+
+        // limit size of stamp
+        var maxStampLength = 2000;
+        ids = ids.slice(0, Utils.min(maxStampLength, ids.length));
+
+        return new Stamp(ids, new StructuralOriginsStamp([])); // throw structural orgin of parameters away because a merge invalidates it anyways
+    }
+
+    public static function checkOverlap(a:Stamp, b:Stamp, checkStructural=true):Bool {
+        // check normal stamp
+        for (iA in a.ids) {
+
+            // TODO< speedup with hashmap >
+            for (iB in b.ids) {
+                if (haxe.Int64.compare(iA, iB) == 0) {
+                    return true;
+                }
+            }
+        }
+
+        if (!checkStructural) {
+            return false;
+        }
+
+        if (checkStructural && !StructuralOriginsStamp.checkOverlap(a.structuralOrigins, b.structuralOrigins)) {
+            return false;
+        }
+        return true;
+    }
+}
+
+class Sentence {
+    public var term:Term;
+    public var tv:Tv;
+    public var stamp:Stamp;
+
+    public var punctation:String;
+
+    public function new(term, tv, stamp, punctation) {
+        this.term = term;
+        this.tv = tv;
+        this.stamp = stamp;
+        this.punctation = punctation;
+    }
+
+    public function convToStr():String {
+        var res = TermUtils.convToStr(term) +  punctation+" ";
+        if (tv != null) { // can be null
+            res += tv.convToStr();
+        }
+        return res;
+    }
+
+    public static function equal(a:Sentence, b:Sentence):Bool {
+        var epsilon = 0.00001;
+        var isTruthEqual = false;
+        if (a.tv == null && b.tv == null) {
+            isTruthEqual = true;
+        }
+        else if (a.tv != null && b.tv != null) {
+            isTruthEqual = Math.abs(a.tv.freq-b.tv.freq) < epsilon && Math.abs(a.tv.conf-b.tv.conf) < epsilon;
+        }
+
+        var isTermEqual = TermUtils.equal(a.term, b.term);
+        return isTruthEqual && isTermEqual && a.punctation == b.punctation && Stamp.checkOverlap(a.stamp, b.stamp);
+    }
+}
+
+class WorkingSetEntity {
+    public var sentence:Sentence;
+
+    public var bestAnswerExp:Float = 0.0;
+
+    public var accuScore = 0.0; // accumulated score of the items in working set up to this item, we store it here for efficiency
+
+    public function new(sentence) {
+        this.sentence = sentence;
+    }
+
+    public function calcUtility() {
+        if (sentence.punctation == "?") {
+            // TODO< take time into account >
+            // questions don't have a TV so we have to provide a specific base utility
+            return 0.8; // TODO< expose as tunable parameter >
+        }
+        
+        // TODO< take time into account >
+        return sentence.tv.conf;
+    }
+}
+
+
+class WorkingSet {
+    public var entities:Array<WorkingSetEntity> = [];
+
+    public function new() {}
+
+    // append, maintains invariants
+    public function append(entity:WorkingSetEntity) {
+        entities.push(entity);
+
+        if (entities.length >= 2) {
+            entities[entities.length-1].accuScore = entities[entities.length-2].accuScore;
+        }
+
+        entities[entities.length-1].accuScore += entity.calcUtility();
+    }
+
+    public function debug() {
+        for (iEntity in entities) {
+            trace('   ${TermUtils.convToStr(iEntity.sentence.term)}${iEntity.sentence.punctation}  score=${iEntity.calcUtility()}');
+        }        
+    }
+
+    // commented because not used
+    //public function sort() {
+    //    entities.sort(function (a, b) {
+    //        if (a.calcUtility() > b.calcUtility()) {
+    //            return 1;
+    //        }
+    //        else if (a.calcUtility() == b.calcUtility()) {
+    //            return 0;
+    //        }
+    //        return -1;
+    //    });
+    //}
+
+    // computes the index of the entity by chosen "score mass"
+    // necessary for fair probabilistic selection of tasks
+    public function calcIdxByScoreMass(mass:Float, depth=0, minIdx=0, maxIdx=null): Int {
+        if (maxIdx == null) {
+            maxIdx = entities.length-1;
+        }
+
+        var accuScoreAtMin = entities[minIdx].accuScore;
+        var accuScoreAtMax = entities[maxIdx].accuScore;
+
+
+        //if (depth > 5) {
+        //    throw "DEBUG ERROR";
+        //}
+        //
+        //trace('l=${entities.length}');
+        //trace('calcIdxByScoreMass() minIdx=$minIdx maxIdx=$maxIdx');
+
+        if (minIdx == maxIdx - 1) {
+            //trace("BEFORE");
+
+            //for (iEntity in entities) {
+            //    trace('   ${TermUtils.convToStr(iEntity.sentence.term)}${iEntity.sentence.punctation}  score=${iEntity.calcUtility()}');
+            //}
+
+            if (mass < accuScoreAtMin) {
+                return minIdx;
+            }
+            return maxIdx;
+        }
+        if (minIdx == maxIdx) {
+            return minIdx;
+        }
+
+
+        // we use binary search
+
+        var midIdx = Std.int((maxIdx+minIdx) / 2);
+        var accuScoreAtMid = entities[midIdx].accuScore;
+
+        if (mass < accuScoreAtMid) {
+            return calcIdxByScoreMass(mass, depth+1, minIdx, midIdx);
+        }
+        else {
+            return calcIdxByScoreMass(mass, depth+1, midIdx, maxIdx);
+        }
+    }
+
+    /* commented because not used
+    // inserts a Task back into the entities list
+    // it assumes that entities is sorted!
+    public function insertSorted(entity:WorkingSetEntity, depth=0, minIdx=0, maxIdx=null) {
+        if (entities.length == 0) {
+            entities = [entity];
+            return;
+        }
+        
+        if (maxIdx == null) {
+            maxIdx = entities.length-1;
+        }
+
+        var insertedUtility = entity.calcUtility();
+
+        var minUtility = entities[minIdx].calcUtility();
+        var maxUtility = entities[maxIdx].calcUtility();
+
+
+        //if (depth > 5) {
+        //    throw "DEBUG ERROR";
+        //}
+        //
+        trace('l=${entities.length}');
+        trace('insertSorted minIdx=$minIdx maxIdx=$maxIdx');
+
+        if (minIdx == maxIdx - 1 || minIdx == maxIdx) {
+                trace("BEFORE");
+
+                for (iEntity in entities) {
+                    trace('   ${TermUtils.convToStr(iEntity.sentence.term)}${iEntity.sentence.punctation}  score=${iEntity.calcUtility()}');
+                }
+
+            
+            // we need to insert here
+            //if (entities[minIdx].calcUtility())
+            
+            if (insertedUtility < maxUtility) {
+                entities.insert(maxIdx+1, entity);
+            }
+            else if (insertedUtility < minUtility) {
+                entities.insert(maxIdx, entity);
+            }
+            else {
+                entities.insert(minIdx, entity);
+            }
+            
+            
+
+            trace("AFTER");
+
+                for (iEntity in entities) {
+                    trace('   ${TermUtils.convToStr(iEntity.sentence.term)}${iEntity.sentence.punctation}  score=${iEntity.calcUtility()}');
+                }
+
+
+            // check if order is correct
+            {
+                var idx = 0;
+                while (idx < entities.length-1) {
+                    if (entities[idx].calcUtility() < entities[idx+1].calcUtility()) {
+                        throw "Validation failed!";
+                    }
+                    idx+=1;
+                }
+            }
+            
+        
+            
+
+            return;
+        }
+
+
+        // we use binary sort
+
+        var midIdx = Std.int((maxIdx+minIdx) / 2);
+        var utilityOfMid = entities[midIdx].calcUtility();
+
+        if (insertedUtility > utilityOfMid) {
+            insertSorted(entity, depth+1, minIdx, midIdx);
+        }
+        else {
+            insertSorted(entity, depth+1, midIdx, maxIdx);
+        }
+    }
+    */
+}
+
+class Config {
+    public static var beliefsPerNode:Int = 30;
+    public static var debug_derivations:Bool = false; // debug derivations to console
+}
+
 
 enum Term {
     Name(name:String);
@@ -3140,7 +3152,7 @@ class ProtoLexer {
 
 // parser configuration
 class ParserConfig {
-    public static var debugParser: Bool = true;
+    public static var debugParser: Bool = false;
 }
 
 
