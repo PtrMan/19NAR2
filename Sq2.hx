@@ -3,9 +3,6 @@
 
 
 
-// TODO CONTINUE IMPL< most NAL-2 like in new meta rules >
-
-
 // TODO< structural decomposition >
 //<(*,a,b) --> (*,c,d)>.
 //|-
@@ -72,7 +69,6 @@
 //     TODO OUTDATED< attention mechanism : sort after epoch and limit size for next epoch >
 //     TODO   < lazy update of propability mass after processing task >
 
-// TODO< test attention mechanism with A-->I example from ALANN >
 // TODO< test attention mechanism with other examples from ALANN >
 
 
@@ -87,6 +83,8 @@
 // TODO< keep tasks under AIKR (by sorting by score(utility) and slicing)
 
 // TODO< add sets >
+
+// TODO CONTINUE IMPL< most NAL-2 like in new meta rules >
 
 // TODO COMPLICATED< Q&A - do structural transformations on question side without adding the question to the memory or the tasks, sample all possible structural transformations and remember which transformations were done, etc >
 
@@ -120,6 +118,7 @@
 
 // DONE< ATTENTION - probabilistic selection of task by probability mass >
 
+// DONE< ATTENTION - test attention mechanism with A-->I example from ALANN >
 
 
 
@@ -838,7 +837,7 @@ class Sq2 {
         }
 
 
-        // NAL-6  product to image transform
+        // NAL-4  product to image transform
         if (premisePunctation == ".") switch (premiseTerm) {
             case Cop("-->", Prod([prod0, prod1]), inhPred):
 
@@ -864,7 +863,7 @@ class Sq2 {
             case _: null;
         }
 
-        // NAL-6  image to product transform
+        // NAL-4  image to product transform
         if (premisePunctation == ".") switch (premiseTerm) {
             case Cop("-->", inhSubj, Img(inhPred, [ImgWild, prod1])):
 
@@ -893,6 +892,32 @@ class Sq2 {
 
             case _: null;
         }
+
+        // NAL-4 structural decomposition
+        //<(*,a,b) --> (*,c,d)>.
+        //|-
+        //<a-->c>.
+        // (and other forms)
+        //
+        //<(*,a,b) <-> (*,c,d)>.
+        //|-
+        //<a<->c>.
+        // (and other forms)
+        if (premisePunctation == ".") switch (premiseTerm) {
+            case Cop(cop, Prod([subj0, subj1]),Prod([pred0, pred1])) if (cop == "-->" || cop == "<->"):
+
+            // TODO< bump derivation depth >
+
+            var conclusionTerms = [Cop("-->", subj0, pred0), Cop("-->", subj1, pred1)];
+            
+            for (iConclusionTerm in conclusionTerms) {
+                if (!Utils.contains(premiseTermStructuralOrigins, iConclusionTerm)) { // avoid deriving the same structural conclusions
+                    var structuralOrigins = new StructuralOriginsStamp( premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]) );
+                    conclusions.push({term:iConclusionTerm, tv:premiseTv, punctation:".", stamp:new Stamp(premiseStamp.ids, structuralOrigins), ruleName:"NAL-6.single struct decomposition"});
+                }
+            }
+        }
+
 
         if (Config.debug_derivations)   trace(TermUtils.convToStr(premiseTerm)+premisePunctation);
 
