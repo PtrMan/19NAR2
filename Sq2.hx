@@ -2886,8 +2886,8 @@ class NarseseParser extends Parser<EnumOperationType> {
             case INDEPENDENTVAR: 10; // $xxx
             case DEPENDENTVAR: 11; // #xxx
 
-            case CURLBRACEOPEN: 12; // (
-	        case CURLBRACECLOSE: 13; // )
+            case CURLBRACEOPEN: 12; // {
+	        case CURLBRACECLOSE: 13; // }
             case BRACKETOPEN: 14; // [
 	        case BRACKETCLOSE: 15; // ]
 
@@ -3140,6 +3140,16 @@ class ProtoLexer {
                                                                   // TODO< we need a better solution here which is safe against bugs >
         }
 
+        function braceSetEnd(parser : Parser<EnumOperationType>, currentToken : Token<EnumOperationType>) {
+            var parser2 = cast(parser, NarseseParser);
+            // TODO
+        }
+
+        function bracketSetEnd(parser : Parser<EnumOperationType>, currentToken : Token<EnumOperationType>) {
+            var parser2 = cast(parser, NarseseParser);
+            // TODO
+        }
+
 
 
 
@@ -3186,11 +3196,11 @@ class ProtoLexer {
             /*  28 */new Arc<EnumOperationType>(EnumArcType.ARC, 60, null, 29, null),
             /*  29 */new Arc<EnumOperationType>(EnumArcType.END, 0, null, -1, null),
 
-            /*  30 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 18, tokenStore, 0, null), // "*" - is a seperator of a product, just store it
-            /*  31 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
-            /*  32 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
-            /*  33 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
-            /*  34 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  30 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 18, tokenStore, 0, 31), // "*" - is a seperator of a product, just store it
+            /*  31 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 12, null, 32, 33), // "{"
+            /*  32 */new Arc<EnumOperationType>(EnumArcType.ARC, 80, null, 0, null),
+            /*  33 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 14, null, 34, null), // "["
+            /*  34 */new Arc<EnumOperationType>(EnumArcType.ARC, 90, null, 0, null),
 
             /*  35 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
             /*  36 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
@@ -3251,6 +3261,33 @@ class ProtoLexer {
             /*  78 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
             /*  79 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
 
+            // { } set, "{" was already consumed
+            /*  80 */new Arc<EnumOperationType>(EnumArcType.ARC  , 20, null, 81, null),
+            /*  81 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 13, braceSetEnd, 0, null), // "}" 
+            /*  82 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  83 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  84 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+
+            /*  85 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  86 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  87 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  88 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  89 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+
+
+            // [ ] set, "[" was already consumed
+            /*  90 */new Arc<EnumOperationType>(EnumArcType.ARC  , 20, null, 91, null),
+            /*  91 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 15, bracketSetEnd, 0, null), // "]"
+            /*  92 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  93 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  94 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+
+            /*  95 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  96 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  97 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  98 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  99 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+
 
         ];
 
@@ -3297,7 +3334,7 @@ class ParserConfig {
 
 
 // TODO< add support for sets in language >
-// TODO< add support for sets to parser >
+// TODO< add support for sets to parser (I just need to write the function which is called to create a set) >
 // TODO< test sets parsing >
 
 // TODO< add tv to parsing >
