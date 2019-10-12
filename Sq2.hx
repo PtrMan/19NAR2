@@ -3,16 +3,7 @@
 
 
 
-// TODO< structural decomposition >
-//<(*,a,b) --> (*,c,d)>.
-//|-
-//<a-->c>.
-// (and other forms)
-//
-//<(*,a,b) <-> (*,c,d)>.
-//|-
-//<a<->c>.
-// (and other forms)
+
 
 
 // TODO< ubuild union of sets (up to maximal size) >
@@ -120,6 +111,17 @@
 
 // DONE< ATTENTION - test attention mechanism with A-->I example from ALANN >
 
+
+// DONE< structural decomposition >
+//<(*,a,b) --> (*,c,d)>.
+//|-
+//<a-->c>.
+// (and other forms)
+//
+//<(*,a,b) <-> (*,c,d)>.
+//|-
+//<a<->c>.
+// (and other forms)
 
 
 
@@ -908,7 +910,7 @@ class Sq2 {
 
             // TODO< bump derivation depth >
 
-            var conclusionTerms = [Cop("-->", subj0, pred0), Cop("-->", subj1, pred1)];
+            var conclusionTerms = [Cop(cop, subj0, pred0), Cop(cop, subj1, pred1)];
             
             for (iConclusionTerm in conclusionTerms) {
                 if (!Utils.contains(premiseTermStructuralOrigins, iConclusionTerm)) { // avoid deriving the same structural conclusions
@@ -916,6 +918,8 @@ class Sq2 {
                     conclusions.push({term:iConclusionTerm, tv:premiseTv, punctation:".", stamp:new Stamp(premiseStamp.ids, structuralOrigins), ruleName:"NAL-6.single struct decomposition"});
                 }
             }
+
+            case _: null;
         }
 
 
@@ -1094,6 +1098,61 @@ class Sq2 {
             reasoner.process();
 
             if (reasoner.conclusionStrArr.indexOf("< ( a * b ) --> prod >. {1 0.9}", null) == -1) {
+                throw "Unittest failed!";
+            }
+        }
+
+        { // unittest NAL-4 structural decomposition
+            // NAL-4 structural decomposition
+            //<(*,a,b) --> (*,c,d)>.
+            //|-
+            //<a-->c>.
+            // (and other forms)
+            //
+            
+            var reasoner:Sq2 = new Sq2();
+            reasoner.conclusionStrArr = []; // enable output logging
+
+            reasoner.input("<(a*b) --> (c*d)>.");
+            reasoner.input("<a-->c>?");
+            reasoner.input("<b-->d>?");
+            // has to get answered
+
+            reasoner.process(40); // needs a few more cycles
+
+
+            if (reasoner.conclusionStrArr.indexOf("Answer:[  ?ms]< a --> c >. {1 0.9}", null) == -1) {
+                throw "Unittest failed!";
+            }
+
+            if (reasoner.conclusionStrArr.indexOf("Answer:[  ?ms]< b --> d >. {1 0.9}", null) == -1) {
+                throw "Unittest failed!";
+            }
+        }
+
+        { // unittest NAL-4 structural decomposition
+            // NAL-4 structural decomposition
+            //<(*,a,b) <-> (*,c,d)>.
+            //|-
+            //<a<->c>.
+            // (and other forms)
+            
+            var reasoner:Sq2 = new Sq2();
+            reasoner.conclusionStrArr = []; // enable output logging
+
+            reasoner.input("<(a*b) <-> (c*d)>.");
+            reasoner.input("<a<->c>?");
+            reasoner.input("<b<->d>?");
+            // has to get answered
+
+            reasoner.process(40); // needs a few more cycles
+
+
+            if (reasoner.conclusionStrArr.indexOf("Answer:[  ?ms]< a <-> c >. {1 0.9}", null) == -1) {
+                throw "Unittest failed!";
+            }
+
+            if (reasoner.conclusionStrArr.indexOf("Answer:[  ?ms]< b <-> d >. {1 0.9}", null) == -1) {
                 throw "Unittest failed!";
             }
         }
@@ -2939,10 +2998,10 @@ class ProtoLexer {
         function roundBraceEnd(parser : Parser<EnumOperationType>, currentToken : Token<EnumOperationType>) {
             var parser2 = cast(parser, NarseseParser);
 
-            {
+            if(ParserConfig.debugParser) {
                 var idx = 0;
                 for (iStackElement in parser2.stack) {
-                    trace('roundBraceEnd()  stackContent[$idx] = ${TermUtils.convToStr(parser2.stack[idx])}');
+                    if(ParserConfig.debugParser) trace('roundBraceEnd()  stackContent[$idx] = ${TermUtils.convToStr(parser2.stack[idx])}');
                     idx++;
                 }
             }
@@ -2974,7 +3033,7 @@ class ProtoLexer {
             }
 
 
-            {
+            if(ParserConfig.debugParser) {
                 trace("AFTER");
 
                 var idx = 0;
