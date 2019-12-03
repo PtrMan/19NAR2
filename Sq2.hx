@@ -2,9 +2,10 @@
 //    haxe --interp -main Sq2.hx
 
 
+// TODO< remove comments with "//" before lexing >
 
-
-
+// TODO< parse TV >
+// TODO< test parsing of TV >
 
 // TODO< ubuild union of sets (up to maximal size) >
 //<{a}-->c>.
@@ -76,6 +77,15 @@
 // TODO< add sets >
 
 // TODO CONTINUE IMPL< most NAL-2 like in new meta rules >
+
+
+
+// TODO< check if it builds and implement if not derived:
+// <shape1 --> rectangle>.
+// <shape1 --> [filled]>.
+// to
+// <shape1 --> (&, rectangle, [filled])>
+
 
 // TODO COMPLICATED< Q&A - do structural transformations on question side without adding the question to the memory or the tasks, sample all possible structural transformations and remember which transformations were done, etc >
 
