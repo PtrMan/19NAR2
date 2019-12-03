@@ -389,7 +389,7 @@ class Sq2 {
 
             function processRec(term) {
                 switch (term) {
-                    case Compound(foldedType,content):
+                    case Term.Compound(foldedType,content):
                     for (iContent in content) {
                         processRec(iContent);
                     }
@@ -551,7 +551,7 @@ class Sq2 {
                             case Cop(copAsymZ0, a1, c) if (copAsymZ0 == copAsym && TermUtils.equal(a0,a1)):
 
                             // print ("(A "+copAsym+" B),\t(A "+copAsymZ+" C)\t\t\t|-\t(B "+copAsym+" C)\t\t(Truth:Abduction"+IntervalProjection+OmitForHOL(", Desire:Strong")+")")
-                            var conclusionTerm = Cop(copAsym, a0, c);
+                            var conclusionTerm = Term.Cop(copAsym, a0, c);
                             conclusions.push({term:conclusionTerm, tv:Tv.abduction(premiseATv, premiseBTv), punctation:".", stamp:mergedStamp, ruleName:"NAL-2.two abd"});
 
                             case _:null;
@@ -565,13 +565,13 @@ class Sq2 {
                                 case Cop(copSymZ0, c, b1) if (copSymZ0 == copSym && TermUtils.equal(b0,b1)):
 
                                 //print ("(A "+copAsym+" B),\t(C "+copSymZ+" B)\t\t\t|-\t(A "+copAsym+" C)\t\t(Truth:Analogy"+IntervalProjection+OmitForHOL(", Desire:Strong")+")")
-                                var conclusionTerm = Cop(copAsym, a0, c);
+                                var conclusionTerm = Term.Cop(copAsym, a0, c);
                                 conclusions.push({term:conclusionTerm, tv:Tv.analogy(premiseATv, premiseBTv), punctation:".", stamp:mergedStamp, ruleName:"NAL-2.two ana1"});
 
                                 case Cop(copSymZ0, c, a1) if (copSymZ0 == copSym && TermUtils.equal(a0,a1)):
 
                                 //print ("(A "+copAsym+" B),\t(C "+copSymZ+" A)\t\t\t|-\t(C "+ival(copSym,"t+z")+" B)\t\t(Truth:Analogy"+OmitForHOL(", Desire:Strong")+")")
-                                var conclusionTerm = Cop(copSym, c, b0);
+                                var conclusionTerm = Term.Cop(copSym, c, b0);
                                 conclusions.push({term:conclusionTerm, tv:Tv.analogy(premiseATv, premiseBTv), punctation:".", stamp:mergedStamp, ruleName:"NAL-2.two ana2"});
 
 
@@ -597,7 +597,7 @@ class Sq2 {
                                 case Cop(copAsymZ0, b1, c) if (copAsymZ0 == copAsym && TermUtils.equal(b0,b1)):
 
                                 //print ("(A "+copSym+" B),\t(B "+copSymZ+" C)\t\t\t|-\t(A "+ival(copSym,"t+z")+" C)\t\t(Truth:Resemblance"+OmitForHOL(", Desire:Strong")+")")
-                                var conclusionTerm = Cop(copSym, a0, c);
+                                var conclusionTerm = Term.Cop(copSym, a0, c);
                                 conclusions.push({term:conclusionTerm, tv:Tv.resemblance(premiseATv, premiseBTv), punctation:".", stamp:mergedStamp, ruleName:"NAL-2.two res"});
 
                                 case _: null;
@@ -619,14 +619,14 @@ class Sq2 {
                     {
                         // #R[(P --> M) (S --> M) |- ((S & P) --> M) :post (:t/union))
                         var conclusionSubj = fold("&", Compound("&",[subjA, subjB]));
-                        var conclusionTerm = Cop("-->", conclusionSubj, predA);
+                        var conclusionTerm = Term.Cop("-->", conclusionSubj, predA);
                         conclusions.push({term:conclusionTerm, tv:Tv.union(premiseATv, premiseBTv), punctation:".", stamp:mergedStamp, ruleName:"NAL-3.two union"});
                     }
 
                     {
                         // #R[(P --> M) (S --> M) |- ((S | P) --> M) :post (:t/intersection)
                         var conclusionSubj = fold("|", Compound("|",[subjA, subjB]));
-                        var conclusionTerm = Cop("-->", conclusionSubj, predA);
+                        var conclusionTerm = Term.Cop("-->", conclusionSubj, predA);
                         conclusions.push({term:conclusionTerm, tv:Tv.intersection(premiseATv, premiseBTv), punctation:".", stamp:mergedStamp, ruleName:"NAL-3.two intersection"});
                     }
 
@@ -756,7 +756,7 @@ class Sq2 {
                 // |-
                 // <c --> x> ==> <X --> Y>.
                 if (TermUtils.equal(compoundA0, premiseBTerm)) {
-                    var conclusion = Cop("==>", compoundA1, implPred);
+                    var conclusion = Term.Cop("==>", compoundA1, implPred);
                     conclusions.push({term: conclusion, tv:Tv.deduction(premiseATv, premiseBTv)/*TODO check*/, punctation:".", stamp:mergedStamp, ruleName:"NAL6-two impl ==> detach conj[0]"});
                 }
 
@@ -767,7 +767,7 @@ class Sq2 {
                 // |-
                 // <a --> x> ==> <X --> Y>.
                 if (TermUtils.equal(compoundA1, premiseBTerm)) {
-                    var conclusion = Cop("==>", compoundA0, implPred);
+                    var conclusion = Term.Cop("==>", compoundA0, implPred);
                     conclusions.push({term: conclusion, tv:Tv.deduction(premiseATv, premiseBTv)/*TODO check*/, punctation:".", stamp:mergedStamp, ruleName:"NAL6-two impl ==> detach conj[1]"});
                 }
                 
@@ -822,7 +822,7 @@ class Sq2 {
 
             // TODO< bump derivation depth >
             
-            var conclusionTerm = Cop(copula, pred,subj);
+            var conclusionTerm = Term.Cop(copula, pred,subj);
             
             if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
                 var structuralOrigins = new StructuralOriginsStamp( premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]) );
@@ -838,7 +838,7 @@ class Sq2 {
 
             // TODO< bump derivation depth >
             
-            var conclusionTerm = Cop(copula, pred,subj);
+            var conclusionTerm = Term.Cop(copula, pred,subj);
             
             if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
                 var structuralOrigins = new StructuralOriginsStamp( premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]) );
@@ -855,7 +855,7 @@ class Sq2 {
 
             // TODO< bump derivation depth >
 
-            var conclusionTerm = Cop("-->", prod0, Img(inhPred, [ImgWild, prod1]));
+            var conclusionTerm = Term.Cop("-->", prod0, Img(inhPred, [ImgWild, prod1]));
             
             if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
                 // <prod0 --> (/,inhPred,_,prod1)>
@@ -863,7 +863,7 @@ class Sq2 {
                 conclusions.push({term:conclusionTerm, tv:premiseTv, punctation:".", stamp:new Stamp(premiseStamp.ids, structuralOrigins), ruleName:"NAL-6.single prod->img"});
             }
 
-            conclusionTerm = Cop("-->", prod1, Img(inhPred, [prod0, ImgWild]));
+            conclusionTerm = Term.Cop("-->", prod1, Img(inhPred, [prod0, ImgWild]));
             
             if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
 
@@ -881,7 +881,7 @@ class Sq2 {
 
             // TODO< bump derivation depth >
 
-            var conclusionTerm = Cop("-->", Prod([inhSubj, prod1]), inhPred);
+            var conclusionTerm = Term.Cop("-->", Prod([inhSubj, prod1]), inhPred);
             
             if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
                 // <(*, inhSubj, prod1) --> inhPred>
@@ -894,7 +894,7 @@ class Sq2 {
 
             // TODO< bump derivation depth >
 
-            var conclusionTerm = Cop("-->", Prod([prod0, inhSubj]), inhPred);
+            var conclusionTerm = Term.Cop("-->", Prod([prod0, inhSubj]), inhPred);
             
             if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
                 // <(*, prod0, inhSubj) --> inhPred>
@@ -920,7 +920,7 @@ class Sq2 {
 
             // TODO< bump derivation depth >
 
-            var conclusionTerms = [Cop(cop, subj0, pred0), Cop(cop, subj1, pred1)];
+            var conclusionTerms = [Term.Cop(cop, subj0, pred0), Term.Cop(cop, subj1, pred1)];
             
             for (iConclusionTerm in conclusionTerms) {
                 if (!Utils.contains(premiseTermStructuralOrigins, iConclusionTerm)) { // avoid deriving the same structural conclusions
@@ -1460,91 +1460,7 @@ class Memory {
     }
 }
 
-class StructuralOriginsStamp {
-    public var arr:Array<Term> = [];
 
-    public function new(arr) {
-        this.arr = arr;
-    }
-
-    public static function equal(a:StructuralOriginsStamp, b:StructuralOriginsStamp):Bool {
-        if (a.arr.length != b.arr.length) {
-            return false;
-        }
-
-        for (idx in 0...a.arr.length) {
-            if (!TermUtils.equal(a.arr[idx], b.arr[idx])) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    public static function checkOverlap(a:StructuralOriginsStamp, b:StructuralOriginsStamp):Bool {
-        if (a.arr.length == 0 && b.arr.length == 0) {
-            return false; // false because it is a special case because both structural stamps are empty
-        }
-        return StructuralOriginsStamp.equal(a, b);
-    }
-}
-
-class Stamp {
-    // we store the structural origin to avoid doing the same conversion over and over again
-    public var structuralOrigins:StructuralOriginsStamp;
-
-    public var ids:Array<haxe.Int64>;
-
-    public function new(ids, structuralOrigins) {
-        this.ids = ids;
-        this.structuralOrigins = structuralOrigins;
-    }
-
-    public static function merge(a:Stamp, b:Stamp): Stamp {
-        var ids:Array<haxe.Int64> = [];
-
-        var commonIdx = Utils.min(a.ids.length, b.ids.length);
-        for (idx in 0...commonIdx) {
-            ids.push(a.ids[idx]);
-            ids.push(b.ids[idx]);
-        }
-
-        if (a.ids.length > b.ids.length) {
-            ids = ids.concat(a.ids.slice(commonIdx, a.ids.length));
-        }
-        else if (b.ids.length > a.ids.length) {
-            ids = ids.concat(b.ids.slice(commonIdx, b.ids.length));
-        }
-
-        // limit size of stamp
-        var maxStampLength = 2000;
-        ids = ids.slice(0, Utils.min(maxStampLength, ids.length));
-
-        return new Stamp(ids, new StructuralOriginsStamp([])); // throw structural orgin of parameters away because a merge invalidates it anyways
-    }
-
-    public static function checkOverlap(a:Stamp, b:Stamp, checkStructural=true):Bool {
-        // check normal stamp
-        for (iA in a.ids) {
-
-            // TODO< speedup with hashmap >
-            for (iB in b.ids) {
-                if (haxe.Int64.compare(iA, iB) == 0) {
-                    return true;
-                }
-            }
-        }
-
-        if (!checkStructural) {
-            return false;
-        }
-
-        if (checkStructural && !StructuralOriginsStamp.checkOverlap(a.structuralOrigins, b.structuralOrigins)) {
-            return false;
-        }
-        return true;
-    }
-}
 
 class Sentence {
     public var term:Term;
@@ -1782,194 +1698,6 @@ class WorkingSet {
 class Config {
     public static var beliefsPerNode:Int = 30;
     public static var debug_derivations:Bool = false; // debug derivations to console
-}
-
-
-enum Term {
-    Name(name:String);
-    Compound(type:String, content:Array<Term>); // intersection, difference, etc.
-    
-    // TODO< rename to statement >
-    Cop(copula:String, subj:Term, pred:Term); // generalization of anything connected with a copula, for example "-->" "<->" etc.
-    Prod(terms:Array<Term>); // product
-    Img(base:Term, content:Array<Term>); // image
-    ImgWild; // wildcard for image NAL:"_"
-
-    Var(type:String,name:String); // variable, type can be "?","#","$"
-
-    Str(content:String); // "content" , " and \ are escaped
-}
-
-class TermUtils {
-    // clones only the first "level" of a term, used to "break" references to stay under AIKR
-    public static function cloneShallow(term:Term):Term {
-        return switch (term) {
-            case Name(name): Name(name);
-            case Compound(type, content): Compound(type, content);
-            case Cop(copula, subj, pred): Cop(copula, subj, pred);
-            case Prod(content): Prod(content);
-            case Img(base, content): Img(base, content); 
-            case ImgWild: ImgWild;
-            case Var(type,name): Var(type,name);
-            case Str(content): Str(content);
-        }
-    }
-
-    // enumerate all concept name terms recursivly
-    public static function enumTerms(term:Term):Array<Term> {
-        return [term].concat(switch (term) {
-            case Name(name): [];
-            case Compound(_, content):
-            var res = [];
-            for (iContent in content) {
-                res = res.concat(enumTerms(iContent));
-            }
-            res;
-            case Cop(_, subj, pred): enumTerms(subj).concat(enumTerms(pred));
-            case Prod(content):
-            var res = [];
-            for (iContent in content) {
-                res = res.concat(enumTerms(iContent));
-            }
-            res;
-            case Img(base, content):
-            var res = [];
-            for (iContent in content) {
-                res = res.concat(enumTerms(iContent));
-            }
-            res.push(base);
-            res;
-            case ImgWild: [];
-            case Var(_,_): [];
-            case Str(_): [];
-        });
-    }
-
-    // convert to string
-    public static function convToStr(term:Term) {
-        return switch (term) {
-            case ImgWild: "_";
-            case Name(name): name;
-            case Compound(type,content):
-            var narseseContent = content.map(function(i) {return convToStr(i);}).join(' $type ');
-            '( $narseseContent )';
-            case Cop(copula, subj, pred): '< ${convToStr(subj)} $copula ${convToStr(pred)} >';
-            case Img(base, content):
-            var narseseContent = content.map(function(i) {return convToStr(i);}).join(" ");
-            '(/ ${convToStr(base)} $narseseContent)';
-            case Prod(content):
-            var narseseContent = content.map(function(i) {return convToStr(i);}).join(" * ");
-            '( $narseseContent )';
-            case Var(type,name): '$type$name';
-            case Str(content): '"$content"'; // TODO< escape " and \   >
-        }
-    }
-
-    public static function equal(a:Term, b:Term):Bool {
-        switch (a) {
-            case ImgWild:
-            switch(b) {
-                case ImgWild:
-                return true;
-                case _:
-                return false;
-            }
-            case Name(nameA):
-            switch(b) {
-                case Name(nameB):
-                return nameA == nameB;
-                case _:
-                return false;
-            }
-
-            case Compound(typeA, contentA):
-            switch(b) {
-                case Compound(typeB, contentB):
-                if (typeA != typeB) {
-                    return false;
-                }
-                if (contentA.length != contentB.length) { return false; }
-                for (idx in 0...contentA.length) {
-                    if (!equal(contentA[idx], contentB[idx])) {
-                        return false;
-                    }
-                }
-                return true;
-                case _:
-                return false;
-            }
-
-            case Cop(copulaA, subjA, predA):
-            switch(b) {
-                case Cop(copulaB, subjB, predB):
-                if (copulaA != copulaB) { return false; }
-                return equal(subjA, subjB) && equal(predA, predB);
-                case _:
-                return false;
-            }
-            case Img(baseA, contentA):
-            switch(b) {
-                case Img(baseB, contentB):
-                if (!equal(baseA, baseB)) {
-                    return false;
-                }
-                if (contentA.length != contentB.length) { return false; }
-                for (idx in 0...contentA.length) {
-                    if (!equal(contentA[idx], contentB[idx])) {
-                        return false;
-                    }
-                }
-                return true;
-                case _:
-                return false;
-            }
-            case Prod(contentA):
-            switch(b) {
-                case Prod(contentB):
-                if (contentA.length != contentB.length) { return false; }
-                for (idx in 0...contentA.length) {
-                    if (!equal(contentA[idx], contentB[idx])) {
-                        return false;
-                    }
-                }
-                return true;
-                case _:
-                return false;
-            }
-            case Var(typeA,nameA):
-            switch(b) {
-                case Var(typeB,nameB):
-                return typeA==typeB && nameA==nameB;
-                case _:
-                return false;
-            }
-
-            case Str(contentA):
-            switch(b) {
-                case Str(contentB):
-                return contentA==contentB;
-                case _:
-                return false;
-            }
-        }
-    }
-
-    public static function isVar(term:Term): Bool {
-        return switch (term) {
-            case Var(_,_): true;
-            case _ : false;
-        }
-    }
-}
-
-class Utils {
-    public static function contains(arr:Array<Term>, other:Term):Bool {
-        return arr.filter(function(x) {return TermUtils.equal(x, other);}).length > 0;
-    }
-
-    public static function min(a:Int, b:Int): Int {
-        return a < b ? a : b;
-    }
 }
 
 class Tv {
