@@ -1,11 +1,8 @@
 import haxe.Int64;
 
-// in progress: refactor to use Terms <-- add stamp for goal system
 
 // TODO< decay goals by delta-time >
 // TODO< probabilistically select goals by exp() * decay >
-// TODO< add stamp and merge stamp when we revise >
-// TODO< check stamp if we can revise goals >
 
 // TODO< copy goal of eternal goal in goal system every n cycles >
 
@@ -254,7 +251,7 @@ class Executive {
         queuedActOrigin = null;
         var bestDecisionMakingCandidate:Pair = selBestAct(filterCandidatesByGoal(candidates));
         if (bestDecisionMakingCandidate != null) {
-            var bestDecisionExp:Float = calcExp(bestDecisionMakingCandidate.calcFreq(), bestDecisionMakingCandidate.calcConf());
+            var bestDecisionExp:Float = Tv.calcExp(bestDecisionMakingCandidate.calcFreq(), bestDecisionMakingCandidate.calcConf());
             
             if (dbgDescisionMakingVerbose) trace('decsn making $bestDecisionExp > $decisionThreshold');
             
@@ -390,7 +387,7 @@ class Executive {
 
     // derives goals
     private function goalDerivation() {
-        var sampledGoal = goalSystem.sample(rng);
+        var sampledGoal = goalSystem.sample(rng, cycle);
         if (sampledGoal != null) {
             // try to derive goals
             var matchingPairs = pairs.filter(iPair -> Par.checkSubset(iPair.effect, new Par([sampledGoal.term])));
@@ -405,7 +402,7 @@ class Executive {
                 if(false) trace('derived goal ${iMatchingPair.convToStr()} |- ${TermUtils.convToStr(goalTerm)}! {${goalTv.freq} ${goalTv.conf}}');
 
                 var conclStamp:Stamp = Stamp.merge(iMatchingPair.stamp, sampledGoal.stamp); // we need to merge stamp because it is a conclusion
-                goalSystem.tryAddDerivedGoal(goalTerm, goalTv, conclStamp);
+                goalSystem.tryAddDerivedGoal(goalTerm, goalTv, conclStamp, cycle);
             }
         }
     }
@@ -446,7 +443,7 @@ class Executive {
 
             var sampledGoals = [];
             { // sample some goals
-                var thisSampledGoal = goalSystem.sample(rng);
+                var thisSampledGoal = goalSystem.sample(rng, cycle);
                 if (thisSampledGoal != null) {
                     sampledGoals.push(thisSampledGoal);
                 }
@@ -501,11 +498,11 @@ class Executive {
             return null; // no action
         }
 
-        var bestExp:Float = calcExp(candidates[0].calcFreq(), candidates[0].calcConf());
+        var bestExp:Float = Tv.calcExp(candidates[0].calcFreq(), candidates[0].calcConf());
         var bestCandidate = candidates[0];
 
         for(iCandidate in candidates) {
-            var thisExp:Float = calcExp(iCandidate.calcFreq(), iCandidate.calcConf());
+            var thisExp:Float = Tv.calcExp(iCandidate.calcFreq(), iCandidate.calcConf());
             if (thisExp > bestExp) {
                 bestExp = thisExp;
                 bestCandidate = iCandidate;
@@ -522,16 +519,12 @@ class Executive {
         return new Stamp([Int64.make(0, stampCounter++)], new StructuralOriginsStamp([]));
     }
 
-    // TODO< move to TV >
-    private static function calcExp(freq:Float, conf:Float) {
-        return (freq - 0.5) * conf + 0.5;
-    }
 
     public var pairs:Array<Pair> = []; // all known pairs
 
     public var anticipationsInflight:Array<InflightAnticipation> = []; // anticipations in flight
 
-    public var goalSystem:GoalSystem = new GoalSystem();
+    public var goalSystem:AbstractGoalSystem = new DecayingGoalSystem();
 
     // TODO< should be Int64 >
     public var stampCounter:Int = 1; // counter for the creation of new stamps
@@ -540,6 +533,23 @@ class Executive {
 
 class AbstractGoalSystem {
     public var eternalGoals:Array<Term> = []; // list of all eternal goals which have to get pursued by the system
+
+    public function new() {}
+
+    // try to add a derived goal if it doesn't exist already
+    // /param time absolute executive reasoner time in cycles
+    public function tryAddDerivedGoal(term:Term, tv:Tv, stamp:Stamp, time:Int) {
+        throw "VIRTUAL METHOD CALLED";
+    }
+
+    public function step(executive:Executive) {
+        throw "VIRTUAL METHOD CALLED";
+    }
+
+    // sample a goal based on probability distribution
+    public function sample(rng:Rule30Rng, time:Int): ActiveGoal {
+        throw "VIRTUAL METHOD CALLED";
+    }
 }
 
 // goal system, manages priority and treatment of (sub)-goals
@@ -547,10 +557,11 @@ class GoalSystem extends AbstractGoalSystem {
     // active goals
     public var activeGoals:Array<ActiveGoal> = [];
     
-    public function new() {}
+    public function new() {
+        super();
+    }
 
-    // try to add a derived goal if it doesn't exist already
-    public function tryAddDerivedGoal(term:Term, tv:Tv, stamp:Stamp) {
+    public override function tryAddDerivedGoal(term:Term, tv:Tv, stamp:Stamp, time:Int) {
         var activeGoalsWithSameTerm:Array<ActiveGoal> = activeGoals.filter(iGoal -> TermUtils.equal(iGoal.term, term));
 
         var wasOverlapDetected = false; // was any stamp overlap detected?
@@ -570,24 +581,23 @@ class GoalSystem extends AbstractGoalSystem {
 
         var exists = activeGoalsWithSameTerm.length > 0;
         if (!exists && !wasOverlapDetected) { // only add it if no overlap was detected
-            activeGoals.push(new ActiveGoal(term, tv, stamp));
+            activeGoals.push(new ActiveGoal(term, tv, stamp, time));
         }
     }
 
-    public function step(executive:Executive) {
+    public override function step(executive:Executive) {
         // flush goals and reinstantiate eternal goals
         if (executive.cycle % 40 == 0) {
             activeGoals = [];                        // flush goals
             
             // instantiate eternal goals
             for(iEternalGoal in eternalGoals) {
-                tryAddDerivedGoal(TermUtils.cloneShallow(iEternalGoal), new Tv(1.0, 0.9999), executive.createStamp());
+                tryAddDerivedGoal(TermUtils.cloneShallow(iEternalGoal), new Tv(1.0, 0.9999), executive.createStamp(), executive.cycle);
             }
         }
     }
 
-    // sample a goal based on probability distribution
-    public function sample(rng:Rule30Rng): ActiveGoal {
+    public override function sample(rng:Rule30Rng, time:Int): ActiveGoal {
         if (activeGoals.length == 0) {
             return null; // didn't find any goal
         }
@@ -597,15 +607,134 @@ class GoalSystem extends AbstractGoalSystem {
     }
 }
 
+
+
+
+
+// goal system, manages priority and treatment of (sub)-goals
+// uses decaying goals
+class DecayingGoalSystem extends AbstractGoalSystem {
+    // active goals
+    public var activeGoals:Array<ActiveGoal> = [];
+    
+    public var activeGoalsMaxSize:Int = 100;
+
+    public function new() {
+        super();
+    }
+
+    public override function tryAddDerivedGoal(term:Term, tv:Tv, stamp:Stamp, time:Int) {
+        var activeGoalsWithSameTerm:Array<ActiveGoal> = activeGoals.filter(iGoal -> TermUtils.equal(iGoal.term, term));
+
+        var wasOverlapDetected = false; // was any stamp overlap detected?
+
+        if (activeGoalsWithSameTerm.length > 0) {
+            // revise existing goals if possible
+            for(iActiveGoal in activeGoalsWithSameTerm) {
+                if (TermUtils.equal(iActiveGoal.term, term)) {
+                    if (Stamp.checkOverlap(iActiveGoal.stamp, stamp, false)) {
+                        wasOverlapDetected = true;
+                    }
+                    else { // must not overlap
+                        iActiveGoal.tv = Tv.revision(iActiveGoal.tv, tv);
+                        iActiveGoal.stamp = Stamp.merge(iActiveGoal.stamp, stamp);
+                    }
+                }
+            }
+        }
+
+        var exists = activeGoalsWithSameTerm.length > 0;
+        if (!exists && !wasOverlapDetected) { // only add it if no overlap was detected
+            activeGoals.push(new ActiveGoal(term, tv, stamp, time));
+        }
+    }
+
+    // helper to compute the relative priority of a goal
+    private function calcRelativePri(activeGoal:ActiveGoal, time:Int): Float {
+        var timediff = time-activeGoal.creationTime;
+        var decay = Math.exp(-decayrate*timediff);
+        return decay*Tv.calcExp(activeGoal.tv.freq, activeGoal.tv.conf);
+    }
+
+    public override function step(executive:Executive) {
+        // reinstantiate eternal goals
+        if (executive.cycle % 40 == 0) {
+            // instantiate eternal goals
+            for(iEternalGoal in eternalGoals) {
+                tryAddDerivedGoal(TermUtils.cloneShallow(iEternalGoal), new Tv(1.0, 0.9999), executive.createStamp(), executive.cycle);
+            }
+        }
+
+        // limit size
+        if (executive.cycle % 40 == 0) {
+            var activeGoalsWithRelativePriority = activeGoals.map(v -> {goal:v, relativePriority:calcRelativePri(v, executive.cycle)});
+
+            activeGoalsWithRelativePriority.sort((a, b) -> {
+                if (a.relativePriority < b.relativePriority) {
+                    return 1;
+                }
+                else if(a.relativePriority > b.relativePriority) {
+                    return -1;
+                }
+                return 0;
+            });
+
+            // force to remove decayed goals
+            activeGoalsWithRelativePriority = activeGoalsWithRelativePriority.filter(v -> v.relativePriority > 0.01);
+
+            activeGoalsWithRelativePriority = activeGoalsWithRelativePriority.slice(0, activeGoalsMaxSize);
+            
+            if (false) { // debug entries in priority list?
+                for(idx in 0...activeGoalsWithRelativePriority.length) {
+                    var iGoal = activeGoalsWithRelativePriority[idx];
+                    trace('[$idx]: term = ${TermUtils.convToStr(iGoal.goal.term)} t = ${iGoal.goal.creationTime}  pri = ${iGoal.relativePriority} stamp = ${iGoal.goal.stamp.convToStr()}');
+                }
+            }
+
+
+            activeGoals = activeGoalsWithRelativePriority.map(v -> v.goal);
+        }
+    }
+
+    public var decayrate:Float = 0.0003; // decay rate of the goals
+
+    public override function sample(rng:Rule30Rng, time:Int): ActiveGoal {
+        if (activeGoals.length == 0) {
+            return null; // didn't find any goal
+        }
+
+        var mass:Float = 0.0;
+        for(iGoal in activeGoals) {
+            mass += calcRelativePri(iGoal, time);
+        }
+
+
+        // probabilistic selection
+        var selectedMass = rng.nextFloat()*mass;
+        var accu = 0.0;
+
+        for(iGoal in activeGoals) {
+            accu += calcRelativePri(iGoal, time);
+            if (accu >= selectedMass) {
+                return iGoal;
+            }
+        }
+        return activeGoals[activeGoals.length-1];
+    
+    }
+}
+
 class ActiveGoal {
     public var term:Term;
     public var tv:Tv;
     public var stamp:Stamp;
+    public var creationTime:Int; // creation time in cycles
 
-    public function new(term, tv, stamp) {
+    public function new(term, tv, stamp, creationTime) {
         this.term = term;
         this.tv = tv;
         this.stamp = stamp;
+        this.creationTime = creationTime;
     }
 }
 
@@ -617,7 +746,6 @@ class Tv {
         this.freq = freq;
         this.conf = conf;
     }
-
     public static function deduction(a, b) {
         var f = and(a.freq, b.freq);
         var c = and3(a.conf, b.conf, f);
@@ -646,6 +774,11 @@ class Tv {
     }
     static function and3(a:Float, b:Float, c:Float) {
         return a*b*c;
+    }
+
+    
+    public static function calcExp(freq:Float, conf:Float) {
+        return (freq - 0.5) * conf + 0.5;
     }
 }
 
@@ -986,30 +1119,6 @@ class Rule30Rng {
 	// we can only compute for 30 bits on javascript targets
     var bVec = [for (idx in 0...30) Std.random(2) == 1];
 }
-
-
-
-/*
-class Term {
-    public var content:String = "";
-
-    public function new(content) {
-        this.content=content;
-    }
-
-    public static function cmp(a:Term,b:Term) {
-        return a.content==b.content;
-    }
-
-    public function clone():Term {
-        return new Term(""+content);
-    }
-}
-*/
-
-
-
-
 
 
 

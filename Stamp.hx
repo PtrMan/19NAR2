@@ -53,4 +53,8 @@ class Stamp {
         }
         return true;
     }
+
+    public function convToStr():String {
+        return ""+(ids.map(id -> haxe.Int64.toStr(id)));
+    }
 }
