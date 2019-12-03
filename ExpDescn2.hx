@@ -1,7 +1,12 @@
+import haxe.Int64;
+
+// in progress: refactor to use Terms <-- add stamp for goal system
+
 // TODO< decay goals by delta-time >
 // TODO< probabilistically select goals by exp() * decay >
+// TODO< add stamp and merge stamp when we revise >
+// TODO< check stamp if we can revise goals >
 
-// TODO< add eternal goals to goal system >
 // TODO< copy goal of eternal goal in goal system every n cycles >
 
 // TODO< do experiment fixure for pong1 too >
@@ -31,13 +36,13 @@ class ExpDescn2 {
         uut.randomActProb = 0.0; // we must disable random actions
 
         { // add anticipation which is assumed to be inflight
-            var pair = new Pair();
-            pair.effect = new Par([new Term("a")]);
+            var pair = new Pair(uut.createStamp());
+            pair.effect = new Par([Term.Name("a")]);
 
             uut.anticipationsInflight.push(new InflightAnticipation(pair, 5));
         }
         
-        uut.step([new Term("a"), new Term("b")]);
+        uut.step([Term.Name("a"), Term.Name("b")]);
 
         Assert.enforce(uut.anticipationsInflight.length == 0, "anticipation must have been confirmed!");
     }
@@ -48,13 +53,13 @@ class ExpDescn2 {
         uut.randomActProb = 0.0; // we must disable random actions
 
         { // add anticipation which is assumed to be inflight
-            var pair = new Pair();
-            pair.effect = new Par([new Term("a"), new Term("b")]);
+            var pair = new Pair(uut.createStamp());
+            pair.effect = new Par([Term.Name("a"), Term.Name("b")]);
 
             uut.anticipationsInflight.push(new InflightAnticipation(pair, 5));
         }
         
-        uut.step([new Term("a")]);
+        uut.step([Term.Name("a")]);
 
         Assert.enforce(uut.anticipationsInflight.length == 1, "anticipation must not have been confirmed!");
     }
@@ -199,9 +204,13 @@ class Executive {
 
     public function goalNow(g:Term) {
         // check and exec if it is a action
-        var isAction = g.content.charAt(0) == '^';
-        if (isAction) {
-            execAct(g.content, null);
+        if (TermUtils.isOp(g)) {
+            var opName:String = switch(g) {
+                case Name(n): n;
+                default: null; // must not happen!
+            }
+
+            execAct(opName, null);
         }
 
         // record to trace
@@ -232,7 +241,7 @@ class Executive {
             execAct(queuedAct, queuedActOrigin);
 
             // record to trace
-            this.trace[0].events.push(new Term(queuedAct));
+            this.trace[0].events.push(Term.Name(queuedAct));
         }
         
         var candidates:Array<Pair> = [];// candidates for decision making in this step
@@ -249,11 +258,19 @@ class Executive {
             
             if (dbgDescisionMakingVerbose) trace('decsn making $bestDecisionExp > $decisionThreshold');
             
+            // helper function to return name
+            function retName(t:Term):String {
+                return switch(t) {
+                    case Name(n): n;
+                    default: throw "Invalid name!";
+                }
+            }
+
             if (
                 bestDecisionExp > decisionThreshold && 
-                retActByName(bestDecisionMakingCandidate.act).refractoryPeriodCooldown <= 0 // is it possible to execute the action based on refractory period?
+                retActByName(retName(bestDecisionMakingCandidate.act)).refractoryPeriodCooldown <= 0 // is it possible to execute the action based on refractory period?
             ) {
-                queuedAct = bestDecisionMakingCandidate.act; // queue action for next timestep
+                queuedAct = retName(bestDecisionMakingCandidate.act); // queue action for next timestep
                 queuedActOrigin = bestDecisionMakingCandidate;
             }
         }
@@ -262,30 +279,32 @@ class Executive {
 
         // * store sequences if possible
         {
+            
+
             // do terms contain a action?
             function containsAction(terms:Array<Term>): Bool {
-                return terms.filter(v -> v.content.charAt(0) == '^').length > 0;
+                return terms.filter(v -> TermUtils.isOp(v)).length > 0;
             }
 
             // aren't terms only actions?
             function containsAnyNonaction(terms:Array<Term>): Bool {
-                return terms.filter(v -> v.content.charAt(0) != '^').length > 0;
+                return terms.filter(v -> !TermUtils.isOp(v)).length > 0;
             }
 
             if (
                 !containsAction(this.trace[2].events) && // necessary because else it builds wrong conclusion (&/, [a], ^x) =/> y from [a, ^y] [^x] [y]
                 containsAnyNonaction(this.trace[2].events) && containsAction(this.trace[1].events) && containsAnyNonaction(this.trace[0].events)) { // has at least one (&/, events, ^action) =/> effect term
-                var nonactionsOf2:Array<Term> = this.trace[2].events.filter(v -> v.content.charAt(0) != '^');
-                var actionsOf1:Array<Term> = this.trace[1].events.filter(v -> v.content.charAt(0) == '^');
-                var nonactionsOf0:Array<Term> = this.trace[0].events.filter(v -> v.content.charAt(0) != '^');
+                var nonactionsOf2:Array<Term> = this.trace[2].events.filter(v -> !TermUtils.isOp(v));
+                var actionsOf1:Array<Term> = this.trace[1].events.filter(v -> TermUtils.isOp(v));
+                var nonactionsOf0:Array<Term> = this.trace[0].events.filter(v -> !TermUtils.isOp(v));
                 
                 {
 
                     for(iActionTerm in actionsOf1) { // iterate over all actions done at that time
-                        if(dbgEvidence) trace('evidence ${nonactionsOf2.map(v -> v.content)} ${actionsOf1.map(v -> v.content)} =/> ${nonactionsOf0.map(v -> v.content)}');
+                        if(dbgEvidence) trace('evidence ${nonactionsOf2.map(v -> TermUtils.convToStr(v))} ${actionsOf1.map( v -> TermUtils.convToStr(v))} =/> ${nonactionsOf0.map(v -> TermUtils.convToStr(v))}');
                         
                         // adds new evidence
-                        function addEvidence(conds:Array<Term>, effects:Array<Term>) {
+                        function addEvidence(conds:Array<Term>, effects:Array<Term>, stamp:Stamp) {
                             if (Par.checkIntersect(new Par(conds), new Par(effects))) {
                                 return; // exclude (&/, a, ^b) =/> a
                             }
@@ -294,7 +313,7 @@ class Executive {
                                 ////trace('cs ${Par.checkSubset(iPair.cond, new Par(conds))} ${iPair.cond.events.map(v ->v.content)} ${new Par(conds).events.map(v->v.content)}');
                                 
                                 if (
-                                    iPair.act == iActionTerm.content &&
+                                    TermUtils.equal(iPair.act, iActionTerm) &&
                                     Par.checkSubset(iPair.cond, new Par(conds))
                                 ) {
                                     // iPair.evidenceCnt++; // commented here because neg evidence should only come from neg-confirm, because we assume a open-world
@@ -309,7 +328,7 @@ class Executive {
                             var existsEvidence = false; // does exact evidence exist?
                             for(iPair in pairs) { // search for exact evidence
                                 if (
-                                    iPair.act == iActionTerm.content &&
+                                    TermUtils.equal(iPair.act, iActionTerm) &&
                                     Par.checkSame(iPair.cond, new Par(conds))
                                 ) {
                                     if (Par.checkSame(iPair.effect, new Par(effects))) {
@@ -321,9 +340,9 @@ class Executive {
                             if (!existsEvidence) { // create new evidence if it doesn't yet exist
                                 
                                 // store pair
-                                var createdPair:Pair = new Pair();
+                                var createdPair:Pair = new Pair(stamp);
                                 createdPair.cond = new Par(conds);
-                                createdPair.act = iActionTerm.content;
+                                createdPair.act = iActionTerm;
                                 createdPair.effect = new Par(effects);
 
                                 if(dbgEvidence) trace('create new evidence ${createdPair.convToStr()}');
@@ -332,25 +351,27 @@ class Executive {
                             }
                         }
 
-                        addEvidence(nonactionsOf2, nonactionsOf0);
+                        var stamp:Stamp = createStamp();
+
+                        addEvidence(nonactionsOf2, nonactionsOf0, stamp);
                         
                         // add evidence of combinations of single events of cond and effect
                         if (nonactionsOf2.length > 1) {
                             for(iCond in nonactionsOf2) {
-                                addEvidence([iCond], nonactionsOf0);
+                                addEvidence([iCond], nonactionsOf0, stamp);
                             }
                         }
 
                         if (nonactionsOf0.length > 1) {
                             for(iEffect in nonactionsOf0) {
-                                addEvidence(nonactionsOf2, [iEffect]);
+                                addEvidence(nonactionsOf2, [iEffect], stamp);
                             }
                         }
                         
                         if (nonactionsOf2.length > 1 && nonactionsOf0.length > 1) {
                             for(iCond in nonactionsOf2) {
                                 for (iEffect in nonactionsOf0) {
-                                    addEvidence([iCond], [iEffect]);
+                                    addEvidence([iCond], [iEffect], stamp);
                                 }
                             }
                         }
@@ -361,7 +382,7 @@ class Executive {
 
         anticipationMaintainNegAnticipations();
         decisionmakingActionCooldown();
-        goalSystem.step(cycle); // let the goal system manage eternal goals etc
+        goalSystem.step(this); // let the goal system manage eternal goals etc
         goalDerivation();
 
         cycle++; // advance global cycle timer
@@ -381,9 +402,10 @@ class Executive {
                 var goalTv = Tv.deduction(compoundTv, sampledGoal.tv);
 
                 // (&/, a, ^b) =/> c    c!  |- (&/, a, ^b)! |- a!
-                if(false) trace('derived goal ${iMatchingPair.convToStr()} |- ${goalTerm.content}! {${goalTv.freq} ${goalTv.conf}}');
+                if(false) trace('derived goal ${iMatchingPair.convToStr()} |- ${TermUtils.convToStr(goalTerm)}! {${goalTv.freq} ${goalTv.conf}}');
 
-                goalSystem.tryAddDerivedGoal(goalTerm, goalTv);
+                var conclStamp:Stamp = Stamp.merge(iMatchingPair.stamp, sampledGoal.stamp); // we need to merge stamp because it is a conclusion
+                goalSystem.tryAddDerivedGoal(goalTerm, goalTv, conclStamp);
             }
         }
     }
@@ -432,7 +454,7 @@ class Executive {
 
             for(iGoal in sampledGoals) {
                 for(iEffect in iCandi.effect.events) {
-                    if (Term.cmp(iEffect, iGoal.term)) {
+                    if (TermUtils.equal(iEffect, iGoal.term)) {
                         add = true;
                         break; // optimization
                     }
@@ -495,6 +517,11 @@ class Executive {
         return bestCandidate;
     }
 
+    // helper to create stamp
+    public function createStamp():Stamp {
+        return new Stamp([Int64.make(0, stampCounter++)], new StructuralOriginsStamp([]));
+    }
+
     // TODO< move to TV >
     private static function calcExp(freq:Float, conf:Float) {
         return (freq - 0.5) * conf + 0.5;
@@ -505,6 +532,9 @@ class Executive {
     public var anticipationsInflight:Array<InflightAnticipation> = []; // anticipations in flight
 
     public var goalSystem:GoalSystem = new GoalSystem();
+
+    // TODO< should be Int64 >
+    public var stampCounter:Int = 1; // counter for the creation of new stamps
 }
 
 
@@ -520,34 +550,38 @@ class GoalSystem extends AbstractGoalSystem {
     public function new() {}
 
     // try to add a derived goal if it doesn't exist already
-    // TODO< add stamps as arguments >
-    public function tryAddDerivedGoal(term:Term, tv:Tv) {
-        var activeGoalsWithSameTerm:Array<ActiveGoal> = activeGoals.filter(iGoal -> iGoal.term.content == term.content);
+    public function tryAddDerivedGoal(term:Term, tv:Tv, stamp:Stamp) {
+        var activeGoalsWithSameTerm:Array<ActiveGoal> = activeGoals.filter(iGoal -> TermUtils.equal(iGoal.term, term));
+
+        var wasOverlapDetected = false; // was any stamp overlap detected?
 
         if (activeGoalsWithSameTerm.length > 0) {
-            // TODO< check stamp before revising, don't add goal if all stamps overlap ! >
-
-            // revise existing
+            // revise existing goals if possible
             for(iActiveGoal in activeGoalsWithSameTerm) {
-                iActiveGoal.tv = Tv.revision(iActiveGoal.tv, tv);
+                if (Stamp.checkOverlap(iActiveGoal.stamp, stamp, false)) {
+                    wasOverlapDetected = true;
+                }
+                else { // must not overlap
+                    iActiveGoal.tv = Tv.revision(iActiveGoal.tv, tv);
+                    iActiveGoal.stamp = Stamp.merge(iActiveGoal.stamp, stamp);
+                }
             }
         }
 
         var exists = activeGoalsWithSameTerm.length > 0;
-        if (!exists) {
-            activeGoals.push(new ActiveGoal(term, tv));
+        if (!exists && !wasOverlapDetected) { // only add it if no overlap was detected
+            activeGoals.push(new ActiveGoal(term, tv, stamp));
         }
     }
 
-    // /param cycle is the global cycle time of the executive
-    public function step(cycle:Int) {
+    public function step(executive:Executive) {
         // flush goals and reinstantiate eternal goals
-        if (cycle % 40 == 0) {
+        if (executive.cycle % 40 == 0) {
             activeGoals = [];                        // flush goals
             
             // instantiate eternal goals
             for(iEternalGoal in eternalGoals) {
-                tryAddDerivedGoal(iEternalGoal.clone(), new Tv(1.0, 0.9999));
+                tryAddDerivedGoal(TermUtils.cloneShallow(iEternalGoal), new Tv(1.0, 0.9999), executive.createStamp());
             }
         }
     }
@@ -566,10 +600,12 @@ class GoalSystem extends AbstractGoalSystem {
 class ActiveGoal {
     public var term:Term;
     public var tv:Tv;
+    public var stamp:Stamp;
 
-    public function new(term, tv) {
+    public function new(term, tv, stamp) {
         this.term = term;
         this.tv = tv;
+        this.stamp = stamp;
     }
 }
 
@@ -632,7 +668,7 @@ class Par {
     }
 
     public function hasEvent(e:Term) {
-        return events.filter(ie -> Term.cmp(ie, e)).length > 0;
+        return events.filter(ie -> TermUtils.equal(ie, e)).length > 0;
     }
 
     // extremely simple check if it is the same, doesn't check out of order!!!
@@ -642,7 +678,7 @@ class Par {
         }
 
         for(idx in 0...a.events.length) {
-            if (!Term.cmp(a.events[idx], b.events[idx])) {
+            if (!TermUtils.equal(a.events[idx], b.events[idx])) {
                 return false;
             }
         }
@@ -662,13 +698,17 @@ class Par {
 
 class Pair {
     public var cond:Par = null;
-    public var act:String = "";
+    public var act:Term = null; // TODO< rename to ops and it is a array >
     public var effect:Par = null;
 
     public var evidencePositive = 1; // positive evidence counter
     public var evidenceCnt = 1; // evidence counter
 
-    public function new() {}
+    public var stamp:Stamp;
+
+    public function new(stamp) {
+        this.stamp = stamp;
+    }
 
     public function calcConf() {
         // see http://alumni.media.mit.edu/~kris/ftp/Helgason%20et%20al-AGI2013.pdf
@@ -681,23 +721,7 @@ class Pair {
     }
 
     public function convToStr():String {
-        return '(&/,${cond.events.map(v -> v.content)},$act) =/> ${effect.events.map(v -> v.content)} {${calcFreq()} ${calcConf()}} // cnt=$evidenceCnt';
-    }
-}
-
-class Term {
-    public var content:String = "";
-
-    public function new(content) {
-        this.content=content;
-    }
-
-    public static function cmp(a:Term,b:Term) {
-        return a.content==b.content;
-    }
-
-    public function clone():Term {
-        return new Term(""+content);
+        return '(&/,${cond.events.map(v -> TermUtils.convToStr(v))},$act) =/> ${effect.events.map(v -> TermUtils.convToStr(v))} {${calcFreq()} ${calcConf()}} // cnt=$evidenceCnt';
     }
 }
 
@@ -756,7 +780,7 @@ class Pong1 {
         this.executive.acts.push(new Pong1Act("^l", this, -0.1));
         this.executive.acts.push(new Pong1Act("^r", this, 0.1));
 
-        this.executive.goalSystem.eternalGoals.push(new Term("c")); // try to keep in center
+        this.executive.goalSystem.eternalGoals.push(Term.Name("c")); // try to keep in center
     }
 
     // returns the state of the world
@@ -766,15 +790,15 @@ class Pong1 {
         var diff: Float = posX - posAlien;
         if (Math.abs(diff) < 0.1) {
             stateAsStr = "c";
-            res.push(new Term("c"));
+            res.push(Term.Name("c"));
         }
         else if(diff > 0.0) {
             stateAsStr = "r";
-            res.push(new Term("r"));
+            res.push(Term.Name("r"));
         }
         else {
             stateAsStr = "l";
-            res.push(new Term("l"));
+            res.push(Term.Name("l"));
         }
 
         return res;
@@ -803,7 +827,7 @@ class Alien1Act extends Act {
             for(idx in 0...w.posAliens.length) {
                 var diff: Float = w.posX - w.posAliens[idx];
                 if (Math.abs(diff) < 0.06*1.5) { // did we hit a alien?
-                    w.state.push(new Term('s$idx')); // shot down
+                    w.state.push(Term.Name('s$idx')); // shot down
                     w.posAliens[idx] = Math.random(); // respawn at random position
 
                     w.cntAliensHit++; // bump statistics
@@ -847,8 +871,8 @@ class Alien1 {
             this.executive.acts.push(shootAct);
         }
 
-        this.executive.goalSystem.eternalGoals.push(new Term("s0")); // shoot down
-        this.executive.goalSystem.eternalGoals.push(new Term("s1")); // shoot down
+        this.executive.goalSystem.eternalGoals.push(Term.Name("s0")); // shoot down
+        this.executive.goalSystem.eternalGoals.push(Term.Name("s1")); // shoot down
     }
 
     // returns the state of the world
@@ -861,15 +885,15 @@ class Alien1 {
             var diff: Float = posX - posAliens[idx];
             if (Math.abs(diff) < 0.1) {
                 stateAsStr += ' c$idx';
-                res.push(new Term('c$idx'));
+                res.push(Term.Name('c$idx'));
             }
             else if(diff > 0.0) {
                 stateAsStr += ' r$idx';
-                res.push(new Term('r$idx'));
+                res.push(Term.Name('r$idx'));
             }
             else {
                 stateAsStr += ' l$idx';
-                res.push(new Term('l$idx'));
+                res.push(Term.Name('l$idx'));
             }
         }
 
@@ -962,5 +986,31 @@ class Rule30Rng {
 	// we can only compute for 30 bits on javascript targets
     var bVec = [for (idx in 0...30) Std.random(2) == 1];
 }
+
+
+
+/*
+class Term {
+    public var content:String = "";
+
+    public function new(content) {
+        this.content=content;
+    }
+
+    public static function cmp(a:Term,b:Term) {
+        return a.content==b.content;
+    }
+
+    public function clone():Term {
+        return new Term(""+content);
+    }
+}
+*/
+
+
+
+
+
+
 
 // TODO LATER< terms can act like neurons and send spikes to other terms, some spikes can add up with ded for seq spikes >

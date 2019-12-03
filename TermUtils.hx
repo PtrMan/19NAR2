@@ -159,4 +159,12 @@ class TermUtils {
             case _ : false;
         }
     }
+
+    // checks if the term encodes a op
+    public static function isOp(term:Term):Bool {
+        return switch (term) {
+            case Name(n): n.charAt(0) == '^';
+            default: false;
+        }
+    }
 }
