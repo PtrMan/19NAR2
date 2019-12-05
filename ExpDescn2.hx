@@ -1,8 +1,7 @@
 import haxe.Int64;
 
 
-// TODO< decay goals by delta-time >
-// TODO< probabilistically select goals by exp() * decay >
+// TODO< speed up probabilistically select goals by exp() * decay    with a priority table >
 
 // TODO< copy goal of eternal goal in goal system every n cycles >
 
@@ -66,7 +65,7 @@ class ExpDescn2 {
         testAnticipationConfirm1();
         testAnticipationConfirm2();
 
-        var nExperimentThreads = 6; // number of threads for experiments
+        var nExperimentThreads = 1; // number of threads for experiments
 
 
         var dbgCyclesVerbose = false; // debugging : are cycles verbose?
@@ -125,7 +124,7 @@ class ExpDescn2 {
 
         //trace(Par.checkSubset(new Par([new Term("a")]), new Par([new Term("a")])));
 
-        var numberOfExperiments = 20;
+        var numberOfExperiments = 1;
 
         var nActiveExperimentThreads = 0; // how many threads are active for the experiment?
         var nActiveExperimentThreadsLock:sys.thread.Mutex = new sys.thread.Mutex();
@@ -265,9 +264,9 @@ class Executive {
 
             if (
                 bestDecisionExp > decisionThreshold && 
-                retActByName(retName(bestDecisionMakingCandidate.act)).refractoryPeriodCooldown <= 0 // is it possible to execute the action based on refractory period?
+                retActByName(retName(bestDecisionMakingCandidate.act[0])).refractoryPeriodCooldown <= 0 // is it possible to execute the action based on refractory period?
             ) {
-                queuedAct = retName(bestDecisionMakingCandidate.act); // queue action for next timestep
+                queuedAct = retName(bestDecisionMakingCandidate.act[0]); // queue action for next timestep
                 queuedActOrigin = bestDecisionMakingCandidate;
             }
         }
@@ -310,7 +309,8 @@ class Executive {
                                 ////trace('cs ${Par.checkSubset(iPair.cond, new Par(conds))} ${iPair.cond.events.map(v ->v.content)} ${new Par(conds).events.map(v->v.content)}');
                                 
                                 if (
-                                    TermUtils.equal(iPair.act, iActionTerm) &&
+                                    iPair.act.length == 1 &&
+                                    TermUtils.equal(iPair.act[0], iActionTerm) &&
                                     Par.checkSubset(iPair.cond, new Par(conds))
                                 ) {
                                     // iPair.evidenceCnt++; // commented here because neg evidence should only come from neg-confirm, because we assume a open-world
@@ -325,7 +325,8 @@ class Executive {
                             var existsEvidence = false; // does exact evidence exist?
                             for(iPair in pairs) { // search for exact evidence
                                 if (
-                                    TermUtils.equal(iPair.act, iActionTerm) &&
+                                    iPair.act.length == 1 &&
+                                    TermUtils.equal(iPair.act[0], iActionTerm) &&
                                     Par.checkSame(iPair.cond, new Par(conds))
                                 ) {
                                     if (Par.checkSame(iPair.effect, new Par(effects))) {
@@ -339,7 +340,7 @@ class Executive {
                                 // store pair
                                 var createdPair:Pair = new Pair(stamp);
                                 createdPair.cond = new Par(conds);
-                                createdPair.act = iActionTerm;
+                                createdPair.act = [iActionTerm];
                                 createdPair.effect = new Par(effects);
 
                                 if(dbgEvidence) trace('create new evidence ${createdPair.convToStr()}');
@@ -380,11 +381,12 @@ class Executive {
         anticipationMaintainNegAnticipations();
         decisionmakingActionCooldown();
         goalSystem.step(this); // let the goal system manage eternal goals etc
-        goalDerivation();
+        goalSystem.goalDerivation(this);
 
         cycle++; // advance global cycle timer
     }
 
+    /* commented because it was moved into goal system
     // derives goals
     private function goalDerivation() {
         var sampledGoal = goalSystem.sample(rng, cycle);
@@ -406,6 +408,7 @@ class Executive {
             }
         }
     }
+    */
 
     // decrements the remaining refractory period
     private function decisionmakingActionCooldown() {
@@ -441,6 +444,12 @@ class Executive {
         for(iCandi in candidates) {
             var add=false;
 
+            // add it to the decision making candidates if it is a candidate
+            add = goalSystem.retDecisionMakingCandidateTv(iCandi) != null; // add if it is a candidate if the effect of it is a goal
+
+
+            /* commented because it belonged to old goal system
+
             var sampledGoals = [];
             { // sample some goals
                 var thisSampledGoal = goalSystem.sample(rng, cycle);
@@ -457,6 +466,7 @@ class Executive {
                     }
                 }
             }
+            */
 
             if (add) {
                 res.push(iCandi);
@@ -487,8 +497,8 @@ class Executive {
         }
     }
 
-    public var dbgDescisionMakingVerbose = false; // debugging : is decision making verbose
-    public var dbgExecVerbose = false; // debugging : is execution of ops verbose?
+    public var dbgDescisionMakingVerbose = true; // debugging : is decision making verbose
+    public var dbgExecVerbose = true; // debugging : is execution of ops verbose?
 
     // select best action
     public function selBestAct(candidates:Array<Pair>): Pair {
@@ -524,7 +534,7 @@ class Executive {
 
     public var anticipationsInflight:Array<InflightAnticipation> = []; // anticipations in flight
 
-    public var goalSystem:AbstractGoalSystem = new DecayingGoalSystem();
+    public var goalSystem:AbstractGoalSystem = new TreePlanningGoalSystem();
 
     // TODO< should be Int64 >
     public var stampCounter:Int = 1; // counter for the creation of new stamps
@@ -538,11 +548,15 @@ class AbstractGoalSystem {
 
     // try to add a derived goal if it doesn't exist already
     // /param time absolute executive reasoner time in cycles
-    public function tryAddDerivedGoal(term:Term, tv:Tv, stamp:Stamp, time:Int) {
+    //public function tryAddDerivedGoal(term:Term, tv:Tv, stamp:Stamp, time:Int) {
+    //    throw "VIRTUAL METHOD CALLED";
+    //}
+
+    public function step(executive:Executive) {
         throw "VIRTUAL METHOD CALLED";
     }
 
-    public function step(executive:Executive) {
+    public function goalDerivation(executive:Executive) {
         throw "VIRTUAL METHOD CALLED";
     }
 
@@ -550,8 +564,18 @@ class AbstractGoalSystem {
     public function sample(rng:Rule30Rng, time:Int): ActiveGoal {
         throw "VIRTUAL METHOD CALLED";
     }
+
+    public function retNoneternalGoals(): Array<ActiveGoal> {
+        throw "VIRTUAL METHOD CALLED";
+    }
+
+    // returns the TV of the goal of the effect of the pair, returns null if it doesn't lead to a goal
+    public function retDecisionMakingCandidateTv(pair:Pair):Tv {
+        throw "VIRTUAL METHOD CALLED";
+    }
 }
 
+/* commented because it is outdated
 // goal system, manages priority and treatment of (sub)-goals
 class GoalSystem extends AbstractGoalSystem {
     // active goals
@@ -604,6 +628,10 @@ class GoalSystem extends AbstractGoalSystem {
 
         var idx = rng.nextInt(activeGoals.length);
         return activeGoals[idx];
+    }
+
+    public override function retNoneternalGoals(): Array<ActiveGoal> {
+        return activeGoals;
     }
 }
 
@@ -722,7 +750,394 @@ class DecayingGoalSystem extends AbstractGoalSystem {
         return activeGoals[activeGoals.length-1];
     
     }
+
+    public override function retNoneternalGoals(): Array<ActiveGoal> {
+        return activeGoals;
+    }
 }
+ */
+
+// goal system which uses a tree planning mechanism in a backward way
+class TreePlanningGoalSystem extends AbstractGoalSystem {
+    public var decayrate:Float = 0.0003; // decay rate of the goals
+
+    public var decayThreshold = 0.01; // threshold for a goal to get removed
+
+    public var roots:Array<PlanningTreeNode> = [];
+
+    public function new() {
+        super();
+    }
+
+    // derives goals
+    public override function goalDerivation(executive:Executive) {
+        if (executive.cycle % 15 != 0) {
+            return;
+        }
+
+
+        { // add root goals if they are not present
+            var rootNodesToAdd = [];
+
+            for(iEternalGoal in eternalGoals) {
+                var isInRoots = roots.filter(iRoot -> {
+                    return TermUtils.equal(iRoot.goalTerm, iEternalGoal); // NOTE< we can check the goal term because it is always present in the root nodes >
+                }).length > 0;
+                if (!isInRoots) {
+                    // add node to roots
+                    var createdChildren = new PlanningTreeNode(executive.cycle);
+                    createdChildren.goalTerm = iEternalGoal;
+                    createdChildren.goalTv = new Tv(1.0, 0.99999);
+                    rootNodesToAdd.push(createdChildren);
+                }
+            }
+
+            for(i in rootNodesToAdd) {
+                roots.push(i);
+            }
+        }
+
+
+
+        {
+            // * pick a random element from the tree
+            var elementsOfTree = [];
+
+            for(iRoot in roots) { // collect all node of the tree
+                function addNodeAndChildrenRec(node:PlanningTreeNode) {
+                    elementsOfTree.push(node);
+                    for(iChildren in node.children) {
+                        addNodeAndChildrenRec(iChildren);
+                    }
+                }
+
+                addNodeAndChildrenRec(iRoot);
+            }
+
+            if (elementsOfTree.length == 0) {
+                return;
+            }
+            var selectedNode: PlanningTreeNode = null;
+            { // pick random node
+                var idx = executive.rng.nextInt(elementsOfTree.length);
+                selectedNode = elementsOfTree[idx];
+            }
+
+            // * select matching pair
+
+            var pairCandidates:Array<Pair> = executive.pairs.filter(iPair -> {
+                if (selectedNode.goalTerm != null) { // doesn't have pair
+                    return iPair.effect.hasEvent(selectedNode.goalTerm);
+                }
+                else {
+                    return Par.checkSubset(iPair.effect, selectedNode.sourcePair.cond);
+                }
+            }); // select all pairs which have the goal as a effect
+            if (pairCandidates.length == 0) {
+                return; // we can't pick one if there is none to pick from
+            }
+
+            var selectedMatchingPair:Pair = null;
+            {
+                var idx = executive.rng.nextInt(pairCandidates.length);
+                selectedMatchingPair = pairCandidates[idx];
+            }
+
+            // * add node
+
+            var createdChildren = new PlanningTreeNode(executive.cycle);
+            createdChildren.parent = selectedNode; // link to parent
+            createdChildren.creationT = executive.cycle;
+            createdChildren.sourcePair = selectedMatchingPair;
+            selectedNode.children.push(createdChildren);
+        }
+        
+        /* old code
+
+
+        var sampledGoal = goalSystem.sample(rng, cycle);
+        if (sampledGoal != null) {
+            // try to derive goals
+            var matchingPairs = pairs.filter(iPair -> Par.checkSubset(iPair.effect, new Par([sampledGoal.term])));
+            matchingPairs = pairs.filter(iPair -> iPair.cond.events.length == 1); // HACK< only accept single par conj for now >
+            for(iMatchingPair in matchingPairs) {
+                var goalTerm:Term = iMatchingPair.cond.events[0]; // TODO TODO TODO< rewrite Par to parallel conjunction >
+
+                var compoundTv:Tv = new Tv(iMatchingPair.calcFreq(), iMatchingPair.calcConf());
+                var goalTv = Tv.deduction(compoundTv, sampledGoal.tv);
+
+                // (&/, a, ^b) =/> c    c!  |- (&/, a, ^b)! |- a!
+                if(false) trace('derived goal ${iMatchingPair.convToStr()} |- ${TermUtils.convToStr(goalTerm)}! {${goalTv.freq} ${goalTv.conf}}');
+
+                var conclStamp:Stamp = Stamp.merge(iMatchingPair.stamp, sampledGoal.stamp); // we need to merge stamp because it is a conclusion
+                goalSystem.tryAddDerivedGoal(goalTerm, goalTv, conclStamp, cycle);
+            }
+        }
+         */
+    }
+    
+/* commented because api is not compatible
+    public override function tryAddDerivedGoal(term:Term, tv:Tv, stamp:Stamp, time:Int, source:Pair) {
+        // TODO
+    }
+*/
+
+    /*
+    // helper to compute the relative priority of a goal
+    private function calcRelativePri(activeGoal:ActiveGoal, time:Int): Float {
+        var timediff = time-activeGoal.creationTime;
+        var decay = Math.exp(-decayrate*timediff);
+        return decay*Tv.calcExp(activeGoal.tv.freq, activeGoal.tv.conf);
+    }
+    */
+
+    private function calcDecay(treeNode:PlanningTreeNode, currentT:Int, parentTv:Tv) {
+        var tv = treeNode.retTv(parentTv);
+        return treeNode.calcDecay(currentT, decayrate)*Tv.calcExp(tv.freq, tv.conf);
+    }
+
+    private function debugTree(executive:Executive) {
+        function debugTreeRec(node:PlanningTreeNode, depth:Int) {
+            var space:String = '  ';
+            for(i in 0...depth) {
+                space += "   ";
+            }
+
+            var nodeInfoStr:String = null;
+            if (node.sourcePair != null) {
+                nodeInfoStr = node.sourcePair.convToStr();
+            }
+            else {
+                nodeInfoStr = TermUtils.convToStr(node.goalTerm);
+            }
+
+            Sys.println('$space$nodeInfoStr');
+
+            for(iChildren in node.children) {
+                debugTreeRec(iChildren, depth+1);
+            }
+        }
+
+        Sys.println('t=${executive.cycle}  goal tree:');
+        for (iRoot in roots) {
+            debugTreeRec(iRoot, 0);
+        }
+    }
+
+    public override function step(executive:Executive) {
+        if (executive.cycle % 50 == 0) {
+            debugTree(executive);
+        }
+
+
+        if (executive.cycle % 100 == 0) { // prune : remove goals where the (decayed) exp(tv) * decay is below the threshold
+
+            // checks if a treenode was decayed
+            function checkDecayed(treeNode:PlanningTreeNode, parentTv:Tv) {
+                return calcDecay(treeNode, executive.cycle, parentTv) < decayThreshold;
+            }
+
+            function pruneRec(node:PlanningTreeNode, parentTv:Tv) {
+                node.children = node.children.filter(n -> !checkDecayed(n, parentTv)); // keep node if not decayed
+
+                // do the same recursivly for all children
+                for(iChildren in node.children) {
+                    pruneRec(iChildren, node.retTv(parentTv));
+                }
+            }
+
+            for(iRoot in roots) {
+                pruneRec(iRoot, new Tv(1.0, 0.999999));
+            } 
+        }
+    }
+
+    public override function sample(rng:Rule30Rng, time:Int): ActiveGoal {
+        return null;// sampling is not supported
+    }
+
+    public override function retNoneternalGoals(): Array<ActiveGoal> {
+        throw "NOT IMPLEMENTED!"; // TODO
+    }
+
+    public override function retDecisionMakingCandidateTv(pair:Pair):Tv {
+        // TODO< compute the TV of the pair and the candidate in the exp() calculation >
+
+        // searches all of the tree for the best node with the highest exp() 
+        // in all nodes which have the effect of the pair as a condition
+
+        // enumerate tree node candidates
+        var treeNodeCandidates:Array<PlanningTreeNode> = [];
+        
+        function rec(node:PlanningTreeNode) {
+            var add = false;
+            
+            // TODO< check if there is a bug in the subset computation >
+            if (node.goalTerm != null) { // does this node have only a goal term?
+                add = Par.checkSubset(new Par([node.goalTerm]), pair.effect); // add it if it is equal
+            }
+            else {
+                add = Par.checkSubset(node.sourcePair.cond, pair.effect);
+            }
+            
+            if (add) {
+                treeNodeCandidates.push(node);
+            }
+
+            for(iChildren in node.children) { // do the same for all children
+                rec(iChildren);
+            }
+        }
+
+        for(iRoot in roots) {
+            rec(iRoot);
+        }
+
+
+        // * compute candidate with best exp()
+        if (treeNodeCandidates.length == 0) { // was no candidate found?
+            return null;
+        }
+        
+        var bestCandidateTv:Tv = treeNodeCandidates[0].retTv(null);
+        var bestCandidateExp = Tv.calcExp(bestCandidateTv.freq, bestCandidateTv.conf);
+        var bestCandidate:PlanningTreeNode = treeNodeCandidates[0];
+
+        for(iCandidate in treeNodeCandidates) {
+            var tempTv:Tv = iCandidate.retTv(null);
+            var exp = Tv.calcExp(tempTv.freq, tempTv.conf);
+            if (exp > bestCandidateExp) {
+                bestCandidateTv = tempTv;
+                bestCandidateExp = exp;
+                bestCandidate = iCandidate;
+            }
+        }
+
+        return bestCandidateTv;
+    }
+}
+
+class PlanningTreeNode {
+    public var parent:PlanningTreeNode = null; // null means that it doesn't have a parent
+    public var children:Array<PlanningTreeNode> = [];
+
+    public var creationT:Int; // time of creation of this node, used for decay
+
+    public var goalTerm:Term; // actual goal term
+    public var goalTv:Tv = null; // tv of the goal, must be null if sourcePair is not null!
+    public var sourcePair:Pair = null; // can be null if it is a root goal
+
+    public function new(creationT) {
+        this.creationT = creationT;
+    }
+
+    public function calcDecay(currentT:Int, decayRate:Float) {
+        var diff = currentT - creationT;
+        return Math.exp(-diff * decayRate);
+    }
+
+    // /param parentTv is the TV of the parent, special case is if it is null, it will be computed by demand if it is null
+    public  function retTv(parentTv:Tv):Tv {
+        if (parentTv == null) { // do we need to compute parent-TV?
+            if (sourcePair != null) {
+                parentTv = parent.retTv(null);
+            }
+            else {
+                parentTv = goalTv;
+            }
+        }
+
+        if (sourcePair != null) {
+            var tv = new Tv(sourcePair.calcFreq(), sourcePair.calcConf());
+            return Tv.deduction(tv, parentTv); // we must compute deduction, because the derived goal is computed with deduction
+        }
+        return goalTv;
+    }
+}
+
+
+// forward chainer which acts as a planner
+class ForwardChainer {
+    public function new() {}
+
+    // dedicates one processing step
+    public function step(currentEvents:Array<Term>, exec:Executive) {
+        // sample the current events and try to chain to a goal
+
+        if (currentEvents.length == 0) {
+            return; // nothing to sample
+        }
+
+
+        var idx:Int = exec.rng.nextInt(currentEvents.length);
+        var selChainEvent: Term = currentEvents[idx]; // select event to try to chain
+        var chainTv: Tv = new Tv(1.0, 0.99999); // tv of chaining - assumed to be axiomatic
+
+        var chain: Array<Term> = [selChainEvent]; // chain of events
+        var combinedStamp: Stamp = exec.createStamp(); // TODO< get stamp from selected event ! >
+
+        for(chainDepth in 0...2) {
+            var firstChainElementCandidate:Array<Pair> = exec.pairs.filter(iPair -> iPair.cond.hasEvent(selChainEvent));
+            
+            // sample first chain element candidate
+            if (firstChainElementCandidate.length == 0) {
+                return; // nothing to sample
+            }
+
+
+
+            var selChainPair0Idx:Int = exec.rng.nextInt(firstChainElementCandidate.length);
+            var selChainPair0: Pair = firstChainElementCandidate[selChainPair0Idx];
+
+            if (Stamp.checkOverlap(selChainPair0.stamp, combinedStamp)) {
+                return; // we don't allow stamp overlap!
+            }
+            combinedStamp = Stamp.merge(combinedStamp, selChainPair0.stamp);
+
+            selChainEvent = selChainPair0.effect.events[0]; // TODO< select any event >
+            chainTv = Tv.induction(chainTv, new Tv(selChainPair0.calcFreq(), selChainPair0.calcConf()));
+
+            for(iAct in selChainPair0.act) {
+                chain.push(iAct);
+            }
+            chain.push(selChainEvent);
+        }
+
+
+        { // check if we hit a goal with the effect of the chained sequence
+            var hitGoal = false; // did we hit a goal with the derived seq?
+            for(iGoal in exec.goalSystem.retNoneternalGoals()) {
+                if (TermUtils.equal(iGoal.term, selChainEvent)) {
+                    hitGoal = true;
+                    break; // optimization
+                }
+            }
+
+            if (!hitGoal) {
+                return; // because we derived something which doesn't hit a goal, it's pointless!
+            }
+        }
+
+        // we are only here if we hit a goal with the chained effect
+
+        // * store derivation(s)
+
+        { // build derived pair
+            Assert.enforce(chain.length == 5, "expect specific length!"); // we assume that the chain is (&/, a, ^b, c, ^d, e)
+
+            // build  (&/, a, ^b, ^d) =/> e
+            var conclPair:Pair = new Pair(combinedStamp);
+            conclPair.cond = new Par([chain[0]]);
+            conclPair.act = [chain[1], chain[3]]; // TODO< implement for any length of ops seqs >
+            conclPair.effect = new Par([chain[4]]);
+
+            exec.pairs.push(conclPair); // TODO< check if conclusion exist already >
+        }        
+
+        // TODO< build and add (&/, a, ^b, c, ^d, e)
+    }
+}
+
 
 class ActiveGoal {
     public var term:Term;
@@ -759,6 +1174,29 @@ class Tv {
         return new Tv((w1 * a.freq + w2 * b.freq) / w, w2c(w));
     }
 
+    public static function induction(a, b) {
+        return abduction(b, a);
+    }
+
+    public static function abduction(a, b) {
+        var w = and3(b.freq, a.conf, b.conf);
+        var c = w2c(w);
+        return new Tv(a.freq, c);
+    }
+
+    static function and(a:Float, b:Float) {
+        return a*b;
+    }
+    static function and3(a:Float, b:Float, c:Float) {
+        return a*b*c;
+    }
+    static function or(a:Float, b:Float) {
+        var product = 1.0;
+        product *= (1.0 - a);
+        product *= (1.0 - b);
+        return 1.0 - product;
+    }
+
     static function w2c(w) { 
         var horizon = 1.0;
         return w / (w + horizon);
@@ -767,13 +1205,6 @@ class Tv {
     static function c2w(c: Float): Float {
         var horizon = 1.0;
         return horizon * c / (1.0 - c);
-    }
-
-    static function and(a:Float, b:Float) {
-        return a*b;
-    }
-    static function and3(a:Float, b:Float, c:Float) {
-        return a*b*c;
     }
 
     
@@ -831,7 +1262,7 @@ class Par {
 
 class Pair {
     public var cond:Par = null;
-    public var act:Term = null; // TODO< rename to ops and it is a array >
+    public var act:Array<Term> = []; // TODO< rename to ops >
     public var effect:Par = null;
 
     public var evidencePositive = 1; // positive evidence counter
@@ -854,7 +1285,7 @@ class Pair {
     }
 
     public function convToStr():String {
-        return '(&/,${cond.events.map(v -> TermUtils.convToStr(v))},$act) =/> ${effect.events.map(v -> TermUtils.convToStr(v))} {${calcFreq()} ${calcConf()}} // cnt=$evidenceCnt';
+        return '(&/,${cond.events.map(v -> TermUtils.convToStr(v))},${act.map(v -> TermUtils.convToStr(v))}) =/> ${effect.events.map(v -> TermUtils.convToStr(v))} {${calcFreq()} ${calcConf()}} // cnt=$evidenceCnt';
     }
 }
 
