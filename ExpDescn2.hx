@@ -192,15 +192,30 @@ class Memory {
         pairs.push(pair);
 
         { // store by cond
-            var keyComplete = ""+pair.cond.events.map(v -> TermUtils.convToStr(v));
-            var tableResult = pairsByCond.get(keyComplete);
-            if (tableResult != null) {
-                var arr = tableResult.concat([pair]);
-                pairsByCond.set(keyComplete, arr);
+            {
+                var keyComplete = ""+pair.cond.events.map(v -> TermUtils.convToStr(v));
+                var tableResult = pairsByCond.get(keyComplete);
+                if (tableResult != null) {
+                    var arr = tableResult.concat([pair]);
+                    pairsByCond.set(keyComplete, arr);
+                }
+                else {
+                    pairsByCond.set(keyComplete, [pair]);
+                }
             }
-            else {
-                pairsByCond.set(keyComplete, [pair]);
+
+            for(iEvent in pair.cond.events) {
+                var key = ""+[TermUtils.convToStr(iEvent)];
+                var tableResult = pairsByCond.get(key);
+                if (tableResult != null) {
+                    var arr = tableResult.concat([pair]);
+                    pairsByCond.set(key, arr);
+                }
+                else {
+                    pairsByCond.set(key, [pair]);
+                }
             }
+
         }
     }
 
@@ -208,12 +223,22 @@ class Memory {
     public function queryPairsByCond(parEvents:Array<Term>): Array<Pair> {
         //Par.checkSubset(new Par(parEvents), v.cond)
 
-        var keyComplete = ""+parEvents.map(v -> TermUtils.convToStr(v));
-
         var result = [];
-        var tableResult = pairsByCond.get(keyComplete);
-        if (tableResult != null) {
-            result = result.concat(tableResult);
+
+        {
+            var keyComplete = ""+parEvents.map(v -> TermUtils.convToStr(v));
+            var tableResult = pairsByCond.get(keyComplete);
+            if (tableResult != null) {
+                result = result.concat(tableResult);
+            }
+        }
+
+        for(iEvent in parEvents) {
+            var key = ""+[TermUtils.convToStr(iEvent)];
+            var tableResult = pairsByCond.get(key);
+            if (tableResult != null) {
+                result = result.concat(tableResult);
+            }
         }
 
         return result;
