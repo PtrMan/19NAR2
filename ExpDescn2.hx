@@ -1,9 +1,6 @@
 import haxe.Int64;
 
 
-// TODO< speed up probabilistically select goals by exp() * decay    with a priority table >
-
-// TODO< copy goal of eternal goal in goal system every n cycles >
 
 // TODO< do experiment fixure for pong1 too >
 // TODO< add handling of empty cycles (skip trace items) >
@@ -19,8 +16,7 @@ import haxe.Int64;
 // features:
 // * anticipation
 // * decision making: actions can have a refractory peroid to avoid spamming the environment with pointless actions
-
-// * flush goals after a fixed interval - like 50 steps, down to basic goal
+// * goal system: expectation and tree based goal system
 
 
 class ExpDescn2 {
@@ -111,7 +107,7 @@ class ExpDescn2 {
 
             // debug all evidence
             Sys.println('');
-            for(iEvidence in executive.pairs) {
+            for(iEvidence in executive.mem.pairs) {
                 Sys.println(iEvidence.convToStr());
             }
 
@@ -124,7 +120,7 @@ class ExpDescn2 {
 
         //trace(Par.checkSubset(new Par([new Term("a")]), new Par([new Term("a")])));
 
-        var numberOfExperiments = 4;
+        var numberOfExperiments = 11;
 
         var nActiveExperimentThreads = 0; // how many threads are active for the experiment?
         var nActiveExperimentThreadsLock:sys.thread.Mutex = new sys.thread.Mutex();
@@ -182,7 +178,52 @@ class ExpDescn2 {
     }
 }
 
+class Memory {
+    public var pairs:Array<Pair> = []; // all known pairs, read only!
+    // is extremely slow to iterate on!
+
+    // maps conditions to the pairs which contain the condition
+    // key is the string serialization of the parallel key terms as a string
+    private var pairsByCond:Map<String,Array<Pair>> = new Map<String,Array<Pair>>();
+
+    public function new() {}
+
+    public function addPair(pair:Pair) {
+        pairs.push(pair);
+
+        { // store by cond
+            var keyComplete = ""+pair.cond.events.map(v -> TermUtils.convToStr(v));
+            var tableResult = pairsByCond.get(keyComplete);
+            if (tableResult != null) {
+                var arr = tableResult.concat([pair]);
+                pairsByCond.set(keyComplete, arr);
+            }
+            else {
+                pairsByCond.set(keyComplete, [pair]);
+            }
+        }
+    }
+
+    // queries by conditional, either the complete parEvents or for single events (subset)
+    public function queryPairsByCond(parEvents:Array<Term>): Array<Pair> {
+        //Par.checkSubset(new Par(parEvents), v.cond)
+
+        var keyComplete = ""+parEvents.map(v -> TermUtils.convToStr(v));
+
+        var result = [];
+        var tableResult = pairsByCond.get(keyComplete);
+        if (tableResult != null) {
+            result = result.concat(tableResult);
+        }
+
+        return result;
+    }
+}
+
 class Executive {
+    
+    //commented because it is in memory    public var pairs:Array<Pair> = []; // all known pairs
+
     public var acts:Array<Act> = []; // list of all actions
     
     public function new() {
@@ -215,6 +256,7 @@ class Executive {
     public var dbgDescisionMakingVerbose = false; // debugging : is decision making verbose
     public var dbgExecVerbose = false; // debugging : is execution of ops verbose?
 
+    public var mem = new Memory();
 
     public function goalNow(g:Term) {
         // check and exec if it is a action
@@ -267,7 +309,7 @@ class Executive {
         { // select best decision making candidate
             var candidates:Array<Pair> = [];// candidates for decision making in this step
             // * compute candidates for decision making in this step
-            candidates = pairs.filter(v -> Par.checkSubset(new Par(parEvents), v.cond));
+            candidates = mem.queryPairsByCond(parEvents); /////pairs.filter(v -> Par.checkSubset(new Par(parEvents), v.cond));
             
             var candidatesByLocalChainedGoal: Array<{pair:Pair, exp:Float}> = filterCandidatesByGoal(candidates); // chain local pair -> matching goal in goal system
             var candidatesByGoal: Array<{pair:Pair, exp:Float}> = goalSystem.retDecisionMakingCandidatesForCurrentEvents(parEvents);
@@ -330,13 +372,13 @@ class Executive {
                                 return; // exclude (&/, a, ^b) =/> a
                             }
 
-                            for(iPair in pairs) { // search for existing evidence and try to revise
+                            for(iPair in mem.queryPairsByCond(conds)) { // search for existing evidence and try to revise
                                 ////trace('cs ${Par.checkSubset(iPair.cond, new Par(conds))} ${iPair.cond.events.map(v ->v.content)} ${new Par(conds).events.map(v->v.content)}');
                                 
                                 if (
                                     iPair.act.length == 1 &&
                                     TermUtils.equal(iPair.act[0], iActionTerm) &&
-                                    Par.checkSubset(iPair.cond, new Par(conds))
+                                    Par.checkSubset(iPair.cond, new Par(conds)) // TODOOPTIMIZE< is not necessary >
                                 ) {
                                     // iPair.evidenceCnt++; // commented here because neg evidence should only come from neg-confirm, because we assume a open-world
 
@@ -348,11 +390,11 @@ class Executive {
                             }
 
                             var existsEvidence = false; // does exact evidence exist?
-                            for(iPair in pairs) { // search for exact evidence
+                            for(iPair in mem.queryPairsByCond(conds)) { // search for exact evidence
                                 if (
                                     iPair.act.length == 1 &&
                                     TermUtils.equal(iPair.act[0], iActionTerm) &&
-                                    Par.checkSame(iPair.cond, new Par(conds))
+                                    Par.checkSame(iPair.cond, new Par(conds)) // TODOOPTIMIZE< is not necessary >
                                 ) {
                                     if (Par.checkSame(iPair.effect, new Par(effects))) {
                                         existsEvidence = true;
@@ -370,7 +412,7 @@ class Executive {
 
                                 if(dbgEvidence) trace('create new evidence ${createdPair.convToStr()}');
 
-                                pairs.push(createdPair);
+                                mem.addPair(createdPair); ///pairs.push(createdPair);
                             }
                         }
 
@@ -410,30 +452,6 @@ class Executive {
 
         cycle++; // advance global cycle timer
     }
-
-    /* commented because it was moved into goal system
-    // derives goals
-    private function goalDerivation() {
-        var sampledGoal = goalSystem.sample(rng, cycle);
-        if (sampledGoal != null) {
-            // try to derive goals
-            var matchingPairs = pairs.filter(iPair -> Par.checkSubset(iPair.effect, new Par([sampledGoal.term])));
-            matchingPairs = pairs.filter(iPair -> iPair.cond.events.length == 1); // HACK< only accept single par conj for now >
-            for(iMatchingPair in matchingPairs) {
-                var goalTerm:Term = iMatchingPair.cond.events[0]; // TODO TODO TODO< rewrite Par to parallel conjunction >
-
-                var compoundTv:Tv = new Tv(iMatchingPair.calcFreq(), iMatchingPair.calcConf());
-                var goalTv = Tv.deduction(compoundTv, sampledGoal.tv);
-
-                // (&/, a, ^b) =/> c    c!  |- (&/, a, ^b)! |- a!
-                if(false) trace('derived goal ${iMatchingPair.convToStr()} |- ${TermUtils.convToStr(goalTerm)}! {${goalTv.freq} ${goalTv.conf}}');
-
-                var conclStamp:Stamp = Stamp.merge(iMatchingPair.stamp, sampledGoal.stamp); // we need to merge stamp because it is a conclusion
-                goalSystem.tryAddDerivedGoal(goalTerm, goalTv, conclStamp, cycle);
-            }
-        }
-    }
-    */
 
     // decrements the remaining refractory period
     private function decisionmakingActionCooldown() {
@@ -551,9 +569,6 @@ class Executive {
         return new Stamp([Int64.make(0, stampCounter++)], new StructuralOriginsStamp([]));
     }
 
-
-    public var pairs:Array<Pair> = []; // all known pairs
-
     public var anticipationsInflight:Array<InflightAnticipation> = []; // anticipations in flight
 
     public var goalSystem:AbstractGoalSystem = new TreePlanningGoalSystem();
@@ -648,7 +663,31 @@ class GoalSystem extends AbstractGoalSystem {
         }
     }
 
-    public override function sample(rng:Rule30Rng, time:Int): ActiveGoal {
+    public override function goalDerivation(executive:Executive) {
+        var sampledGoal = sample(rng, cycle);
+        if (sampledGoal != null) {
+            // try to derive goals
+            var matchingPairs = executive.pairs.filter(iPair -> Par.checkSubset(iPair.effect, new Par([sampledGoal.term])));
+            matchingPairs =
+                //executive.pairs // commented because it is a bug
+                matchingPairs
+                .filter(iPair -> iPair.cond.events.length == 1); // HACK< only accept single par conj for now >
+            for(iMatchingPair in matchingPairs) {
+                var goalTerm:Term = iMatchingPair.cond.events[0]; // TODO TODO TODO< rewrite Par to parallel conjunction >
+
+                var compoundTv:Tv = new Tv(iMatchingPair.calcFreq(), iMatchingPair.calcConf());
+                var goalTv = Tv.deduction(compoundTv, sampledGoal.tv);
+
+                // (&/, a, ^b) =/> c    c!  |- (&/, a, ^b)! |- a!
+                if(false) trace('derived goal ${iMatchingPair.convToStr()} |- ${TermUtils.convToStr(goalTerm)}! {${goalTv.freq} ${goalTv.conf}}');
+
+                var conclStamp:Stamp = Stamp.merge(iMatchingPair.stamp, sampledGoal.stamp); // we need to merge stamp because it is a conclusion
+                goalSystem.tryAddDerivedGoal(goalTerm, goalTv, conclStamp, cycle);
+            }
+        }
+    }
+
+    public function sample(rng:Rule30Rng, time:Int): ActiveGoal {
         if (activeGoals.length == 0) {
             return null; // didn't find any goal
         }
@@ -751,9 +790,33 @@ class DecayingGoalSystem extends AbstractGoalSystem {
         }
     }
 
+    public override function goalDerivation(executive:Executive) {
+        var sampledGoal = sample(rng, cycle);
+        if (sampledGoal != null) {
+            // try to derive goals
+            var matchingPairs = executive.pairs.filter(iPair -> Par.checkSubset(iPair.effect, new Par([sampledGoal.term])));
+            matchingPairs =
+                //executive.pairs // commented because it is a bug
+                matchingPairs
+                .filter(iPair -> iPair.cond.events.length == 1); // HACK< only accept single par conj for now >
+            for(iMatchingPair in matchingPairs) {
+                var goalTerm:Term = iMatchingPair.cond.events[0]; // TODO TODO TODO< rewrite Par to parallel conjunction >
+
+                var compoundTv:Tv = new Tv(iMatchingPair.calcFreq(), iMatchingPair.calcConf());
+                var goalTv = Tv.deduction(compoundTv, sampledGoal.tv);
+
+                // (&/, a, ^b) =/> c    c!  |- (&/, a, ^b)! |- a!
+                if(false) trace('derived goal ${iMatchingPair.convToStr()} |- ${TermUtils.convToStr(goalTerm)}! {${goalTv.freq} ${goalTv.conf}}');
+
+                var conclStamp:Stamp = Stamp.merge(iMatchingPair.stamp, sampledGoal.stamp); // we need to merge stamp because it is a conclusion
+                goalSystem.tryAddDerivedGoal(goalTerm, goalTv, conclStamp, cycle);
+            }
+        }
+    }
+
     public var decayrate:Float = 0.0003; // decay rate of the goals
 
-    public override function sample(rng:Rule30Rng, time:Int): ActiveGoal {
+    public function sample(rng:Rule30Rng, time:Int): ActiveGoal {
         if (activeGoals.length == 0) {
             return null; // didn't find any goal
         }
@@ -780,6 +843,10 @@ class DecayingGoalSystem extends AbstractGoalSystem {
 
     public override function retNoneternalGoals(): Array<ActiveGoal> {
         return activeGoals;
+    }
+
+    public override function retDecisionMakingCandidatesForCurrentEvents(parEvents: Array<Term>): Array<{pair:Pair, exp:Float}> {
+        return []; // nothing to do in this implementation
     }
 }
  */
@@ -831,7 +898,7 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
 
             // * select matching pair
 
-            var pairCandidates:Array<Pair> = executive.pairs.filter(iPair -> {
+            var pairCandidates:Array<Pair> = executive.mem.pairs.filter(iPair -> {
                 // we restrict outself to pairs which have only one effect
                 // else it doesn't work
                 // TODO< investigate if this is not needed!!!!!!! >
@@ -1233,7 +1300,7 @@ class ForwardChainer {
         var combinedStamp: Stamp = exec.createStamp(); // TODO< get stamp from selected event ! >
 
         for(chainDepth in 0...2) {
-            var firstChainElementCandidate:Array<Pair> = exec.pairs.filter(iPair -> iPair.cond.hasEvent(selChainEvent));
+            var firstChainElementCandidate:Array<Pair> = exec.mem.pairs.filter(iPair -> iPair.cond.hasEvent(selChainEvent));
             
             // sample first chain element candidate
             if (firstChainElementCandidate.length == 0) {
@@ -1287,7 +1354,7 @@ class ForwardChainer {
             conclPair.act = [chain[1], chain[3]]; // TODO< implement for any length of ops seqs >
             conclPair.effect = new Par([chain[4]]);
 
-            exec.pairs.push(conclPair); // TODO< check if conclusion exist already >
+            exec.mem.addPair(conclPair); // TODO< check if conclusion exist already >
         }        
 
         // TODO< build and add (&/, a, ^b, c, ^d, e)
