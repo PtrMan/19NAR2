@@ -68,7 +68,7 @@ class ExpDescn2 {
         var nExperimentThreads = 1; // number of threads for experiments
 
 
-        var dbgCyclesVerbose = false; // debugging : are cycles verbose?
+        var dbgCyclesVerbose = true; // debugging : are cycles verbose?
 
         var alien1RatioDist:IncrementalCentralDistribution = new IncrementalCentralDistribution();
 
@@ -152,7 +152,7 @@ class ExpDescn2 {
                 nActiveExperimentThreadsLock.acquire();
                 nActiveExperimentThreads++;
                 nActiveExperimentThreadsLock.release();
-                var cycles:Int = 35000;
+                var cycles:Int = 2000;//35000;
                 var executive:Executive = new Executive();
                 doExperimentWithExecutive(executive, cycles);
                 
@@ -194,9 +194,15 @@ class Executive {
 
     public var cycle:Int = 0; // global cycle timer
 
-    public var dbgEvidence = false; // debugging - debug new and revised evidence?
-
     public var rng:Rule30Rng = new Rule30Rng();
+
+
+    public var dbgEvidence = true; // debugging - debug new and revised evidence?
+    public var dbgAnticipationVerbose = false; // are anticipations verbose?
+
+    public var dbgDescisionMakingVerbose = true; // debugging : is decision making verbose
+    public var dbgExecVerbose = true; // debugging : is execution of ops verbose?
+
 
     public function goalNow(g:Term) {
         // check and exec if it is a action
@@ -417,8 +423,6 @@ class Executive {
         }
     }
 
-    public var dbgAnticipationVerbose = false; // are anticipations verbose?
-
     // emits neg-confirm if anticipation didn't occur
     private function anticipationMaintainNegAnticipations() {
         // checks if anticipations didn't occur till the deadline
@@ -439,14 +443,16 @@ class Executive {
     }
 
     // filters all candidates by the active goals of the system
-    function filterCandidatesByGoal(candidates:Array<Pair>):Array<Pair> {
+    function filterCandidatesByGoal(candidates:Array<Pair>):Array<{pair:Pair, tv:Tv}> {
         var res = [];
         for(iCandi in candidates) {
             var add=false;
 
             // add it to the decision making candidates if it is a candidate
-            add = goalSystem.retDecisionMakingCandidateTv(iCandi) != null; // add if it is a candidate if the effect of it is a goal
-
+            var tv:Tv = goalSystem.retDecisionMakingCandidateTv(iCandi); 
+            if (tv != null) {
+                res.push({pair:iCandi, tv:tv}); // add if it is a candidate if the effect of it is a goal
+            }
 
             /* commented because it belonged to old goal system
 
@@ -466,11 +472,11 @@ class Executive {
                     }
                 }
             }
-            */
 
             if (add) {
-                res.push(iCandi);
+                res.push({pair:iCandi, tv:tv});
             }
+            */
         }
 
         return res;
@@ -497,25 +503,22 @@ class Executive {
         }
     }
 
-    public var dbgDescisionMakingVerbose = true; // debugging : is decision making verbose
-    public var dbgExecVerbose = true; // debugging : is execution of ops verbose?
-
     // select best action
-    public function selBestAct(candidates:Array<Pair>): Pair {
+    public function selBestAct(candidates:Array<{pair:Pair, tv:Tv}>): Pair {
         if (dbgDescisionMakingVerbose) trace('selBestAct() ${candidates.length}');
         
         if (candidates.length == 0) {
             return null; // no action
         }
 
-        var bestExp:Float = Tv.calcExp(candidates[0].calcFreq(), candidates[0].calcConf());
-        var bestCandidate = candidates[0];
+        var bestExp:Float = Tv.calcExp(candidates[0].tv.freq, candidates[0].tv.conf);
+        var bestCandidate = candidates[0].pair;
 
         for(iCandidate in candidates) {
-            var thisExp:Float = Tv.calcExp(iCandidate.calcFreq(), iCandidate.calcConf());
+            var thisExp:Float = Tv.calcExp(iCandidate.tv.freq, iCandidate.tv.conf);
             if (thisExp > bestExp) {
                 bestExp = thisExp;
-                bestCandidate = iCandidate;
+                bestCandidate = iCandidate.pair;
             }
         }
 
@@ -799,6 +802,135 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
 
 
 
+        // tries to add a node to the node
+        function tryAdd(node:PlanningTreeNode) {
+
+            // * select matching pair
+
+            var pairCandidates:Array<Pair> = executive.pairs.filter(iPair -> {
+                // we restrict outself to pairs which have only one effect
+                // else it doesn't work
+                // TODO< investigate if this is not needed!!!!!!! >
+                if (iPair.effect.events.length > 1) {
+                    return false;
+                }
+
+                if (node.goalTerm != null) { // doesn't have pair
+                    return iPair.effect.hasEvent(node.goalTerm);
+                }
+                else {
+                    return Par.checkSubset(iPair.effect, node.sourcePair.cond);
+                }
+            }); // select all pairs which have the goal as a effect
+
+            for (iMatchingPair in pairCandidates) {
+                // exp() must be over decision threshold!
+                // else we add items to the tree which can never be fullfilled!
+                {
+                    var exp:Float = Tv.calcExp(iMatchingPair.calcFreq(), iMatchingPair.calcConf());
+                    if (exp < executive.decisionThreshold) {
+                        continue; // don't consider to add it because it will never get picked
+                    }
+                }
+
+                // * check if it is already present:
+                var isAlreadyPresent = false;
+                for (iChildren in node.children) {
+                    if (iChildren.sourcePair == iMatchingPair) {
+                        isAlreadyPresent = true;
+                        break; // optimization
+                    }
+
+                    /* commented because slow path and not needed
+                    if (
+                        TermUtils.equal(iChildren.sourcePair.act[0], iMatchingPair.act[0]) && // TODO< check sequence of actions >
+                        Par.checkSame(iChildren.sourcePair.cond, iMatchingPair.cond) &&
+                        Par.checkSame(iChildren.sourcePair.effect, iMatchingPair.effect)
+                    ) {
+                        isAlreadyPresent = true;
+                        break; // optimization
+                        
+                    }
+                    */
+                }
+
+                if (isAlreadyPresent) {
+                    continue; // we don't need to add if it it is already present
+                }
+
+                
+                // * add node
+
+                var createdChildren = new PlanningTreeNode(executive.cycle);
+                createdChildren.parent = node; // link to parent
+                createdChildren.creationT = executive.cycle;
+                createdChildren.sourcePair = iMatchingPair;
+                node.children.push(createdChildren);
+            }
+
+            /* old code which selects just one element
+            if (pairCandidates.length == 0) {
+                return; // we can't pick one if there is none to pick from
+            }
+
+            var selectedMatchingPair:Pair = null;
+            {
+                var idx = executive.rng.nextInt(pairCandidates.length);
+                selectedMatchingPair = pairCandidates[idx];
+            }
+
+
+            // * add node
+
+            var createdChildren = new PlanningTreeNode(executive.cycle);
+            createdChildren.parent = node; // link to parent
+            createdChildren.creationT = executive.cycle;
+            createdChildren.sourcePair = selectedMatchingPair;
+            node.children.push(createdChildren);
+
+            */
+        }
+
+
+
+        {
+            // populate tree with Russian Roulette Path Termination criterion
+            // we need this criterion because else the probability mass to add nodes tends to much to nodes which are deep inside the tree (which leads to useless nodes)
+            // see https://www.youtube.com/watch?v=vPwiqXjDgeo
+            var terminationProbability = 0.6;
+
+            var maxTreeDepth = 2;
+
+            function tryAddOrTerminate(node:PlanningTreeNode, treeDepth:Int) {
+                if (treeDepth >= maxTreeDepth) {
+                    return;
+                }
+                
+                // try to add entries to node
+                tryAdd(node);
+                
+                if (executive.rng.nextFloat() < terminationProbability) {
+                    return; // terminate
+                }
+
+                // do the same recursivly
+                if (node.children.length == 0) {
+                    return;
+                }
+                // pick random children
+                var idx = executive.rng.nextInt(node.children.length);
+                tryAddOrTerminate(node.children[idx], treeDepth+1);
+            }
+
+            for(iRoot in roots) {
+                tryAddOrTerminate(iRoot, 0);
+            }
+        }
+
+        return; // return because the other algorithm doesn't work quite right
+
+
+
         {
             // * pick a random element from the tree
             var elementsOfTree = [];
@@ -823,33 +955,7 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
                 selectedNode = elementsOfTree[idx];
             }
 
-            // * select matching pair
-
-            var pairCandidates:Array<Pair> = executive.pairs.filter(iPair -> {
-                if (selectedNode.goalTerm != null) { // doesn't have pair
-                    return iPair.effect.hasEvent(selectedNode.goalTerm);
-                }
-                else {
-                    return Par.checkSubset(iPair.effect, selectedNode.sourcePair.cond);
-                }
-            }); // select all pairs which have the goal as a effect
-            if (pairCandidates.length == 0) {
-                return; // we can't pick one if there is none to pick from
-            }
-
-            var selectedMatchingPair:Pair = null;
-            {
-                var idx = executive.rng.nextInt(pairCandidates.length);
-                selectedMatchingPair = pairCandidates[idx];
-            }
-
-            // * add node
-
-            var createdChildren = new PlanningTreeNode(executive.cycle);
-            createdChildren.parent = selectedNode; // link to parent
-            createdChildren.creationT = executive.cycle;
-            createdChildren.sourcePair = selectedMatchingPair;
-            selectedNode.children.push(createdChildren);
+            tryAdd(selectedNode);
         }
         
         /* old code
@@ -925,7 +1031,7 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
     }
 
     public override function step(executive:Executive) {
-        if (executive.cycle % 50 == 0) {
+        if (executive.cycle % 150 == 0) {
             debugTree(executive);
         }
 
