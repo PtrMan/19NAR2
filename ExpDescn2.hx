@@ -65,10 +65,10 @@ class ExpDescn2 {
         testAnticipationConfirm1();
         testAnticipationConfirm2();
 
-        var nExperimentThreads = 1; // number of threads for experiments
+        var nExperimentThreads = 3; // number of threads for experiments
 
 
-        var dbgCyclesVerbose = true; // debugging : are cycles verbose?
+        var dbgCyclesVerbose = false; // debugging : are cycles verbose?
 
         var alien1RatioDist:IncrementalCentralDistribution = new IncrementalCentralDistribution();
 
@@ -124,7 +124,7 @@ class ExpDescn2 {
 
         //trace(Par.checkSubset(new Par([new Term("a")]), new Par([new Term("a")])));
 
-        var numberOfExperiments = 1;
+        var numberOfExperiments = 4;
 
         var nActiveExperimentThreads = 0; // how many threads are active for the experiment?
         var nActiveExperimentThreadsLock:sys.thread.Mutex = new sys.thread.Mutex();
@@ -134,6 +134,8 @@ class ExpDescn2 {
         // do experiments with executive/reasoner
         while(numberOfDoneExperiments < numberOfExperiments) {
             // wait as long as there are no available workthreads
+            
+            /*
             while(true) {
                 nActiveExperimentThreadsLock.acquire();
                 var activeThreads:Int = nActiveExperimentThreads;
@@ -145,14 +147,24 @@ class ExpDescn2 {
                 
                 Sys.sleep(0.08);
             }
-            Sys.println('start thread');
+            */
+            
+            nActiveExperimentThreadsLock.acquire();
+            if (nActiveExperimentThreads >= nExperimentThreads) {
+                nActiveExperimentThreadsLock.release();
+                continue; // retry
+            }
+            nActiveExperimentThreadsLock.release();
+
+            Sys.println('start thread  nactive=${nActiveExperimentThreads}');
+
+            nActiveExperimentThreadsLock.acquire();
+            nActiveExperimentThreads++;
+            nActiveExperimentThreadsLock.release();
 
             #if (target.threaded)
-            sys.thread.Thread.create(() -> {
-                nActiveExperimentThreadsLock.acquire();
-                nActiveExperimentThreads++;
-                nActiveExperimentThreadsLock.release();
-                var cycles:Int = 2000;//35000;
+            sys.thread.Thread.create(() -> {                
+                var cycles:Int = 20000;
                 var executive:Executive = new Executive();
                 doExperimentWithExecutive(executive, cycles);
                 
@@ -161,10 +173,10 @@ class ExpDescn2 {
                 nActiveExperimentThreadsLock.acquire();
                 nActiveExperimentThreads--;
                 nActiveExperimentThreadsLock.release();
+
+                Sys.println('alien1 hit ratio mean=${alien1RatioDist.mean} variance=${alien1RatioDist.calcVariance()} n=${alien1RatioDist.n}');
             });
             #end
-
-            Sys.println('alien1 hit ratio mean=${alien1RatioDist.mean} variance=${alien1RatioDist.calcVariance()} n=${alien1RatioDist.n}');
         }
 
     }
@@ -197,11 +209,11 @@ class Executive {
     public var rng:Rule30Rng = new Rule30Rng();
 
 
-    public var dbgEvidence = true; // debugging - debug new and revised evidence?
+    public var dbgEvidence = false; // debugging - debug new and revised evidence?
     public var dbgAnticipationVerbose = false; // are anticipations verbose?
 
-    public var dbgDescisionMakingVerbose = true; // debugging : is decision making verbose
-    public var dbgExecVerbose = true; // debugging : is execution of ops verbose?
+    public var dbgDescisionMakingVerbose = false; // debugging : is decision making verbose
+    public var dbgExecVerbose = false; // debugging : is execution of ops verbose?
 
 
     public function goalNow(g:Term) {
@@ -246,15 +258,22 @@ class Executive {
             this.trace[0].events.push(Term.Name(queuedAct));
         }
         
-        var candidates:Array<Pair> = [];// candidates for decision making in this step
-        { // * compute candidates for decision making in this step
-            candidates = pairs.filter(v -> Par.checkSubset(new Par(parEvents), v.cond));
-        }
+        
 
         // * decision making
         queuedAct = null;
         queuedActOrigin = null;
-        var bestDecisionMakingCandidate:Pair = selBestAct(filterCandidatesByGoal(candidates));
+        var bestDecisionMakingCandidate:Pair;
+        { // select best decision making candidate
+            var candidates:Array<Pair> = [];// candidates for decision making in this step
+            // * compute candidates for decision making in this step
+            candidates = pairs.filter(v -> Par.checkSubset(new Par(parEvents), v.cond));
+            
+            var candidatesByLocalChainedGoal: Array<{pair:Pair, exp:Float}> = filterCandidatesByGoal(candidates); // chain local pair -> matching goal in goal system
+            var candidatesByGoal: Array<{pair:Pair, exp:Float}> = goalSystem.retDecisionMakingCandidatesForCurrentEvents(parEvents);
+            var candidates: Array<{pair:Pair, exp:Float}> = candidatesByGoal.concat(candidatesByGoal);
+            bestDecisionMakingCandidate = selBestAct(candidates);
+        }
         if (bestDecisionMakingCandidate != null) {
             var bestDecisionExp:Float = Tv.calcExp(bestDecisionMakingCandidate.calcFreq(), bestDecisionMakingCandidate.calcConf());
             
@@ -443,7 +462,7 @@ class Executive {
     }
 
     // filters all candidates by the active goals of the system
-    function filterCandidatesByGoal(candidates:Array<Pair>):Array<{pair:Pair, tv:Tv}> {
+    function filterCandidatesByGoal(candidates:Array<Pair>):Array<{pair:Pair, exp:Float}> {
         var res = [];
         for(iCandi in candidates) {
             var add=false;
@@ -451,7 +470,8 @@ class Executive {
             // add it to the decision making candidates if it is a candidate
             var tv:Tv = goalSystem.retDecisionMakingCandidateTv(iCandi); 
             if (tv != null) {
-                res.push({pair:iCandi, tv:tv}); // add if it is a candidate if the effect of it is a goal
+                var exp = Tv.calcExp(tv.freq, tv.conf);
+                res.push({pair:iCandi, exp:exp}); // add if it is a candidate if the effect of it is a goal
             }
 
             /* commented because it belonged to old goal system
@@ -504,20 +524,19 @@ class Executive {
     }
 
     // select best action
-    public function selBestAct(candidates:Array<{pair:Pair, tv:Tv}>): Pair {
+    public function selBestAct(candidates:Array<{pair:Pair, exp:Float}>): Pair {
         if (dbgDescisionMakingVerbose) trace('selBestAct() ${candidates.length}');
         
         if (candidates.length == 0) {
             return null; // no action
         }
 
-        var bestExp:Float = Tv.calcExp(candidates[0].tv.freq, candidates[0].tv.conf);
+        var bestExp:Float = candidates[0].exp;
         var bestCandidate = candidates[0].pair;
 
         for(iCandidate in candidates) {
-            var thisExp:Float = Tv.calcExp(iCandidate.tv.freq, iCandidate.tv.conf);
-            if (thisExp > bestExp) {
-                bestExp = thisExp;
+            if (iCandidate.exp > bestExp) {
+                bestExp = iCandidate.exp;
                 bestCandidate = iCandidate.pair;
             }
         }
@@ -574,6 +593,11 @@ class AbstractGoalSystem {
 
     // returns the TV of the goal of the effect of the pair, returns null if it doesn't lead to a goal
     public function retDecisionMakingCandidateTv(pair:Pair):Tv {
+        throw "VIRTUAL METHOD CALLED";
+    }
+
+    // returns the candidates for decision making which have parEvents as a precondition together with exp()
+    public function retDecisionMakingCandidatesForCurrentEvents(parEvents: Array<Term>): Array<{pair:Pair, exp:Float}> {
         throw "VIRTUAL METHOD CALLED";
     }
 }
@@ -1031,7 +1055,7 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
     }
 
     public override function step(executive:Executive) {
-        if (executive.cycle % 150 == 0) {
+        if (executive.cycle % 2500 == 0) {
             debugTree(executive);
         }
 
@@ -1120,6 +1144,32 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
         }
 
         return bestCandidateTv;
+    }
+
+    public override function retDecisionMakingCandidatesForCurrentEvents(parEvents: Array<Term>): Array<{pair:Pair, exp:Float}> {
+        var resultArr = [];
+
+        // checks if the precondition fits and add it to the result if so
+        function checkAndAddRec(node:PlanningTreeNode) {
+            if (node.sourcePair != null) {
+                var arePreconditionsFullfilled = Par.checkSubset(new Par(parEvents), node.sourcePair.cond); // condition must be subset
+                if(arePreconditionsFullfilled) {
+                    var tv = node.retTv(null); // OPTIMIZATION< might get optimized by passing in parent >
+                    var exp:Float = Tv.calcExp(tv.freq, tv.conf);
+                    resultArr.push({pair:node.sourcePair, exp:exp});
+                }
+            }
+            
+            for(iChildren in node.children) {
+                checkAndAddRec(iChildren);
+            }
+        }
+
+        for(iRoot in roots) {
+            checkAndAddRec(iRoot);
+        }
+
+        return resultArr;
     }
 }
 
