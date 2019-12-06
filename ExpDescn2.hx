@@ -4,7 +4,6 @@ import haxe.Int64;
 
 // TODO< do experiment fixure for pong1 too >
 // TODO< add handling of empty cycles (skip trace items) >
-// TODO< add pong2 with automatic moving bat >
 // TODO< add stochastic environment >
 
 // TODO< pong4 - pong with stochastic timing >
@@ -61,7 +60,7 @@ class ExpDescn2 {
         testAnticipationConfirm1();
         testAnticipationConfirm2();
 
-        var nExperimentThreads = 3; // number of threads for experiments
+        var nExperimentThreads = 1; // number of threads for experiments
 
 
         var dbgCyclesVerbose = false; // debugging : are cycles verbose?
@@ -69,22 +68,9 @@ class ExpDescn2 {
         var alien1RatioDist:IncrementalCentralDistribution = new IncrementalCentralDistribution();
 
         // does run one experiment with the reasoner
-        function doExperimentWithExecutive(executive:Executive, cycles:Int) {
+        function doAlien1ExperimentWithExecutive(executive:Executive, cycles:Int) {
             executive.randomActProb = 0.12;
             
-            /*
-            var pong1:Pong1 = new Pong1(executive);
-
-            // implant evidence to see if decision making is working
-            {
-                var createdPair = new Pair();
-                createdPair.cond = new Par([new Term("l")]);
-                createdPair.act = "^r";
-                createdPair.effect = new Par([new Term("c")]);
-                executive.pairs.push(createdPair);
-            }
-            //*/
-
             var alien1 = new Alien1(executive);
 
             while(executive.cycle < cycles) {
@@ -118,9 +104,48 @@ class ExpDescn2 {
             alien1.printStats();
         }
 
+        // does run one experiment with the reasoner
+        function doPong2ExperimentWithExecutive(executive:Executive, cycles:Int) {
+            executive.randomActProb = 0.08;
+            
+            var pong2 = new Pong2(executive);
+
+            while(executive.cycle < cycles) {
+                if(dbgCyclesVerbose) Sys.println('cycl=${executive.cycle}');
+                
+                // debug anticipations in flight
+                var dbgAnticipationsInflight = false;
+                if(dbgAnticipationsInflight && executive.anticipationsInflight.length > 0) {
+                    Sys.println('');
+                    Sys.println('ANTICIPATION inflight:');
+                    for(iAif in executive.anticipationsInflight) {
+                        Sys.println('   ${iAif.origin.convToStr()}  deadline=${iAif.deadline}');
+                    }
+                }
+
+
+                var state:Array<Term> = pong2.emitState();
+                if(dbgCyclesVerbose) Sys.println('cycl=${executive.cycle}  state=${pong2.stateAsStr}');
+                executive.step(state);
+                pong2.simulate();
+            }
+
+            // debug all evidence
+            Sys.println('');
+            for(iEvidence in executive.mem.pairs) {
+                Sys.println(iEvidence.convToStr());
+            }
+
+            // add hit ratio to distribution
+            //alien1RatioDist.next(alien1.cntAliensHit / alien1.cntShoots);
+
+            // print statistics of world:
+            pong2.printStats();
+        }
+
         //trace(Par.checkSubset(new Par([new Term("a")]), new Par([new Term("a")])));
 
-        var numberOfExperiments = 11;
+        var numberOfExperiments = 1;
 
         var nActiveExperimentThreads = 0; // how many threads are active for the experiment?
         var nActiveExperimentThreadsLock:sys.thread.Mutex = new sys.thread.Mutex();
@@ -162,7 +187,8 @@ class ExpDescn2 {
             sys.thread.Thread.create(() -> {                
                 var cycles:Int = 20000;
                 var executive:Executive = new Executive();
-                doExperimentWithExecutive(executive, cycles);
+                //doAlien1ExperimentWithExecutive(executive, cycles);
+                doPong2ExperimentWithExecutive(executive, cycles);
                 
                 numberOfDoneExperiments++; // bump counter
 
@@ -1617,6 +1643,97 @@ class Pong1 {
     }
 }
 
+
+
+
+
+// action for the world
+class Pong2Act extends Act {
+    public var w:Pong2;
+    public var delta:Float;
+
+    public function new(name:String, w:Pong2, delta:Float) {
+        super(name);
+        this.delta = delta;
+        this.w = w;
+    }
+
+    public override function exec() {
+        w.speed = delta;
+    }
+}
+
+
+// TODO< simulate pong world >
+
+// pong world where the bat moves continiously
+class Pong2 {
+    public var posX:Float = 0.35; // position of the agent
+    public var posAlien:Float = 0.5; // position of the alien
+    public var speed:Float = 0.0; // speed of the bat
+    
+    public var executive:Executive;
+
+    public var stateAsStr:String = ""; // current state as string for debugging
+
+    public var misses = 0;
+    public var hits = 0;
+
+    public function new(executive) {
+        this.executive = executive;
+        this.executive.acts.push(new Pong2Act("^l", this, -0.05));
+        this.executive.acts.push(new Pong2Act("^r", this, 0.05));
+        this.executive.acts.push(new Pong2Act("^stop", this, 0.0));
+
+        this.executive.goalSystem.eternalGoals.push(Term.Name("c")); // try to keep in center
+    }
+
+    // print statistics
+    public function printStats() {
+        Sys.println('pong2 misses = $misses');
+        Sys.println('pong2 hits = $hits');
+        Sys.println('hit ratio = ${hits / misses}');
+    }
+
+    // returns the state of the world
+    public function emitState(): Array<Term> {
+        var res = [];
+
+        var diff: Float = posX - posAlien;
+        if (Math.abs(diff) < 0.1) {
+            stateAsStr = "c";
+            res.push(Term.Name("c"));
+
+            hits++;
+        }
+        else if(diff > 0.0) {
+            stateAsStr = "r";
+            res.push(Term.Name("r"));
+
+            misses++;
+        }
+        else {
+            stateAsStr = "l";
+            res.push(Term.Name("l"));
+
+            misses++;
+        }
+
+        return res;
+    }
+
+    // simulates world
+    public function simulate() {
+        posX += speed;
+        posX = Math.max(0.0, posX);
+        posX = Math.min(1.0, posX);
+    }
+}
+
+
+
+
+
 // action for the world
 class Alien1Act extends Act {
     public var w:Alien1;
@@ -1713,6 +1830,69 @@ class Alien1 {
         return res;
     }
 }
+
+
+//class Revenge1Op extends Act {
+//    public var opname = "^lu"; // ladder up
+//}
+
+// TODO< implement functionality of ops >
+
+// ^lu : ladder up
+// ^ld : ladder down
+
+// ^l : left
+// ^r : right
+
+// a simple version of Montezuma's Revenge
+class Revenge1 {
+    public var posX = 4;
+    public var posY = 1;
+
+    // w : walkkable
+    // l : ladder
+    public var map = [
+        "wwwwlwwww",
+        "    l    ",
+        "    l    ",
+        "wwwwlwwww"
+    ];
+
+    public function isOnLadder() {
+        return map[posY].charAt(posX) == 'l'; // is on ladder if symbol is 'l' which stands for ladder
+    }
+
+    public function canClimbUpDOwnOnLadder() {
+        return isOnLadder(); // can climb up or down if it is on ladder
+    }
+
+    public function retStateName() {
+        if (isOnLadder()) {
+            return 'l_${posX}_${posY}'; // ladder
+        }
+        return '${posX}_${posY}';
+    }
+
+    // state transition functionality
+    // try to go into direction "l" or "r"
+    public function tryDir(dir:String) {
+        if (isOnLadder() && dir == "l" && map[posY].charAt(posX-1) == 'w') { // is left op and is left walkable?
+            posX--;
+        }
+        else if (isOnLadder() && dir == "r" && map[posY].charAt(posX+1) == 'w') { // is left op and is left walkable?
+            posX++;
+        }
+        else if (!isOnLadder() && dir == "l" && map[posY].charAt(posX-1) != ' ') { // is left op and is left walkable?
+            posX--;
+        }
+        else if (!isOnLadder() && dir == "r" && map[posY].charAt(posX+1) != ' ') { // is left op and is left walkable?
+            posX++;
+        }
+    }
+
+
+}
+
 
 
 class Assert {
