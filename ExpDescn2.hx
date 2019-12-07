@@ -301,7 +301,7 @@ class Executive {
     public var rng:Rule30Rng = new Rule30Rng();
 
 
-    public var dbgEvidence = false; // debugging - debug new and revised evidence?
+    public var dbgEvidence = true; // debugging - debug new and revised evidence?
     public var dbgAnticipationVerbose = false; // are anticipations verbose?
 
     public var dbgDescisionMakingVerbose = true; // debugging : is decision making verbose
@@ -388,8 +388,7 @@ class Executive {
                 queuedActOrigin = bestDecisionMakingCandidate;
             }
         }
-
-
+        
 
         // * store sequences if possible
         {
@@ -406,19 +405,21 @@ class Executive {
             }
 
             if (
-                !containsAction(this.trace[2].events) && // necessary because else it builds wrong conclusion (&/, [a], ^x) =/> y from [a, ^y] [^x] [y]
-                containsAnyNonaction(this.trace[2].events) && containsAction(this.trace[1].events) && containsAnyNonaction(this.trace[0].events)) { // has at least one (&/, events, ^action) =/> effect term
+                //not necessary  !containsAction(this.trace[2].events) && // necessary because else it builds wrong conclusion (&/, [a], ^x) =/> y from [a, ^y] [^x] [y]
+                containsAnyNonaction(this.trace[2].events) && containsAction(this.trace[1].events) && containsAnyNonaction(this.trace[0].events)
+            ) { // has at least one (&/, events, ^action) =/> effect term
+                
                 var nonactionsOf2:Array<Term> = this.trace[2].events.filter(v -> !TermUtils.isOp(v));
                 var actionsOf1:Array<Term> = this.trace[1].events.filter(v -> TermUtils.isOp(v));
                 var nonactionsOf0:Array<Term> = this.trace[0].events.filter(v -> !TermUtils.isOp(v));
                 
                 {
-
                     for(iActionTerm in actionsOf1) { // iterate over all actions done at that time
                         if(dbgEvidence) trace('evidence ${nonactionsOf2.map(v -> TermUtils.convToStr(v))} ${actionsOf1.map( v -> TermUtils.convToStr(v))} =/> ${nonactionsOf0.map(v -> TermUtils.convToStr(v))}');
                         
                         // adds new evidence
                         function addEvidence(conds:Array<Term>, effects:Array<Term>, stamp:Stamp) {
+                            
                             if (Par.checkIntersect(new Par(conds), new Par(effects))) {
                                 return; // exclude (&/, a, ^b) =/> a
                             }
