@@ -1517,66 +1517,6 @@ class ActiveGoal {
     }
 }
 
-class Tv {
-    public var freq:Float = 0.0;
-    public var conf:Float = 0.0;
-
-    public function new(freq, conf) {
-        this.freq = freq;
-        this.conf = conf;
-    }
-    public static function deduction(a, b) {
-        var f = and(a.freq, b.freq);
-        var c = and3(a.conf, b.conf, f);
-        return new Tv(f, c);
-    }
-
-    public static function revision(a: Tv, b: Tv): Tv {
-        var w1 = c2w(a.conf);
-        var w2 = c2w(b.conf);
-        var w = w1 + w2;
-        return new Tv((w1 * a.freq + w2 * b.freq) / w, w2c(w));
-    }
-
-    public static function induction(a, b) {
-        return abduction(b, a);
-    }
-
-    public static function abduction(a, b) {
-        var w = and3(b.freq, a.conf, b.conf);
-        var c = w2c(w);
-        return new Tv(a.freq, c);
-    }
-
-    static function and(a:Float, b:Float) {
-        return a*b;
-    }
-    static function and3(a:Float, b:Float, c:Float) {
-        return a*b*c;
-    }
-    static function or(a:Float, b:Float) {
-        var product = 1.0;
-        product *= (1.0 - a);
-        product *= (1.0 - b);
-        return 1.0 - product;
-    }
-
-    static function w2c(w) { 
-        var horizon = 1.0;
-        return w / (w + horizon);
-    }
-
-    static function c2w(c: Float): Float {
-        var horizon = 1.0;
-        return horizon * c / (1.0 - c);
-    }
-
-    
-    public static function calcExp(freq:Float, conf:Float) {
-        return (freq - 0.5) * conf + 0.5;
-    }
-}
-
 // anticipated event which is anticipated because a action was done which leads to some anticipated effect
 class InflightAnticipation {
     public var origin:Pair; // origin of the anticipation: ex: (&/, a, ^b) =/> c
@@ -1634,11 +1574,17 @@ class Pair {
 
     public var stamp:Stamp;
 
+    public var isConcurrentImpl = false; // is it =|> instead of =/> ?
+
     public function new(stamp) {
         this.stamp = stamp;
     }
 
     public function calcConf() {
+        if (isConcurrentImpl) {
+            return 0.999999; // axiomatic
+        }
+        
         // see http://alumni.media.mit.edu/~kris/ftp/Helgason%20et%20al-AGI2013.pdf
         return evidenceCnt / (evidenceCnt + 1.0);
     }
@@ -1649,6 +1595,10 @@ class Pair {
     }
 
     public function convToStr():String {
+        if (isConcurrentImpl) {
+            return '${cond.events.map(v -> TermUtils.convToStr(v))} =|> ${effect.events.map(v -> TermUtils.convToStr(v))} {${calcFreq()} ${calcConf()}} // cnt=$evidenceCnt';
+        }
+
         return '(&/,${cond.events.map(v -> TermUtils.convToStr(v))},${act.map(v -> TermUtils.convToStr(v))}) =/> ${effect.events.map(v -> TermUtils.convToStr(v))} {${calcFreq()} ${calcConf()}} // cnt=$evidenceCnt';
     }
 }
