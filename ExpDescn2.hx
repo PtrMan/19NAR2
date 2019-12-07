@@ -2,6 +2,7 @@ import haxe.Int64;
 
 
 
+
 // TODO< do experiment fixure for pong1 too >
 // TODO< add handling of empty cycles (skip trace items) >
 // TODO< add stochastic environment >
@@ -60,12 +61,13 @@ class ExpDescn2 {
         testAnticipationConfirm1();
         testAnticipationConfirm2();
 
-        var nExperimentThreads = 1; // number of threads for experiments
+        var nExperimentThreads = 4; // number of threads for experiments
 
 
-        var dbgCyclesVerbose = true; // debugging : are cycles verbose?
+        var dbgCyclesVerbose = false; // debugging : are cycles verbose?
 
         var alien1RatioDist:IncrementalCentralDistribution = new IncrementalCentralDistribution();
+        var pong2RatioDist:IncrementalCentralDistribution = new IncrementalCentralDistribution();
 
         // does run one experiment with the reasoner
         function doAlien1ExperimentWithExecutive(executive:Executive, cycles:Int) {
@@ -137,7 +139,7 @@ class ExpDescn2 {
             }
 
             // add hit ratio to distribution
-            //alien1RatioDist.next(alien1.cntAliensHit / alien1.cntShoots);
+            pong2RatioDist.next(pong2.hits / pong2.misses);
 
             // print statistics of world:
             pong2.printStats();
@@ -145,7 +147,7 @@ class ExpDescn2 {
 
         //trace(Par.checkSubset(new Par([new Term("a")]), new Par([new Term("a")])));
 
-        var numberOfExperiments = 1;
+        var numberOfExperiments = 40;
 
         var nActiveExperimentThreads = 0; // how many threads are active for the experiment?
         var nActiveExperimentThreadsLock:sys.thread.Mutex = new sys.thread.Mutex();
@@ -185,7 +187,7 @@ class ExpDescn2 {
 
             #if (target.threaded)
             sys.thread.Thread.create(() -> {                
-                var cycles:Int = 20000;
+                var cycles:Int = 50000;
                 var executive:Executive = new Executive();
                 //doAlien1ExperimentWithExecutive(executive, cycles);
                 doPong2ExperimentWithExecutive(executive, cycles);
@@ -197,6 +199,7 @@ class ExpDescn2 {
                 nActiveExperimentThreadsLock.release();
 
                 Sys.println('alien1 hit ratio mean=${alien1RatioDist.mean} variance=${alien1RatioDist.calcVariance()} n=${alien1RatioDist.n}');
+                Sys.println('pong2 ratio mean=${pong2RatioDist.mean} variance=${pong2RatioDist.calcVariance()} n=${pong2RatioDist.n}');
             });
             #end
         }
@@ -301,11 +304,11 @@ class Executive {
     public var rng:Rule30Rng = new Rule30Rng();
 
 
-    public var dbgEvidence = true; // debugging - debug new and revised evidence?
+    public var dbgEvidence = false; // debugging - debug new and revised evidence?
     public var dbgAnticipationVerbose = false; // are anticipations verbose?
 
-    public var dbgDescisionMakingVerbose = true; // debugging : is decision making verbose
-    public var dbgExecVerbose = true; // debugging : is execution of ops verbose?
+    public var dbgDescisionMakingVerbose = false; // debugging : is decision making verbose
+    public var dbgExecVerbose = false; // debugging : is execution of ops verbose?
 
     public var mem = new Memory();
 
@@ -1665,14 +1668,18 @@ class Pong2Act extends Act {
 }
 
 
-// TODO< simulate pong world >
-
-// pong world where the bat moves continiously
+// pong world where the bat moves continiously and stop is available
 class Pong2 {
-    public var posX:Float = 0.35; // position of the agent
-    public var posAlien:Float = 0.5; // position of the alien
+    public var batPosX:Float = 0.35; // position of the agent
     public var speed:Float = 0.0; // speed of the bat
     
+
+    public var posBallX:Float = 0.5; // position of the alien
+    public var posBallY:Float = 0.5; // position of the alien
+    public var velBallX:Float = 0.034;
+    public var velBallY:Float = 0.04;
+    
+
     public var executive:Executive;
 
     public var stateAsStr:String = ""; // current state as string for debugging
@@ -1700,24 +1707,18 @@ class Pong2 {
     public function emitState(): Array<Term> {
         var res = [];
 
-        var diff: Float = posX - posAlien;
+        var diff: Float = posBallX - batPosX;
         if (Math.abs(diff) < 0.1) {
             stateAsStr = "c";
             res.push(Term.Name("c"));
-
-            hits++;
         }
         else if(diff > 0.0) {
             stateAsStr = "r";
             res.push(Term.Name("r"));
-
-            misses++;
         }
         else {
             stateAsStr = "l";
             res.push(Term.Name("l"));
-
-            misses++;
         }
 
         return res;
@@ -1725,9 +1726,48 @@ class Pong2 {
 
     // simulates world
     public function simulate() {
-        posX += speed;
-        posX = Math.max(0.0, posX);
-        posX = Math.min(1.0, posX);
+        batPosX += speed;
+        batPosX = Math.max(0.0, batPosX);
+        batPosX = Math.min(1.0, batPosX);
+
+        posBallX += velBallX;
+        posBallY += velBallY;
+
+        //trace('pong2 pos = <$posBallX, $posBallY>');
+
+        if (posBallY < 0.0) {
+            var diff: Float = posBallX - batPosX;
+            var hitBat = Math.abs(diff) < 0.1;
+            if (hitBat) {
+                hits++;
+            }
+            else {
+                misses++;
+            }
+
+            if (hitBat) {
+                velBallY = Math.abs(velBallY);
+            }
+            else {
+                // respawn ball
+                posBallX = Math.random();
+                posBallY = Math.random();
+
+                velBallX = (Math.random() * 2.0 - 1.0) * 0.05;
+                velBallY = (Math.random() * 2.0 - 1.0) * 0.05;
+            }
+        }
+
+        if (posBallY > 1.0) {
+            velBallY = -Math.abs(velBallY);
+        }
+
+        if (posBallX < 0.0) {
+            velBallX = Math.abs(velBallX);
+        }
+        else if(posBallX > 1.0) {
+            velBallX = -Math.abs(velBallX);
+        }
     }
 }
 
