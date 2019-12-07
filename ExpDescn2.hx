@@ -64,7 +64,7 @@ class ExpDescn2 {
         var nExperimentThreads = 1; // number of threads for experiments
 
 
-        var dbgCyclesVerbose = false; // debugging : are cycles verbose?
+        var dbgCyclesVerbose = true; // debugging : are cycles verbose?
 
         var alien1RatioDist:IncrementalCentralDistribution = new IncrementalCentralDistribution();
         var pong2RatioDist:IncrementalCentralDistribution = new IncrementalCentralDistribution();
@@ -147,7 +147,7 @@ class ExpDescn2 {
 
         //trace(Par.checkSubset(new Par([new Term("a")]), new Par([new Term("a")])));
 
-        var numberOfExperiments = 3;
+        var numberOfExperiments = 1;
 
         var nActiveExperimentThreads = 0; // how many threads are active for the experiment?
         var nActiveExperimentThreadsLock:sys.thread.Mutex = new sys.thread.Mutex();
@@ -186,11 +186,12 @@ class ExpDescn2 {
             nActiveExperimentThreadsLock.release();
 
             #if (target.threaded)
-            sys.thread.Thread.create(() -> {                
-                var cycles:Int = 150000;
+            sys.thread.Thread.create(() -> {      
+                var cyclesAlien2:Int = 30000;          
+                var cyclesPong2:Int = 150000;
                 var executive:Executive = new Executive();
-                //doAlien1ExperimentWithExecutive(executive, cycles);
-                doPong2ExperimentWithExecutive(executive, cycles);
+                doAlien1ExperimentWithExecutive(executive, cyclesAlien2);
+                //doPong2ExperimentWithExecutive(executive, cyclesPong2);
                 
                 numberOfDoneExperiments++; // bump counter
 
@@ -203,6 +204,10 @@ class ExpDescn2 {
             });
             #end
         }
+
+
+        Sys.println('alien1 hit ratio mean=${alien1RatioDist.mean} variance=${alien1RatioDist.calcVariance()} n=${alien1RatioDist.n}');
+        Sys.println('pong2 ratio mean=${pong2RatioDist.mean} variance=${pong2RatioDist.calcVariance()} n=${pong2RatioDist.n}');
 
     }
 }
@@ -335,7 +340,14 @@ class Executive {
         this.trace[2] = this.trace[1];
         this.trace[1] = this.trace[0];
         this.trace[0] = new Par([]);
-        this.trace[0].events = parEvents;        
+        this.trace[0].events = parEvents;
+
+        if (false) { // debug trace
+            Sys.println('trace');
+            Sys.println(' [2]  ${this.trace[2].events.map(v -> TermUtils.convToStr(v))}');
+            Sys.println(' [1]  ${this.trace[1].events.map(v -> TermUtils.convToStr(v))}');
+            Sys.println(' [0]  ${this.trace[0].events.map(v -> TermUtils.convToStr(v))}');
+        }
 
         { // do random action
             if(rng.nextFloat() < randomActProb && queuedAct == null) { // do random action
@@ -353,6 +365,14 @@ class Executive {
             // record to trace
             this.trace[0].events.push(Term.Name(queuedAct));
         }
+
+        if (false) { // debug trace
+            Sys.println('trace after queue insert');
+            Sys.println(' [2]  ${this.trace[2].events.map(v -> TermUtils.convToStr(v))}');
+            Sys.println(' [1]  ${this.trace[1].events.map(v -> TermUtils.convToStr(v))}');
+            Sys.println(' [0]  ${this.trace[0].events.map(v -> TermUtils.convToStr(v))}');
+        }
+
         
         
 
@@ -409,7 +429,8 @@ class Executive {
 
             if (
                 //not necessary  !containsAction(this.trace[2].events) && // necessary because else it builds wrong conclusion (&/, [a], ^x) =/> y from [a, ^y] [^x] [y]
-                containsAnyNonaction(this.trace[2].events) && containsAction(this.trace[1].events) && containsAnyNonaction(this.trace[0].events)
+                containsAnyNonaction(this.trace[2].events) &&
+                containsAction(this.trace[1].events) && containsAnyNonaction(this.trace[0].events)
             ) { // has at least one (&/, events, ^action) =/> effect term
                 
                 var nonactionsOf2:Array<Term> = this.trace[2].events.filter(v -> !TermUtils.isOp(v));
@@ -418,7 +439,14 @@ class Executive {
                 
                 {
                     for(iActionTerm in actionsOf1) { // iterate over all actions done at that time
-                        if(dbgEvidence) trace('evidence ${nonactionsOf2.map(v -> TermUtils.convToStr(v))} ${actionsOf1.map( v -> TermUtils.convToStr(v))} =/> ${nonactionsOf0.map(v -> TermUtils.convToStr(v))}');
+                        if (dbgEvidence) {                            
+                            var stamp:Stamp = createStamp();
+                            var createdPair:Pair = new Pair(stamp);
+                            createdPair.cond = new Par(nonactionsOf2);
+                            createdPair.act = actionsOf1;
+                            createdPair.effect = new Par(nonactionsOf0);
+                            trace('evidence  ${createdPair.convToStr()}');
+                        }
                         
                         // adds new evidence
                         function addEvidence(conds:Array<Term>, effects:Array<Term>, stamp:Stamp) {
@@ -600,6 +628,8 @@ class Executive {
     public function selBestAct(candidates:Array<{pair:Pair, exp:Float}>): Pair {
         if (dbgDescisionMakingVerbose) trace('selBestAct() ${candidates.length}');
         
+        if (true)  trace('selBestAct() #candidates=${candidates.length}');
+
         if (candidates.length == 0) {
             return null; // no action
         }
@@ -957,9 +987,9 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
                 // we restrict outself to pairs which have only one effect
                 // else it doesn't work
                 // TODO< investigate if this is not needed!!!!!!! >
-                if (iPair.effect.events.length > 1) {
-                    return false;
-                }
+                //if (iPair.effect.events.length > 1) {
+                //    return false;
+                //}
 
                 if (node.goalTerm != null) { // doesn't have pair
                     return iPair.effect.hasEvent(node.goalTerm);
