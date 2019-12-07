@@ -61,7 +61,7 @@ class ExpDescn2 {
         testAnticipationConfirm1();
         testAnticipationConfirm2();
 
-        var nExperimentThreads = 4; // number of threads for experiments
+        var nExperimentThreads = 1; // number of threads for experiments
 
 
         var dbgCyclesVerbose = false; // debugging : are cycles verbose?
@@ -147,7 +147,7 @@ class ExpDescn2 {
 
         //trace(Par.checkSubset(new Par([new Term("a")]), new Par([new Term("a")])));
 
-        var numberOfExperiments = 40;
+        var numberOfExperiments = 3;
 
         var nActiveExperimentThreads = 0; // how many threads are active for the experiment?
         var nActiveExperimentThreadsLock:sys.thread.Mutex = new sys.thread.Mutex();
@@ -187,7 +187,7 @@ class ExpDescn2 {
 
             #if (target.threaded)
             sys.thread.Thread.create(() -> {                
-                var cycles:Int = 50000;
+                var cycles:Int = 150000;
                 var executive:Executive = new Executive();
                 //doAlien1ExperimentWithExecutive(executive, cycles);
                 doPong2ExperimentWithExecutive(executive, cycles);
@@ -1687,13 +1687,15 @@ class Pong2 {
     public var misses = 0;
     public var hits = 0;
 
+    public var isGood = false;
+
     public function new(executive) {
         this.executive = executive;
         this.executive.acts.push(new Pong2Act("^l", this, -0.05));
         this.executive.acts.push(new Pong2Act("^r", this, 0.05));
         this.executive.acts.push(new Pong2Act("^stop", this, 0.0));
 
-        this.executive.goalSystem.eternalGoals.push(Term.Name("c")); // try to keep in center
+        this.executive.goalSystem.eternalGoals.push(Term.Name("g")); // try to keep in center
     }
 
     // print statistics
@@ -1707,6 +1709,8 @@ class Pong2 {
     public function emitState(): Array<Term> {
         var res = [];
 
+        stateAsStr = "";
+
         var diff: Float = posBallX - batPosX;
         if (Math.abs(diff) < 0.1) {
             stateAsStr = "c";
@@ -1716,9 +1720,14 @@ class Pong2 {
             stateAsStr = "r";
             res.push(Term.Name("r"));
         }
-        else {
+        else if(diff < 0.0){
             stateAsStr = "l";
             res.push(Term.Name("l"));
+        }
+
+        if (isGood) {
+            stateAsStr += " g";
+            res.push(Term.Name("g"));
         }
 
         return res;
@@ -1726,6 +1735,8 @@ class Pong2 {
 
     // simulates world
     public function simulate() {
+        isGood = false;
+
         batPosX += speed;
         batPosX = Math.max(0.0, batPosX);
         batPosX = Math.min(1.0, batPosX);
@@ -1746,6 +1757,8 @@ class Pong2 {
             }
 
             if (hitBat) {
+                isGood = true;
+
                 velBallY = Math.abs(velBallY);
             }
             else {
