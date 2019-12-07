@@ -212,49 +212,47 @@ class ExpDescn2 {
     }
 }
 
-class Memory {
-    public var pairs:Array<Pair> = []; // all known pairs, read only!
-    // is extremely slow to iterate on!
+
+// lookup table of a type by condition of a pair
+// supports query by subset
+@:generic
+class ByCond<Type> {
 
     // maps conditions to the pairs which contain the condition
     // key is the string serialization of the parallel key terms as a string
-    private var pairsByCond:Map<String,Array<Pair>> = new Map<String,Array<Pair>>();
+    private var pairsByCond:Map<String,Array<Type>> = new Map<String,Array<Type>>();
 
     public function new() {}
 
-    public function addPair(pair:Pair) {
-        pairs.push(pair);
-
+    public function add(events:Array<Term>, value:Type) {
         { // store by cond
             {
-                var keyComplete = ""+pair.cond.events.map(v -> TermUtils.convToStr(v));
+                var keyComplete = ""+events.map(v -> TermUtils.convToStr(v));
                 var tableResult = pairsByCond.get(keyComplete);
                 if (tableResult != null) {
-                    var arr = tableResult.concat([pair]);
+                    var arr = tableResult.concat([value]);
                     pairsByCond.set(keyComplete, arr);
                 }
                 else {
-                    pairsByCond.set(keyComplete, [pair]);
+                    pairsByCond.set(keyComplete, [value]);
                 }
             }
 
-            for(iEvent in pair.cond.events) {
+            for(iEvent in events) {
                 var key = ""+[TermUtils.convToStr(iEvent)];
                 var tableResult = pairsByCond.get(key);
                 if (tableResult != null) {
-                    var arr = tableResult.concat([pair]);
+                    var arr = tableResult.concat([value]);
                     pairsByCond.set(key, arr);
                 }
                 else {
-                    pairsByCond.set(key, [pair]);
+                    pairsByCond.set(key, [value]);
                 }
             }
-
         }
     }
 
-    // queries by conditional, either the complete parEvents or for single events (subset)
-    public function queryPairsByCond(parEvents:Array<Term>): Array<Pair> {
+    public function queryByCond(parEvents:Array<Term>): Array<Type> {
         //Par.checkSubset(new Par(parEvents), v.cond)
 
         var result = [];
@@ -276,6 +274,30 @@ class Memory {
         }
 
         return result;
+    }
+}
+
+
+
+class Memory {
+    public var pairs:Array<Pair> = []; // all known pairs, read only!
+    // is extremely slow to iterate on!
+
+    // maps conditions to the pairs which contain the condition
+    // key is the string serialization of the parallel key terms as a string
+    private var byCond:ByCond<Pair> = new ByCond<Pair>(); //:Map<String,Array<Pair>> = new Map<String,Array<Pair>>();
+
+    public function new() {}
+
+    public function addPair(pair:Pair) {
+        pairs.push(pair);
+
+        byCond.add(pair.cond.events, pair);
+    }
+
+    // queries by conditional, either the complete parEvents or for single events (subset)
+    public function queryPairsByCond(parEvents:Array<Term>): Array<Pair> {
+        return byCond.queryByCond(parEvents);
     }
 }
 
@@ -381,6 +403,10 @@ class Executive {
         queuedActOrigin = null;
         var bestDecisionMakingCandidate:Pair;
         { // select best decision making candidate
+            
+            var timeBefore = Sys.time();
+            
+            
             var candidates:Array<Pair> = [];// candidates for decision making in this step
             // * compute candidates for decision making in this step
             candidates = mem.queryPairsByCond(parEvents); /////pairs.filter(v -> Par.checkSubset(new Par(parEvents), v.cond));
@@ -389,6 +415,10 @@ class Executive {
             var candidatesByGoal: Array<{pair:Pair, exp:Float}> = goalSystem.retDecisionMakingCandidatesForCurrentEvents(parEvents);
             var candidates: Array<{pair:Pair, exp:Float}> = candidatesByGoal.concat(candidatesByGoal);
             bestDecisionMakingCandidate = selBestAct(candidates);
+
+            var timeRequired = Sys.time()-timeBefore;
+
+            Sys.println('descnMaking time=$timeRequired');
         }
         if (bestDecisionMakingCandidate != null) {
             var bestDecisionExp:Float = Tv.calcExp(bestDecisionMakingCandidate.calcFreq(), bestDecisionMakingCandidate.calcConf());
@@ -626,9 +656,7 @@ class Executive {
 
     // select best action
     public function selBestAct(candidates:Array<{pair:Pair, exp:Float}>): Pair {
-        if (dbgDescisionMakingVerbose) trace('selBestAct() ${candidates.length}');
-        
-        if (true)  trace('selBestAct() #candidates=${candidates.length}');
+        if (dbgDescisionMakingVerbose) trace('selBestAct() #candidates=${candidates.length}');
 
         if (candidates.length == 0) {
             return null; // no action
@@ -944,6 +972,10 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
 
     public var roots:Array<PlanningTreeNode> = [];
 
+    // acceleration structure for tree lookup by parallel events
+    //    is lazily completely replaced to keep implementation simple
+    private var nodesByCond:ByCond<PlanningTreeNode> = new ByCond<PlanningTreeNode>();
+
     public function new() {
         super();
     }
@@ -1042,29 +1074,12 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
                 createdChildren.creationT = executive.cycle;
                 createdChildren.sourcePair = iMatchingPair;
                 node.children.push(createdChildren);
+
+                
+                { // add acceleration structure
+                    nodesByCond.add(createdChildren.sourcePair.cond.events, createdChildren);
+                }
             }
-
-            /* old code which selects just one element
-            if (pairCandidates.length == 0) {
-                return; // we can't pick one if there is none to pick from
-            }
-
-            var selectedMatchingPair:Pair = null;
-            {
-                var idx = executive.rng.nextInt(pairCandidates.length);
-                selectedMatchingPair = pairCandidates[idx];
-            }
-
-
-            // * add node
-
-            var createdChildren = new PlanningTreeNode(executive.cycle);
-            createdChildren.parent = node; // link to parent
-            createdChildren.creationT = executive.cycle;
-            createdChildren.sourcePair = selectedMatchingPair;
-            node.children.push(createdChildren);
-
-            */
         }
 
 
@@ -1208,27 +1223,30 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
 
     public override function step(executive:Executive) {
         if (executive.cycle % 2500 == 0) {
+            { // count number of tree nodes
+            
+                var nTreeNodes = 0; // counter for tree nodes
+
+                function rec(node:PlanningTreeNode) {
+                    nTreeNodes++;
+
+                    for(iChildren in node.children) { // do the same for all children
+                        rec(iChildren);
+                    }
+                }
+
+                for(iRoot in roots) {
+                    rec(iRoot);
+                }
+
+                Sys.println('goal system  #treeNodes=$nTreeNodes');
+            }
+            
+            
             debugTree(executive);
         }
 
-        { // count number of tree nodes
-            
-            var nTreeNodes = 0; // counter for tree nodes
-
-            function rec(node:PlanningTreeNode) {
-                nTreeNodes++;
-
-                for(iChildren in node.children) { // do the same for all children
-                    rec(iChildren);
-                }
-            }
-
-            for(iRoot in roots) {
-                rec(iRoot);
-            }
-
-            Sys.println('goal system  #treeNodes=$nTreeNodes');
-        }
+        
 
 
         if (executive.cycle % 100 == 0) { // prune : remove goals where the (decayed) exp(tv) * decay is below the threshold
@@ -1269,6 +1287,12 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
 
         // enumerate tree node candidates
         var treeNodeCandidates:Array<PlanningTreeNode> = [];
+
+        treeNodeCandidates = nodesByCond.queryByCond(pair.effect.events);
+        { // check if result is valid
+            // TODO< check subset >
+        }
+        /* old slow code which iterates recursivly over all tree nodes
         
         function rec(node:PlanningTreeNode) {
             var add = false;
@@ -1293,6 +1317,8 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
         for(iRoot in roots) {
             rec(iRoot);
         }
+
+        */
 
 
         // * compute candidate with best exp()
