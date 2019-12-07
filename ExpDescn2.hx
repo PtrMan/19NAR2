@@ -1211,6 +1211,25 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
             debugTree(executive);
         }
 
+        { // count number of tree nodes
+            
+            var nTreeNodes = 0; // counter for tree nodes
+
+            function rec(node:PlanningTreeNode) {
+                nTreeNodes++;
+
+                for(iChildren in node.children) { // do the same for all children
+                    rec(iChildren);
+                }
+            }
+
+            for(iRoot in roots) {
+                rec(iRoot);
+            }
+
+            Sys.println('goal system  #treeNodes=$nTreeNodes');
+        }
+
 
         if (executive.cycle % 100 == 0) { // prune : remove goals where the (decayed) exp(tv) * decay is below the threshold
 
