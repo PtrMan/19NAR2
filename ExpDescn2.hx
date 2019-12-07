@@ -188,9 +188,9 @@ class ExpDescn2 {
             #if (target.threaded)
             sys.thread.Thread.create(() -> {      
                 var cyclesAlien2:Int = 30000;          
-                var cyclesPong2:Int = 150000;
+                var cyclesPong2:Int = 5*35001;//150000;
                 var executive:Executive = new Executive();
-                doAlien1ExperimentWithExecutive(executive, cyclesAlien2);
+                //doAlien1ExperimentWithExecutive(executive, cyclesAlien2);
                 doPong2ExperimentWithExecutive(executive, cyclesPong2);
                 
                 numberOfDoneExperiments++; // bump counter
@@ -355,6 +355,16 @@ class Executive {
     }
 
     public function step(parEvents:Array<Term>) {
+        // * add evidence of parallel events
+        //   builds a =|> b  b =|> a  from parEvents=[a, b]
+        if (parEvents.length > 1) {
+            // TODO< sample ba random if there are to many events >
+            for(idxA in 0...parEvents.length) for(idxB in 0...parEvents.length) {
+                addEvidence([parEvents[idxA]], [parEvents[idxB]], createStamp(), null, true);
+                addEvidence([parEvents[idxB]], [parEvents[idxA]], createStamp(), null, true);
+            }
+        }
+
         // * try to confirm anticipations
         anticipationTryConfirm(parEvents);
 
@@ -409,7 +419,7 @@ class Executive {
             
             var candidates:Array<Pair> = [];// candidates for decision making in this step
             // * compute candidates for decision making in this step
-            candidates = mem.queryPairsByCond(parEvents); /////pairs.filter(v -> Par.checkSubset(new Par(parEvents), v.cond));
+            candidates = mem.queryPairsByCond(parEvents).filter(v -> !v.isConcurrentImpl); /////pairs.filter(v -> Par.checkSubset(new Par(parEvents), v.cond));
             
             var candidatesByLocalChainedGoal: Array<{pair:Pair, exp:Float}> = [];
             
@@ -420,7 +430,7 @@ class Executive {
             var candidatesByGoal: Array<{pair:Pair, exp:Float}> = goalSystem.retDecisionMakingCandidatesForCurrentEvents(parEvents);
             if(dbgDescisionMakingVerbose) Sys.println('descnMaking goal system time=${Sys.time()-timeBefore2}');
             
-            var candidates: Array<{pair:Pair, exp:Float}> = candidatesByGoal.concat(candidatesByGoal);
+            var candidates: Array<{pair:Pair, exp:Float}> = candidatesByGoal;
             bestDecisionMakingCandidate = selBestAct(candidates);
 
             var timeRequired = Sys.time()-timeBefore;
@@ -485,78 +495,28 @@ class Executive {
                             trace('evidence  ${createdPair.convToStr()}');
                         }
                         
-                        // adds new evidence
-                        function addEvidence(conds:Array<Term>, effects:Array<Term>, stamp:Stamp) {
-                            
-                            if (Par.checkIntersect(new Par(conds), new Par(effects))) {
-                                return; // exclude (&/, a, ^b) =/> a
-                            }
-
-                            for(iPair in mem.queryPairsByCond(conds)) { // search for existing evidence and try to revise
-                                ////trace('cs ${Par.checkSubset(iPair.cond, new Par(conds))} ${iPair.cond.events.map(v ->v.content)} ${new Par(conds).events.map(v->v.content)}');
-                                
-                                if (
-                                    iPair.act.length == 1 &&
-                                    TermUtils.equal(iPair.act[0], iActionTerm) &&
-                                    Par.checkSubset(iPair.cond, new Par(conds)) // TODOOPTIMIZE< is not necessary >
-                                ) {
-                                    // iPair.evidenceCnt++; // commented here because neg evidence should only come from neg-confirm, because we assume a open-world
-
-                                    if (Par.checkSubset(iPair.effect, new Par(effects))) {
-                                        iPair.evidenceCnt++;
-                                        iPair.evidencePositive++;
-                                    }
-                                }
-                            }
-
-                            var existsEvidence = false; // does exact evidence exist?
-                            for(iPair in mem.queryPairsByCond(conds)) { // search for exact evidence
-                                if (
-                                    iPair.act.length == 1 &&
-                                    TermUtils.equal(iPair.act[0], iActionTerm) &&
-                                    Par.checkSame(iPair.cond, new Par(conds)) // TODOOPTIMIZE< is not necessary >
-                                ) {
-                                    if (Par.checkSame(iPair.effect, new Par(effects))) {
-                                        existsEvidence = true;
-                                    }
-                                }
-                            }
-
-                            if (!existsEvidence) { // create new evidence if it doesn't yet exist
-                                
-                                // store pair
-                                var createdPair:Pair = new Pair(stamp);
-                                createdPair.cond = new Par(conds);
-                                createdPair.act = [iActionTerm];
-                                createdPair.effect = new Par(effects);
-
-                                if(dbgEvidence) trace('create new evidence ${createdPair.convToStr()}');
-
-                                mem.addPair(createdPair); ///pairs.push(createdPair);
-                            }
-                        }
 
                         var stamp:Stamp = createStamp();
 
-                        addEvidence(nonactionsOf2, nonactionsOf0, stamp);
+                        addEvidence(nonactionsOf2, nonactionsOf0, stamp, iActionTerm, false);
                         
                         // add evidence of combinations of single events of cond and effect
                         if (nonactionsOf2.length > 1) {
                             for(iCond in nonactionsOf2) {
-                                addEvidence([iCond], nonactionsOf0, stamp);
+                                addEvidence([iCond], nonactionsOf0, stamp, iActionTerm, false);
                             }
                         }
 
                         if (nonactionsOf0.length > 1) {
                             for(iEffect in nonactionsOf0) {
-                                addEvidence(nonactionsOf2, [iEffect], stamp);
+                                addEvidence(nonactionsOf2, [iEffect], stamp, iActionTerm, false);
                             }
                         }
                         
                         if (nonactionsOf2.length > 1 && nonactionsOf0.length > 1) {
                             for(iCond in nonactionsOf2) {
                                 for (iEffect in nonactionsOf0) {
-                                    addEvidence([iCond], [iEffect], stamp);
+                                    addEvidence([iCond], [iEffect], stamp, iActionTerm, false);
                                 }
                             }
                         }
@@ -571,6 +531,62 @@ class Executive {
         goalSystem.goalDerivation(this);
 
         cycle++; // advance global cycle timer
+    }
+
+    
+    // adds new evidence
+    // /param iActionTerm is the action term which is used for checking and, can be null if isConcurrentImpl is true
+    private function addEvidence(conds:Array<Term>, effects:Array<Term>, stamp:Stamp, iActionTerm:Term, isConcurrentImpl) {
+        
+        if (Par.checkIntersect(new Par(conds), new Par(effects))) {
+            return; // exclude (&/, a, ^b) =/> a
+        }
+
+        for(iPair in mem.queryPairsByCond(conds)) { // search for existing evidence and try to revise
+            ////trace('cs ${Par.checkSubset(iPair.cond, new Par(conds))} ${iPair.cond.events.map(v ->v.content)} ${new Par(conds).events.map(v->v.content)}');
+            
+            if (
+                iPair.isConcurrentImpl == isConcurrentImpl &&
+                //iPair.act.length == 1 &&
+                (isConcurrentImpl ? true : TermUtils.equal(iPair.act[0], iActionTerm)) &&
+                Par.checkSubset(iPair.cond, new Par(conds)) // TODOOPTIMIZE< is not necessary >
+            ) {
+                // iPair.evidenceCnt++; // commented here because neg evidence should only come from neg-confirm, because we assume a open-world
+
+                if (Par.checkSubset(iPair.effect, new Par(effects))) {
+                    iPair.evidenceCnt++;
+                    iPair.evidencePositive++;
+                }
+            }
+        }
+
+        var existsEvidence = false; // does exact evidence exist?
+        for(iPair in mem.queryPairsByCond(conds)) { // search for exact evidence
+            if (
+                iPair.isConcurrentImpl == isConcurrentImpl &&
+                //iPair.act.length == 1 &&
+                (isConcurrentImpl ? true : TermUtils.equal(iPair.act[0], iActionTerm)) &&
+                Par.checkSame(iPair.cond, new Par(conds)) // TODOOPTIMIZE< is not necessary >
+            ) {
+                if (Par.checkSame(iPair.effect, new Par(effects))) {
+                    existsEvidence = true;
+                }
+            }
+        }
+
+        if (!existsEvidence) { // create new evidence if it doesn't yet exist
+            
+            // store pair
+            var createdPair:Pair = new Pair(stamp);
+            createdPair.cond = new Par(conds);
+            createdPair.act = iActionTerm != null ? [iActionTerm] : [];
+            createdPair.effect = new Par(effects);
+            createdPair.isConcurrentImpl = isConcurrentImpl;
+
+            if(dbgEvidence) trace('create new evidence ${createdPair.convToStr()}');
+
+            mem.addPair(createdPair); ///pairs.push(createdPair);
+        }
     }
 
     // decrements the remaining refractory period
@@ -1347,7 +1363,8 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
         var resultArr = [];
 
         {
-            var candidateNodes:Array<PlanningTreeNode> = nodesByCond.queryByCond(parEvents);
+            var candidateNodes:Array<PlanningTreeNode> = nodesByCond.queryByCond(parEvents)
+                .filter(v -> !v.sourcePair.isConcurrentImpl); // only allow =/>
             for(iCandidateNode in candidateNodes) {
                 var tv = iCandidateNode.retTv(null);
                 var exp:Float = Tv.calcExp(tv.freq, tv.conf);
@@ -1581,10 +1598,6 @@ class Pair {
     }
 
     public function calcConf() {
-        if (isConcurrentImpl) {
-            return 0.999999; // axiomatic
-        }
-        
         // see http://alumni.media.mit.edu/~kris/ftp/Helgason%20et%20al-AGI2013.pdf
         return evidenceCnt / (evidenceCnt + 1.0);
     }
@@ -1935,7 +1948,7 @@ class Alien1 {
 // ^r : right
 
 // a simple version of Montezuma's Revenge
-class Revenge1 {
+class MontezumaRevenge1 {
     public var posX = 4;
     public var posY = 1;
 
