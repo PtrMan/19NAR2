@@ -64,7 +64,7 @@ class ExpDescn2 {
         var nExperimentThreads = 1; // number of threads for experiments
 
 
-        var dbgCyclesVerbose = true; // debugging : are cycles verbose?
+        var dbgCyclesVerbose = false; // debugging : are cycles verbose?
 
         var alien1RatioDist:IncrementalCentralDistribution = new IncrementalCentralDistribution();
         var pong2RatioDist:IncrementalCentralDistribution = new IncrementalCentralDistribution();
@@ -147,7 +147,7 @@ class ExpDescn2 {
 
         //trace(Par.checkSubset(new Par([new Term("a")]), new Par([new Term("a")])));
 
-        var numberOfExperiments = 1;
+        var numberOfExperiments = 10;
 
         var nActiveExperimentThreads = 0; // how many threads are active for the experiment?
         var nActiveExperimentThreadsLock:sys.thread.Mutex = new sys.thread.Mutex();
@@ -191,7 +191,7 @@ class ExpDescn2 {
                 var cyclesPong2:Int = 150000;
                 var executive:Executive = new Executive();
                 doAlien1ExperimentWithExecutive(executive, cyclesAlien2);
-                //doPong2ExperimentWithExecutive(executive, cyclesPong2);
+                doPong2ExperimentWithExecutive(executive, cyclesPong2);
                 
                 numberOfDoneExperiments++; // bump counter
 
@@ -411,14 +411,21 @@ class Executive {
             // * compute candidates for decision making in this step
             candidates = mem.queryPairsByCond(parEvents); /////pairs.filter(v -> Par.checkSubset(new Par(parEvents), v.cond));
             
-            var candidatesByLocalChainedGoal: Array<{pair:Pair, exp:Float}> = filterCandidatesByGoal(candidates); // chain local pair -> matching goal in goal system
+            var candidatesByLocalChainedGoal: Array<{pair:Pair, exp:Float}> = [];
+            
+            //commented because it is to slow
+            //candidatesByLocalChainedGoal = filterCandidatesByGoal(candidates); // chain local pair -> matching goal in goal system
+            
+            var timeBefore2 = Sys.time();
             var candidatesByGoal: Array<{pair:Pair, exp:Float}> = goalSystem.retDecisionMakingCandidatesForCurrentEvents(parEvents);
+            if(dbgDescisionMakingVerbose) Sys.println('descnMaking goal system time=${Sys.time()-timeBefore2}');
+            
             var candidates: Array<{pair:Pair, exp:Float}> = candidatesByGoal.concat(candidatesByGoal);
             bestDecisionMakingCandidate = selBestAct(candidates);
 
             var timeRequired = Sys.time()-timeBefore;
 
-            Sys.println('descnMaking time=$timeRequired');
+            if(dbgDescisionMakingVerbose) Sys.println('descnMaking time=$timeRequired');
         }
         if (bestDecisionMakingCandidate != null) {
             var bestDecisionExp:Float = Tv.calcExp(bestDecisionMakingCandidate.calcFreq(), bestDecisionMakingCandidate.calcConf());
@@ -1018,10 +1025,10 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
             var pairCandidates:Array<Pair> = executive.mem.pairs.filter(iPair -> {
                 // we restrict outself to pairs which have only one effect
                 // else it doesn't work
-                // TODO< investigate if this is not needed!!!!!!! >
-                //if (iPair.effect.events.length > 1) {
-                //    return false;
-                //}
+                // INVESTIAGTION< investigate if this is not needed!!!!!!! >
+                if (iPair.effect.events.length > 1) {
+                    return false;
+                }
 
                 if (node.goalTerm != null) { // doesn't have pair
                     return iPair.effect.hasEvent(node.goalTerm);
@@ -1287,12 +1294,6 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
 
         // enumerate tree node candidates
         var treeNodeCandidates:Array<PlanningTreeNode> = [];
-
-        treeNodeCandidates = nodesByCond.queryByCond(pair.effect.events);
-        { // check if result is valid
-            // TODO< check subset >
-        }
-        /* old slow code which iterates recursivly over all tree nodes
         
         function rec(node:PlanningTreeNode) {
             var add = false;
@@ -1318,7 +1319,6 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
             rec(iRoot);
         }
 
-        */
 
 
         // * compute candidate with best exp()
@@ -1346,6 +1346,16 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
     public override function retDecisionMakingCandidatesForCurrentEvents(parEvents: Array<Term>): Array<{pair:Pair, exp:Float}> {
         var resultArr = [];
 
+        {
+            var candidateNodes:Array<PlanningTreeNode> = nodesByCond.queryByCond(parEvents);
+            for(iCandidateNode in candidateNodes) {
+                var tv = iCandidateNode.retTv(null);
+                var exp:Float = Tv.calcExp(tv.freq, tv.conf);
+                resultArr.push({pair:iCandidateNode.sourcePair, exp:exp});
+            }
+        }
+        /* correct slow path, commented because it is to slow
+
         // checks if the precondition fits and add it to the result if so
         function checkAndAddRec(node:PlanningTreeNode) {
             if (node.sourcePair != null) {
@@ -1365,6 +1375,7 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
         for(iRoot in roots) {
             checkAndAddRec(iRoot);
         }
+        */
 
         return resultArr;
     }
