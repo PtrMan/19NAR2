@@ -63,7 +63,7 @@ class ExpDescn2 {
         var nExperimentThreads = 1; // number of threads for experiments
 
 
-        var dbgCyclesVerbose = false; // debugging : are cycles verbose?
+        var dbgCyclesVerbose = true; // debugging : are cycles verbose?
 
         var alien1RatioDist:IncrementalCentralDistribution = new IncrementalCentralDistribution();
 
@@ -304,8 +304,8 @@ class Executive {
     public var dbgEvidence = false; // debugging - debug new and revised evidence?
     public var dbgAnticipationVerbose = false; // are anticipations verbose?
 
-    public var dbgDescisionMakingVerbose = false; // debugging : is decision making verbose
-    public var dbgExecVerbose = false; // debugging : is execution of ops verbose?
+    public var dbgDescisionMakingVerbose = true; // debugging : is decision making verbose
+    public var dbgExecVerbose = true; // debugging : is execution of ops verbose?
 
     public var mem = new Memory();
 
