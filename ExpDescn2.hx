@@ -56,10 +56,29 @@ class ExpDescn2 {
         Assert.enforce(uut.anticipationsInflight.length == 1, "anticipation must not have been confirmed!");
     }
 
+    // tests if it builds the impl seq even when a empty trace item is present
+    public static function testTraceEmpty1() {
+        var uut:Executive = new Executive();
+        uut.step([Term.Name("a")]);
+        uut.step([Term.Name("^b")]);
+        uut.step([]);
+        uut.step([Term.Name("c")]);
+
+
+        // debug all evidence
+        //Sys.println('');
+        //for(iEvidence in uut.mem.pairs) {
+        //    Sys.println(iEvidence.convToStr());
+        //}
+
+        Assert.enforce(uut.mem.pairs.length == 1, "must contain the impl seq!");
+    }
+
     public static function main() {
         // short selftests
         testAnticipationConfirm1();
         testAnticipationConfirm2();
+        testTraceEmpty1();
 
         var nExperimentThreads = 1; // number of threads for experiments
 
@@ -147,7 +166,7 @@ class ExpDescn2 {
 
         //trace(Par.checkSubset(new Par([new Term("a")]), new Par([new Term("a")])));
 
-        var numberOfExperiments = 10;
+        var numberOfExperiments = 1;
 
         var nActiveExperimentThreads = 0; // how many threads are active for the experiment?
         var nActiveExperimentThreadsLock:sys.thread.Mutex = new sys.thread.Mutex();
@@ -308,10 +327,10 @@ class Executive {
     public var acts:Array<Act> = []; // list of all actions
     
     public function new() {
-        // the trace just needs 3 elements for now
-        trace.push(new Par([]));
-        trace.push(new Par([]));
-        trace.push(new Par([]));
+        var traceLength:Int = 10; // the trace
+        for(i in 0...traceLength) {
+            trace.push(new Par([]));
+        }
     }
 
     var queuedAct: String = null;
@@ -369,16 +388,19 @@ class Executive {
         anticipationTryConfirm(parEvents);
 
         // * advance time by one step
-        this.trace[2] = this.trace[1];
-        this.trace[1] = this.trace[0];
+        for(idx2 in 1...this.trace.length) {
+            var idx = this.trace.length-1-idx2;
+            this.trace[idx+1] = this.trace[idx];
+        }
         this.trace[0] = new Par([]);
         this.trace[0].events = parEvents;
 
         if (false) { // debug trace
             Sys.println('trace');
-            Sys.println(' [2]  ${this.trace[2].events.map(v -> TermUtils.convToStr(v))}');
-            Sys.println(' [1]  ${this.trace[1].events.map(v -> TermUtils.convToStr(v))}');
-            Sys.println(' [0]  ${this.trace[0].events.map(v -> TermUtils.convToStr(v))}');
+            for(idx2 in 0...this.trace.length) {
+                var idx = this.trace.length-1-idx2;
+                Sys.println(' [$idx]  ${this.trace[idx].events.map(v -> TermUtils.convToStr(v))}');
+            }
         }
 
         { // do random action
@@ -400,9 +422,10 @@ class Executive {
 
         if (false) { // debug trace
             Sys.println('trace after queue insert');
-            Sys.println(' [2]  ${this.trace[2].events.map(v -> TermUtils.convToStr(v))}');
-            Sys.println(' [1]  ${this.trace[1].events.map(v -> TermUtils.convToStr(v))}');
-            Sys.println(' [0]  ${this.trace[0].events.map(v -> TermUtils.convToStr(v))}');
+            for(idx2 in 0...this.trace.length) {
+                var idx = this.trace.length-1-idx2;
+                Sys.println(' [$idx]  ${this.trace[idx].events.map(v -> TermUtils.convToStr(v))}');
+            }
         }
 
         
@@ -475,6 +498,92 @@ class Executive {
             }
 
             if (
+                this.trace[0].events.length > 0 // most recent trace element must contain a event to get chained
+            ) {
+                // we need to build sequences of observations,
+                // but we also have to be careful not to build to many
+                //
+                // so we need to scan the trace for a op which "connects" the event(s) before the op to the last event(s)
+
+                var traceIdxOfOpEvent=-1;
+                for(idx in 1...this.trace.length-1) {
+                    if (containsAction(this.trace[idx].events)) {
+                        traceIdxOfOpEvent = idx;
+                        break;
+                    }
+                }
+
+                if (traceIdxOfOpEvent != -1) { // is valid?
+                    for(iConditionCandidateIdx in traceIdxOfOpEvent+1...this.trace.length) { // iterate over indices in trace for condition of impl seq we want to build
+                        
+                        // "break" sequence by another op
+                        // because we only build (&/, a, ^b) =/> c, not some impl seq with two or more ops
+                        if (containsAction(this.trace[iConditionCandidateIdx].events)) {
+                            break;
+                        }
+
+                        if (!containsAnyNonaction(this.trace[iConditionCandidateIdx].events)) {
+                            continue;
+                        }
+
+
+                        // build impl seq(s)
+                        // because it has at least one (&/, events, ^action) =/> effect term
+                
+                        var nonactionsOf2:Array<Term> = this.trace[iConditionCandidateIdx].events.filter(v -> !TermUtils.isOp(v));
+                        var actionsOf1:Array<Term> = this.trace[traceIdxOfOpEvent].events.filter(v -> TermUtils.isOp(v));
+                        var nonactionsOf0:Array<Term> = this.trace[0].events.filter(v -> !TermUtils.isOp(v));
+                        
+                        {
+                            for(iActionTerm in actionsOf1) { // iterate over all actions done at that time
+                                if (dbgEvidence) {                            
+                                    var stamp:Stamp = createStamp();
+                                    var createdPair:Pair = new Pair(stamp);
+                                    createdPair.cond = new Par(nonactionsOf2);
+                                    createdPair.act = actionsOf1;
+                                    createdPair.effect = new Par(nonactionsOf0);
+                                    trace('evidence  ${createdPair.convToStr()}');
+                                }
+                                
+
+                                var stamp:Stamp = createStamp();
+
+                                addEvidence(nonactionsOf2, nonactionsOf0, stamp, iActionTerm, false);
+                                
+                                // add evidence of combinations of single events of cond and effect
+                                if (nonactionsOf2.length > 1) {
+                                    for(iCond in nonactionsOf2) {
+                                        addEvidence([iCond], nonactionsOf0, stamp, iActionTerm, false);
+                                    }
+                                }
+
+                                if (nonactionsOf0.length > 1) {
+                                    for(iEffect in nonactionsOf0) {
+                                        addEvidence(nonactionsOf2, [iEffect], stamp, iActionTerm, false);
+                                    }
+                                }
+                                
+                                if (nonactionsOf2.length > 1 && nonactionsOf0.length > 1) {
+                                    for(iCond in nonactionsOf2) {
+                                        for (iEffect in nonactionsOf0) {
+                                            addEvidence([iCond], [iEffect], stamp, iActionTerm, false);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+
+
+                        break; // we break because else we may overwhelm the system with pointless derivations
+                    }
+                }
+            }
+
+            /* commented because it is the old treatment with a hardcoded trace size=3
+            if (
+                this.trace[0].events.length > 0 && // most recent trace element must contain a event to get chained
+
                 //not necessary  !containsAction(this.trace[2].events) && // necessary because else it builds wrong conclusion (&/, [a], ^x) =/> y from [a, ^y] [^x] [y]
                 containsAnyNonaction(this.trace[2].events) &&
                 containsAction(this.trace[1].events) && containsAnyNonaction(this.trace[0].events)
@@ -523,6 +632,7 @@ class Executive {
                     }
                 }
             }
+             */
         }
 
         anticipationMaintainNegAnticipations();
