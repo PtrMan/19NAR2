@@ -83,10 +83,11 @@ class ExpDescn2 {
         var nExperimentThreads = 1; // number of threads for experiments
 
 
-        var dbgCyclesVerbose = false; // debugging : are cycles verbose?
+        var dbgCyclesVerbose = true; // debugging : are cycles verbose?
 
         var alien1RatioDist:IncrementalCentralDistribution = new IncrementalCentralDistribution();
         var pong2RatioDist:IncrementalCentralDistribution = new IncrementalCentralDistribution();
+        var seaquest1RatioDist:IncrementalCentralDistribution = new IncrementalCentralDistribution();
 
         // does run one experiment with the reasoner
         function doAlien1ExperimentWithExecutive(executive:Executive, cycles:Int) {
@@ -164,6 +165,45 @@ class ExpDescn2 {
             pong2.printStats();
         }
 
+
+        function doSeaquestExperimentWithExecutive(executive:Executive, cycles:Int) {
+            executive.randomActProb = 0.08;
+            
+            var seaquest = new Seaquest1(executive);
+
+            while(executive.cycle < cycles) {
+                if(dbgCyclesVerbose) Sys.println('cycl=${executive.cycle}');
+                
+                // debug anticipations in flight
+                var dbgAnticipationsInflight = false;
+                if(dbgAnticipationsInflight && executive.anticipationsInflight.length > 0) {
+                    Sys.println('');
+                    Sys.println('ANTICIPATION inflight:');
+                    for(iAif in executive.anticipationsInflight) {
+                        Sys.println('   ${iAif.origin.convToStr()}  deadline=${iAif.deadline}');
+                    }
+                }
+
+
+                var state:Array<Term> = seaquest.emitState();
+                if(dbgCyclesVerbose) Sys.println('cycl=${executive.cycle}  state=${seaquest.stateAsStr}');
+                executive.step(state);
+                seaquest.simulate();
+            }
+
+            // debug all evidence
+            Sys.println('');
+            for(iEvidence in executive.mem.pairs) {
+                Sys.println(iEvidence.convToStr());
+            }
+
+            // add hit ratio to distribution
+            seaquest1RatioDist.next(seaquest.cntEnemyHit / seaquest.cntShoots);
+
+            // print statistics of world:
+            seaquest.printStats();
+        }
+
         //trace(Par.checkSubset(new Par([new Term("a")]), new Par([new Term("a")])));
 
         var numberOfExperiments = 1;
@@ -210,7 +250,8 @@ class ExpDescn2 {
                 var cyclesPong2:Int = 5*35001;//150000;
                 var executive:Executive = new Executive();
                 //doAlien1ExperimentWithExecutive(executive, cyclesAlien2);
-                doPong2ExperimentWithExecutive(executive, cyclesPong2);
+                //doPong2ExperimentWithExecutive(executive, cyclesPong2);
+                doSeaquestExperimentWithExecutive(executive, 30000);
                 
                 numberOfDoneExperiments++; // bump counter
 
@@ -354,7 +395,7 @@ class Executive {
     public var dbgAnticipationVerbose = false; // are anticipations verbose?
 
     public var dbgDescisionMakingVerbose = false; // debugging : is decision making verbose
-    public var dbgExecVerbose = false; // debugging : is execution of ops verbose?
+    public var dbgExecVerbose = true; // debugging : is execution of ops verbose?
 
     public var mem = new Memory();
 
@@ -405,6 +446,8 @@ class Executive {
 
         { // do random action
             if(rng.nextFloat() < randomActProb && queuedAct == null) { // do random action
+                if (true) Sys.println('random act');
+                
                 var possibleActs = acts.filter(iAct -> iAct.refractoryPeriodCooldown <= 0); // only actions which are cooled down are possible as candidates
 
                 var idx=Std.random(possibleActs.length);
@@ -2004,7 +2047,6 @@ class Alien1Act extends Act {
     }
 }
 
-// TODO< add shooting action and goal to shoot down aliens >
 // alien invasion world where aliens move around and where the player can move only incrementally
 class Alien1 {
     public var posX:Float = 0.35; // position of the agent
@@ -2067,6 +2109,233 @@ class Alien1 {
         return res;
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+class Seaquest1Act extends Act {
+    public var w:Seaquest1;
+    public var deltaX:Float;
+    public var deltaY:Float;
+
+    public function new(name:String, w:Seaquest1, deltaX:Float, deltaY:Float) {
+        super(name);
+        this.deltaX = deltaX;
+        this.deltaY = deltaY;
+        this.w = w;
+    }
+
+    public override function exec() {
+        w.posX += deltaX;
+        w.posY += deltaY;
+        w.posX = Math.max(0.0, w.posX);
+        w.posX = Math.min(1.0, w.posX);
+        w.posY = Math.max(0.0, w.posY);
+        w.posY = Math.min(1.0, w.posY);
+
+
+        if (this.name == "^s") { // is shoot action?
+            w.cntShoots++; // bump statistics
+            w.actShoot = true;
+        }
+    }
+}
+
+class Entity {
+    public var type:String;
+    public var posX:Float = 0.0;
+    public var posY:Float = 0.0;
+    public var velX:Float = 0.0;
+    public var velY:Float = 0.0;
+    
+    public function new(type) {
+        this.type=type;
+    }
+
+    public function step() {
+        posX+=velX;
+        posY+=velY;
+    }
+}
+
+// TODO< add direction of submarine and change it when ever ^r,^l is done, also propagate it as state to reasoner >
+class Seaquest1 {
+    public var posX:Float = 0.35; // position of the agent
+    public var posY:Float = 0.5; // position of the agent
+
+    public var actShoot:Bool = false; // shoot in the next timestep?
+
+    public var entities:Array<Entity> = [];
+
+    public var executive:Executive;
+
+    public var stateAsStr:String = ""; // current state as string for debugging
+
+    public var state:Array<Term> = [];
+
+    public var cntShoots:Int = 0; // statistics - how many shots were fired
+    public var cntEnemyHit:Int = 0; // statistics - how many enemy submarines were hit
+    public var cntFishHit:Int = 0; // statistics - how many enemy fishes were hit
+    
+
+    // print statistics
+    public function printStats() {
+        Sys.println('shots fired = $cntShoots');
+        Sys.println('enemy hit = $cntEnemyHit');
+        Sys.println('hit ratio = ${cntEnemyHit / cntShoots}');
+    }
+
+    public function new(executive) {
+        this.executive = executive;
+        this.executive.acts.push(new Seaquest1Act("^l", this, -0.06, 0.0));
+        this.executive.acts.push(new Seaquest1Act("^r", this, 0.06, 0.0));
+        this.executive.acts.push(new Seaquest1Act("^u", this, 0.0, -0.06));
+        this.executive.acts.push(new Seaquest1Act("^d", this, 0.0, 0.06));
+        {
+            var shootAct = new Seaquest1Act("^s", this, 0.0, 0.0);
+            shootAct.refractoryPeriod = 4; // don't let the agent spam the shot button
+            this.executive.acts.push(shootAct);
+        }
+
+        this.executive.goalSystem.eternalGoals.push(Term.Name("s0")); // shoot down
+        this.executive.goalSystem.eternalGoals.push(Term.Name("s1")); // shoot down
+    }
+
+    // returns the state of the world
+    public function emitState(): Array<Term> {
+        var res = state;
+
+        stateAsStr = "";
+
+        {
+            var eSubs = entities.filter(e -> e.type == "S"); // filter for enemy submarines
+            for(idx in 0...eSubs.length) {
+                var diffX:Float = posX - eSubs[idx].posX;
+                var diffY:Float = posY - eSubs[idx].posY;
+                if (Math.abs(diffX) < 0.1) {
+                    stateAsStr += ' Sxc$idx';
+                    res.push(Term.Name('Sxc$idx'));
+                }
+                else if(diffX > 0.0) {
+                    stateAsStr += ' Sxr$idx';
+                    res.push(Term.Name('Sxr$idx'));
+                }
+                else {
+                    stateAsStr += ' Sxl$idx';
+                    res.push(Term.Name('Sxl$idx'));
+                }
+
+                if (Math.abs(diffY) < 0.1) {
+                    stateAsStr += ' Syc$idx';
+                    res.push(Term.Name('Syc$idx'));
+                }
+                else if(diffY > 0.0) {
+                    stateAsStr += ' Syb$idx'; // bellow
+                    res.push(Term.Name('Syb$idx'));
+                }
+                else {
+                    stateAsStr += ' Sya$idx'; // above
+                    res.push(Term.Name('Sya$idx'));
+                }
+            }
+        }
+
+        state = [];
+        return res;
+    }
+
+    // simulates world
+    public function simulate() {
+        if (actShoot) {
+            // spawn projectile
+            var spawnedProj = new Entity("p");
+            entities.push(spawnedProj);
+            spawnedProj.velX = 0.04 * (1); // TODO< get from look direction >
+            spawnedProj.posX = posX;
+            spawnedProj.posY = posY;
+        }
+        actShoot = false;
+
+
+
+        for(simStep in 0...3) {
+            for(ie in entities) {
+                ie.step();
+            }
+
+            // check collision between projectile and enemy
+            {
+                var noSubs = entities.filter(ie -> ie.type != "S");
+                var subs = entities.filter(ie -> ie.type == "S");
+                var nSubsBefore = subs.length;
+
+                var subs2 = [];
+                var subIdx=0;
+                for(ie in subs) {
+                    var hit = false;
+                    for(ip in entities.filter(ie -> ie.type == "p")) {
+                        var diffX = Math.abs(ip.posX - ie.posX);
+                        var diffY = Math.abs(ip.posY - ie.posY);
+                        hit = hit || (diffX < 0.1 && diffY < 0.1);
+                    }
+
+                    if (hit) {
+                        Sys.println('seaquest  enemy hit!');
+
+                        state.push(Term.Name('s$subIdx')); // shot down
+
+                        cntEnemyHit++; // bump counter
+                    }
+
+                    if (!hit) {
+                        subs2.push(ie); // add sub if it wasn't hit
+                    }
+
+                    subIdx++;
+                }
+
+                entities = noSubs.concat(subs2);
+            }
+        }
+
+
+
+        { // remove entities which are out of bound
+            entities = entities.filter(ie -> {
+                return ie.posX >= 0.0 && ie.posX <= 1.0; // else projectile must be in screen
+            });
+        }
+
+        // respawn submarine if it is not present anymore
+        var nSubmarines = entities.filter(ie -> ie.type == "S").length;
+        if (nSubmarines < 1) {
+            //Sys.println("seaquest: respawn enemy");
+
+            var spawnedSub = new Entity("S");
+
+            var dirX:Int = Std.random(2) == 0 ? -1 : 1;
+            spawnedSub.posX = (dirX == 1 ? 0.0 : 1.0);
+            spawnedSub.posY = Math.random();
+            spawnedSub.velX = dirX * 0.04;
+            entities.push(spawnedSub);
+        }
+    }
+
+}
+
+
+
+
+
+
+
 
 
 //class Revenge1Op extends Act {
