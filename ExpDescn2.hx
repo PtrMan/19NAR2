@@ -167,7 +167,7 @@ class ExpDescn2 {
 
 
         function doSeaquestExperimentWithExecutive(executive:Executive, cycles:Int) {
-            executive.randomActProb = 0.08;
+            executive.randomActProb = 0.04;
             
             var seaquest = new Seaquest1(executive);
 
@@ -182,6 +182,11 @@ class ExpDescn2 {
                     for(iAif in executive.anticipationsInflight) {
                         Sys.println('   ${iAif.origin.convToStr()}  deadline=${iAif.deadline}');
                     }
+                }
+
+                if(true) {
+                    seaquest.consoleVis();
+                    Sys.sleep(0.03);
                 }
 
 
@@ -365,7 +370,7 @@ class Executive {
     
     //commented because it is in memory    public var pairs:Array<Pair> = []; // all known pairs
 
-    public var acts:Array<Act> = []; // list of all actions
+    public var acts:Array<{mass:Float, act:Act}> = []; // list of all actions
     
     public function new() {
         var traceLength:Int = 10; // the trace
@@ -381,7 +386,7 @@ class Executive {
 
     public var randomActProb:Float = 0.0; // config - propability to do random action
 
-    public var decisionThreshold:Float = 0.4; // config
+    public var decisionThreshold:Float = 0.6; // config
 
     public var anticipationDeadline = 20; // config - anticipation deadline in cycles
 
@@ -392,7 +397,7 @@ class Executive {
 
 
     public var dbgEvidence = false; // debugging - debug new and revised evidence?
-    public var dbgAnticipationVerbose = false; // are anticipations verbose?
+    public var dbgAnticipationVerbose = true; // are anticipations verbose?
 
     public var dbgDescisionMakingVerbose = false; // debugging : is decision making verbose
     public var dbgExecVerbose = true; // debugging : is execution of ops verbose?
@@ -448,11 +453,30 @@ class Executive {
             if(rng.nextFloat() < randomActProb && queuedAct == null) { // do random action
                 if (true) Sys.println('random act');
                 
-                var possibleActs = acts.filter(iAct -> iAct.refractoryPeriodCooldown <= 0); // only actions which are cooled down are possible as candidates
+                var possibleActs = acts.filter(iAct -> iAct.act.refractoryPeriodCooldown <= 0); // only actions which are cooled down are possible as candidates
 
-                var idx=Std.random(possibleActs.length);
-                queuedAct = possibleActs[idx].name; // queue action as next action
-                queuedActOrigin = null; // has no origin because it was done by random
+                var mass:Float = 0.0;
+                for(iPossibleAct in possibleActs) {
+                    mass += iPossibleAct.mass;
+                }
+
+                var selMass = Math.random()*mass;
+
+                var massAccu = 0.0;
+                for(idx in 0...possibleActs.length) {
+                    queuedAct = possibleActs[idx].act.name; // queue action as next action
+                    queuedActOrigin = null; // has no origin because it was done by random
+
+                    massAccu += possibleActs[idx].mass;
+                    if (massAccu > selMass) {
+                        break;
+                    }
+                }
+
+                //commented because old code
+                //var idx=Std.random(possibleActs.length);
+                //queuedAct = possibleActs[idx].act.name; // queue action as next action
+                //queuedActOrigin = null; // has no origin because it was done by random
             }
         }
         
@@ -485,9 +509,14 @@ class Executive {
             
             var candidates:Array<Pair> = [];// candidates for decision making in this step
             // * compute candidates for decision making in this step
-            candidates = mem.queryPairsByCond(parEvents).filter(v -> !v.isConcurrentImpl); /////pairs.filter(v -> Par.checkSubset(new Par(parEvents), v.cond));
+            candidates = mem.queryPairsByCond(parEvents)
+                .filter(iPair -> iPair.effect.events.filter(iEvent -> goalSystem.isEternalGoal(iEvent)).length > 0) // does it have a eternal goal as a effect?
+                .filter(v -> !v.isConcurrentImpl); /////pairs.filter(v -> Par.checkSubset(new Par(parEvents), v.cond));
             
-            var candidatesByLocalChainedGoal: Array<{pair:Pair, exp:Float}> = [];
+            // (&/, a, ^op) =/> b  where b!
+            var candidatesByLocalChainedGoal: Array<{pair:Pair, exp:Float}> = [
+                for (iPair in candidates) {pair:iPair, exp:Tv.calcExp(iPair.calcFreq(), iPair.calcConf())}
+            ];
             
             //commented because it is to slow
             //candidatesByLocalChainedGoal = filterCandidatesByGoal(candidates); // chain local pair -> matching goal in goal system
@@ -496,7 +525,8 @@ class Executive {
             var candidatesByGoal: Array<{pair:Pair, exp:Float}> = goalSystem.retDecisionMakingCandidatesForCurrentEvents(parEvents);
             if(dbgDescisionMakingVerbose) Sys.println('descnMaking goal system time=${Sys.time()-timeBefore2}');
             
-            var candidates: Array<{pair:Pair, exp:Float}> = candidatesByGoal;
+            var candidates: Array<{pair:Pair, exp:Float}> = candidatesByLocalChainedGoal;
+                //.concat( candidatesByGoal); // TODO< enable for more complex environments >
             bestDecisionMakingCandidate = selBestAct(candidates);
 
             var timeRequired = Sys.time()-timeBefore;
@@ -641,60 +671,6 @@ class Executive {
                     }
                 }
             }
-
-            /* commented because it is the old treatment with a hardcoded trace size=3
-            if (
-                this.trace[0].events.length > 0 && // most recent trace element must contain a event to get chained
-
-                //not necessary  !containsAction(this.trace[2].events) && // necessary because else it builds wrong conclusion (&/, [a], ^x) =/> y from [a, ^y] [^x] [y]
-                containsAnyNonaction(this.trace[2].events) &&
-                containsAction(this.trace[1].events) && containsAnyNonaction(this.trace[0].events)
-            ) { // has at least one (&/, events, ^action) =/> effect term
-                
-                var nonactionsOf2:Array<Term> = this.trace[2].events.filter(v -> !TermUtils.isOp(v));
-                var actionsOf1:Array<Term> = this.trace[1].events.filter(v -> TermUtils.isOp(v));
-                var nonactionsOf0:Array<Term> = this.trace[0].events.filter(v -> !TermUtils.isOp(v));
-                
-                {
-                    for(iActionTerm in actionsOf1) { // iterate over all actions done at that time
-                        if (dbgEvidence) {                            
-                            var stamp:Stamp = createStamp();
-                            var createdPair:Pair = new Pair(stamp);
-                            createdPair.cond = new Par(nonactionsOf2);
-                            createdPair.act = actionsOf1;
-                            createdPair.effect = new Par(nonactionsOf0);
-                            trace('evidence  ${createdPair.convToStr()}');
-                        }
-                        
-
-                        var stamp:Stamp = createStamp();
-
-                        addEvidence(nonactionsOf2, nonactionsOf0, stamp, iActionTerm, false);
-                        
-                        // add evidence of combinations of single events of cond and effect
-                        if (nonactionsOf2.length > 1) {
-                            for(iCond in nonactionsOf2) {
-                                addEvidence([iCond], nonactionsOf0, stamp, iActionTerm, false);
-                            }
-                        }
-
-                        if (nonactionsOf0.length > 1) {
-                            for(iEffect in nonactionsOf0) {
-                                addEvidence(nonactionsOf2, [iEffect], stamp, iActionTerm, false);
-                            }
-                        }
-                        
-                        if (nonactionsOf2.length > 1 && nonactionsOf0.length > 1) {
-                            for(iCond in nonactionsOf2) {
-                                for (iEffect in nonactionsOf0) {
-                                    addEvidence([iCond], [iEffect], stamp, iActionTerm, false);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-             */
         }
 
         anticipationMaintainNegAnticipations();
@@ -764,7 +740,7 @@ class Executive {
     // decrements the remaining refractory period
     private function decisionmakingActionCooldown() {
         for (iAct in acts) {
-            iAct.refractoryPeriodCooldown--;
+            iAct.act.refractoryPeriodCooldown--;
         }
     }
 
@@ -829,7 +805,7 @@ class Executive {
     }
 
     function retActByName(actName:String): Act {
-        return acts.filter(iAct -> iAct.name == actName)[0];
+        return acts.filter(iAct -> iAct.act.name == actName)[0].act;
     }
 
     // realize action
@@ -1845,8 +1821,8 @@ class Pong1 {
 
     public function new(executive) {
         this.executive = executive;
-        this.executive.acts.push(new Pong1Act("^l", this, -0.1));
-        this.executive.acts.push(new Pong1Act("^r", this, 0.1));
+        this.executive.acts.push({mass:1.0, act:new Pong1Act("^l", this, -0.1)});
+        this.executive.acts.push({mass:1.0, act:new Pong1Act("^r", this, 0.1)});
 
         this.executive.goalSystem.eternalGoals.push(Term.Name("c")); // try to keep in center
     }
@@ -1917,9 +1893,9 @@ class Pong2 {
 
     public function new(executive) {
         this.executive = executive;
-        this.executive.acts.push(new Pong2Act("^l", this, -0.05));
-        this.executive.acts.push(new Pong2Act("^r", this, 0.05));
-        this.executive.acts.push(new Pong2Act("^stop", this, 0.0));
+        this.executive.acts.push({mass:1.0, act:new Pong2Act("^l", this, -0.05)});
+        this.executive.acts.push({mass:1.0, act:new Pong2Act("^r", this, 0.05)});
+        this.executive.acts.push({mass:1.0, act:new Pong2Act("^stop", this, 0.0)});
 
         this.executive.goalSystem.eternalGoals.push(Term.Name("g")); // try to keep in center
     }
@@ -2071,12 +2047,12 @@ class Alien1 {
 
     public function new(executive) {
         this.executive = executive;
-        this.executive.acts.push(new Alien1Act("^l", this, -0.06));
-        this.executive.acts.push(new Alien1Act("^r", this, 0.06));
+        this.executive.acts.push({mass:1.0, act:new Alien1Act("^l", this, -0.06)});
+        this.executive.acts.push({mass:1.0, act:new Alien1Act("^r", this, 0.06)});
         {
             var shootAct = new Alien1Act("^s", this, 0.0);
             shootAct.refractoryPeriod = 4; // don't let the agent spam the shot button
-            this.executive.acts.push(shootAct);
+            this.executive.acts.push({mass:1.0, act:shootAct});
         }
 
         this.executive.goalSystem.eternalGoals.push(Term.Name("s0")); // shoot down
@@ -2194,14 +2170,14 @@ class Seaquest1 {
 
     public function new(executive) {
         this.executive = executive;
-        this.executive.acts.push(new Seaquest1Act("^l", this, -0.06, 0.0));
-        this.executive.acts.push(new Seaquest1Act("^r", this, 0.06, 0.0));
-        this.executive.acts.push(new Seaquest1Act("^u", this, 0.0, -0.06));
-        this.executive.acts.push(new Seaquest1Act("^d", this, 0.0, 0.06));
+        this.executive.acts.push({mass:0.25, act:new Seaquest1Act("^l", this, -0.06, 0.0)});
+        this.executive.acts.push({mass:0.25, act:new Seaquest1Act("^r", this, 0.06, 0.0)});
+        this.executive.acts.push({mass:0.25, act:new Seaquest1Act("^u", this, 0.0, -0.06)});
+        this.executive.acts.push({mass:0.25, act:new Seaquest1Act("^d", this, 0.0, 0.06)});
         {
             var shootAct = new Seaquest1Act("^s", this, 0.0, 0.0);
-            shootAct.refractoryPeriod = 4; // don't let the agent spam the shot button
-            this.executive.acts.push(shootAct);
+            shootAct.refractoryPeriod = 8; // don't let the agent spam the shot button
+            this.executive.acts.push({mass:1.0, act:shootAct});
         }
 
         this.executive.goalSystem.eternalGoals.push(Term.Name("s0")); // shoot down
@@ -2219,31 +2195,30 @@ class Seaquest1 {
             for(idx in 0...eSubs.length) {
                 var diffX:Float = posX - eSubs[idx].posX;
                 var diffY:Float = posY - eSubs[idx].posY;
+                
+                var enc:String = "";
                 if (Math.abs(diffX) < 0.1) {
-                    stateAsStr += ' Sxc$idx';
-                    res.push(Term.Name('Sxc$idx'));
+                    enc += 'c';
                 }
                 else if(diffX > 0.0) {
-                    stateAsStr += ' Sxr$idx';
-                    res.push(Term.Name('Sxr$idx'));
+                    enc += 'r';
                 }
                 else {
-                    stateAsStr += ' Sxl$idx';
-                    res.push(Term.Name('Sxl$idx'));
+                    enc += 'l';
                 }
 
                 if (Math.abs(diffY) < 0.1) {
-                    stateAsStr += ' Syc$idx';
-                    res.push(Term.Name('Syc$idx'));
+                    enc += 'c';
                 }
                 else if(diffY > 0.0) {
-                    stateAsStr += ' Syb$idx'; // bellow
-                    res.push(Term.Name('Syb$idx'));
+                    enc += 'b'; // below
                 }
                 else {
-                    stateAsStr += ' Sya$idx'; // above
-                    res.push(Term.Name('Sya$idx'));
+                    enc += 'a';
                 }
+
+                stateAsStr += ' S$enc$idx';
+                res.push(Term.Name('S$enc$idx'));
             }
         }
 
@@ -2257,15 +2232,18 @@ class Seaquest1 {
             // spawn projectile
             var spawnedProj = new Entity("p");
             entities.push(spawnedProj);
-            spawnedProj.velX = 0.04 * (1); // TODO< get from look direction >
+            spawnedProj.velX = 0.02 * (1); // TODO< get from look direction >
             spawnedProj.posX = posX;
             spawnedProj.posY = posY;
         }
         actShoot = false;
 
+        // debug state of world
+        //for(ie in entities.filter(ie -> ie.type == "S")) { // for all submarines
+        //    Sys.println('seaquest state  enemy <${ie.posX},${ie.posY}>');
+        //}
 
-
-        for(simStep in 0...3) {
+        for(simStep in 0...5) {
             for(ie in entities) {
                 ie.step();
             }
@@ -2321,11 +2299,47 @@ class Seaquest1 {
             var spawnedSub = new Entity("S");
 
             var dirX:Int = Std.random(2) == 0 ? -1 : 1;
-            spawnedSub.posX = (dirX == 1 ? 0.0 : 1.0);
+            spawnedSub.posX = (dirX == 1 ? 0.1 : 1.0-0.1);
             spawnedSub.posY = Math.random();
-            spawnedSub.velX = dirX * 0.04;
+            spawnedSub.velX = 0.01 * dirX;
             entities.push(spawnedSub);
         }
+    }
+
+    // display console visualization
+    public function consoleVis() {
+        var lines=[];
+        for(i in 0...12) {
+            lines.push([for (i in 0...15) " "]);
+        }
+
+        function visu(x:Float, y:Float, sign:String) {
+            if (x < 0.0 || x > 1.0 || y < 0.0 || y>1.0) {
+                return;
+            }
+            lines[Std.int(y * 10)][Std.int(x * 10)] = sign;
+        }
+
+        visu(posX, posY, "X");
+
+        var submarines = entities.filter(ie -> ie.type == "S");
+        for(is in submarines) {
+            visu(is.posX, is.posY, "S");
+        }
+
+
+        var projectiles = entities.filter(ie -> ie.type == "p");
+        for(is in projectiles) {
+            visu(is.posX, is.posY, "p");
+        }
+
+        for(j in lines) {
+            Sys.println(j.join(""));
+        }
+
+        Sys.println('shots fired = $cntShoots');
+        Sys.println('enemy hit = $cntEnemyHit');
+        Sys.println('hit ratio = ${cntEnemyHit / cntShoots}');
     }
 
 }
