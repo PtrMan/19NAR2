@@ -500,20 +500,17 @@ class Executive {
             if (
                 this.trace[0].events.length > 0 // most recent trace element must contain a event to get chained
             ) {
-                // we need to build sequences of observations,
-                // but we also have to be careful not to build to many
+
+                // is any event of the most recent events a goal?
+                var hasMostRecentEventGoal = parEvents.filter(iEvent -> goalSystem.isEternalGoal(iEvent)).length > 0;
+
+
+                // function to scan through condition candidates up to "bounding" op-event
+                // and to build (&/, a, ^b) =/> c
                 //
-                // so we need to scan the trace for a op which "connects" the event(s) before the op to the last event(s)
-
-                var traceIdxOfOpEvent=-1;
-                for(idx in 1...this.trace.length-1) {
-                    if (containsAction(this.trace[idx].events)) {
-                        traceIdxOfOpEvent = idx;
-                        break;
-                    }
-                }
-
-                if (traceIdxOfOpEvent != -1) { // is valid?
+                // /param scanAllConditions scan for all conditions and don't stop at the first?
+                //        this is only advised for very important effects
+                function scanBoundingEvntAndAddImplSeq(traceIdxOfOpEvent:Int, scanAllConditions:Bool) {
                     for(iConditionCandidateIdx in traceIdxOfOpEvent+1...this.trace.length) { // iterate over indices in trace for condition of impl seq we want to build
                         
                         // "break" sequence by another op
@@ -574,8 +571,30 @@ class Executive {
                         }
 
 
+                        if (!scanAllConditions) {
+                            break; // we break because else we may overwhelm the system with pointless derivations
+                        }
+                    }
+                }
 
-                        break; // we break because else we may overwhelm the system with pointless derivations
+                // we need to build sequences of observations,
+                // but we also have to be careful not to build to many
+                //
+                // so we need to scan the trace for a op which "connects" the event(s) before the op to the last event(s)
+
+                
+                for(idx in 1...this.trace.length-1) {
+                    if (containsAction(this.trace[idx].events)) {
+                        var traceIdxOfOpEvent = idx;
+
+
+
+                        scanBoundingEvntAndAddImplSeq(traceIdxOfOpEvent, hasMostRecentEventGoal);
+
+                        // we care about all possible impl seq if the most recent events contain goal
+                        if (!hasMostRecentEventGoal) {
+                            break; 
+                        }
                     }
                 }
             }
@@ -860,6 +879,11 @@ class AbstractGoalSystem {
     // returns the candidates for decision making which have parEvents as a precondition together with exp()
     public function retDecisionMakingCandidatesForCurrentEvents(parEvents: Array<Term>): Array<{pair:Pair, exp:Float}> {
         throw "VIRTUAL METHOD CALLED";
+    }
+
+    // checks if it is eternal goal
+    public function isEternalGoal(t:Term): Bool {
+        return eternalGoals.filter(v -> TermUtils.equal(t, v)).length > 0;
     }
 }
 
