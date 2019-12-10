@@ -1,3 +1,4 @@
+import haxe.display.Display.FieldResolution;
 import haxe.Int64;
 
 
@@ -74,11 +75,66 @@ class ExpDescn2 {
         Assert.enforce(uut.mem.pairs.length == 1, "must contain the impl seq!");
     }
 
+    // test if it tries to fullfill a goal when it is already fullfilled
+    public static function testGoalFullfillIfSatisfied1() {
+        var uut:Executive = new Executive();
+
+        var op = new CountOp("^x");
+        uut.acts.push({mass:1.0, act:op});
+
+        {
+            var pair = new Pair(uut.createStamp());
+            pair.cond = new Par([Term.Name("b")]);
+            pair.act = [Term.Name("^x")];
+            pair.effect = new Par([Term.Name("g")]);
+            uut.mem.pairs.push(pair);
+        }
+        uut.goalSystem.eternalGoals.push(Term.Name("g"));
+        for(t in 0...500) {
+            uut.step([Term.Name("g"), Term.Name("b")]);
+        }
+
+        Assert.enforce(op.counter == 0, "op must not have been called!");
+    }
+
+    // test if it tries to fullfill a goal when it is already fullfilled
+    public static function testGoalFullfillIfSatisfied2() {
+        var uut:Executive = new Executive();
+
+        var op = new CountOp("^x");
+        uut.acts.push({mass:1.0, act:op});
+        
+        {
+            var pair = new Pair(uut.createStamp());
+            pair.cond = new Par([Term.Name("a")]);
+            pair.act = [Term.Name("^x")];
+            pair.effect = new Par([Term.Name("b")]);
+            uut.mem.pairs.push(pair);
+
+        }
+
+        {
+            var pair = new Pair(uut.createStamp());
+            pair.cond = new Par([Term.Name("b")]);
+            pair.act = [Term.Name("^x")];
+            pair.effect = new Par([Term.Name("g")]);
+            uut.mem.pairs.push(pair);
+        }
+        uut.goalSystem.eternalGoals.push(Term.Name("g"));
+        for(t in 0...500) {
+            uut.step([Term.Name("g"), Term.Name("a")]);
+        }
+
+        Assert.enforce(op.counter == 0, "op must not have been called!");
+    }
+
     public static function main() {
         // short selftests
         testAnticipationConfirm1();
         testAnticipationConfirm2();
         testTraceEmpty1();
+        testGoalFullfillIfSatisfied1();
+        testGoalFullfillIfSatisfied2();
 
         var nExperimentThreads = 1; // number of threads for experiments
 
@@ -88,6 +144,8 @@ class ExpDescn2 {
         var alien1RatioDist:IncrementalCentralDistribution = new IncrementalCentralDistribution();
         var pong2RatioDist:IncrementalCentralDistribution = new IncrementalCentralDistribution();
         var seaquest1RatioDist:IncrementalCentralDistribution = new IncrementalCentralDistribution();
+        var seaquest1EnemySubDist:IncrementalCentralDistribution = new IncrementalCentralDistribution();
+
 
         // does run one experiment with the reasoner
         function doAlien1ExperimentWithExecutive(executive:Executive, cycles:Int) {
@@ -184,7 +242,7 @@ class ExpDescn2 {
                     }
                 }
 
-                if(true) {
+                if(false) { // do we interactivly debug seaquest?
                     seaquest.consoleVis();
                     Sys.sleep(0.03);
                 }
@@ -204,6 +262,7 @@ class ExpDescn2 {
 
             // add hit ratio to distribution
             seaquest1RatioDist.next(seaquest.cntEnemyHit / seaquest.cntShoots);
+            seaquest1EnemySubDist.next(seaquest.cntEnemyHit);
 
             // print statistics of world:
             seaquest.printStats();
@@ -273,7 +332,7 @@ class ExpDescn2 {
 
         Sys.println('alien1 hit ratio mean=${alien1RatioDist.mean} variance=${alien1RatioDist.calcVariance()} n=${alien1RatioDist.n}');
         Sys.println('pong2 ratio mean=${pong2RatioDist.mean} variance=${pong2RatioDist.calcVariance()} n=${pong2RatioDist.n}');
-
+        Sys.println('seaquest1 enemy sub shot mean=${seaquest1EnemySubDist.mean} variance=${seaquest1EnemySubDist.calcVariance()} n=${seaquest1EnemySubDist.n}');
     }
 }
 
@@ -525,8 +584,8 @@ class Executive {
             var candidatesByGoal: Array<{pair:Pair, exp:Float}> = goalSystem.retDecisionMakingCandidatesForCurrentEvents(parEvents);
             if(dbgDescisionMakingVerbose) Sys.println('descnMaking goal system time=${Sys.time()-timeBefore2}');
             
-            var candidates: Array<{pair:Pair, exp:Float}> = candidatesByLocalChainedGoal;
-                //.concat( candidatesByGoal); // TODO< enable for more complex environments >
+            var candidates: Array<{pair:Pair, exp:Float}> = candidatesByLocalChainedGoal
+                .concat(candidatesByGoal);
             bestDecisionMakingCandidate = selBestAct(candidates);
 
             var timeRequired = Sys.time()-timeBefore;
@@ -1517,7 +1576,20 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
 
         {
             var candidateNodes:Array<PlanningTreeNode> = nodesByCond.queryByCond(parEvents)
-                .filter(v -> !v.sourcePair.isConcurrentImpl); // only allow =/>
+                .filter(v -> !v.sourcePair.isConcurrentImpl) // only allow =/>
+                .filter(ipTreeNode -> { // consider only candidates which fullfill not satisfied goals
+                    if(ipTreeNode.sourcePair != null && Par.checkIntersect( ipTreeNode.sourcePair.effect, new Par(parEvents))) {
+                        return false; // don't consider as candidate because the effects are already happening
+                    }
+                    
+                    if(ipTreeNode.parent != null && ipTreeNode.parent.sourcePair != null) {
+                        if(Par.checkIntersect( ipTreeNode.parent.sourcePair.effect, new Par(parEvents))) {
+                            return false; // don't consider as candidate because the effects are already happening
+                        }
+                    }
+                    return true;
+                });
+            
             for(iCandidateNode in candidateNodes) {
                 var tv = iCandidateNode.retTv(null);
                 var exp:Float = Tv.calcExp(tv.freq, tv.conf);
@@ -1789,6 +1861,22 @@ class Act {
         throw "NOT IMPLEMENTED!";
     }
 }
+
+
+// op for testing if op was called
+// used for self-tests, unittests, etc.
+class CountOp extends Act {
+    public var counter:Int = 0;
+
+    public function new(name:String) {
+        super(name);
+    }
+
+    public override function exec() {
+        counter++;
+    }
+}
+
 
 
 
