@@ -1,16 +1,4 @@
-import haxe.display.Display.FieldResolution;
 import haxe.Int64;
-
-
-
-
-// TODO< do experiment fixure for pong1 too >
-// TODO< add handling of empty cycles (skip trace items) >
-// TODO< add stochastic environment >
-
-// TODO< pong4 - pong with stochastic timing >
-
-
 
 // decision making experiment
 
@@ -18,7 +6,6 @@ import haxe.Int64;
 // * anticipation
 // * decision making: actions can have a refractory peroid to avoid spamming the environment with pointless actions
 // * goal system: expectation and tree based goal system
-
 
 class ExpDescn2 {
 
@@ -73,6 +60,83 @@ class ExpDescn2 {
         //}
 
         Assert.enforce(uut.mem.pairs.length == 1, "must contain the impl seq!");
+    }
+
+    // test if it tries to fullfill a goal
+    public static function testGoalFullfill1() {
+        var uut:Executive = new Executive();
+
+        var op = new CountOp("^x");
+        uut.acts.push({mass:1.0, act:op});
+
+        {
+            var pair = new Pair(uut.createStamp());
+            pair.cond = new Par([Term.Name("b")]);
+            pair.act = [Term.Name("^x")];
+            pair.effect = new Par([Term.Name("g")]);
+            uut.mem.pairs.push(pair);
+        }
+        uut.goalSystem.eternalGoals.push(Term.Name("g"));
+        for(t in 0...150) {
+            uut.step([Term.Name("b")]);
+        }
+
+        Assert.enforce(op.counter > 0, "op must have been called!");
+    }
+
+    // patricks test from MSC
+    public static function testGoalFullfill3() {
+        var uut:Executive = new Executive();
+
+        var opX = new CountOp("^x");
+        var opY = new CountOp("^y");
+        uut.acts.push({mass:1.0, act:opX});
+        uut.acts.push({mass:1.0, act:opY});
+
+        uut.goalSystem.eternalGoals.push(Term.Name("g"));
+
+
+        uut.step([Term.Name("a")]);
+        uut.step([Term.Name("^x")]);
+        uut.step([Term.Name("b")]);
+
+        // flood sequence out of memory
+        for(i in 0...50) {
+            uut.step([]);
+        }
+
+        uut.step([Term.Name("b")]);
+        uut.step([Term.Name("^y")]);
+        uut.step([Term.Name("c")]);
+        uut.step([Term.Name("g")]);
+
+        opX.counter = 0;
+        opY.counter = 0;
+
+        // flood sequence out of memory
+        for(i in 0...50) {
+            uut.step([]);
+        }
+
+        uut.step([Term.Name("a")]);
+        uut.step([]);
+        uut.step([]);
+        uut.step([]);
+        uut.step([]);
+        uut.step([]);
+        uut.step([Term.Name("b")]);
+
+        for(t in 0...1000) {
+            uut.step([]);
+        }
+
+        // debug all evidence
+        Sys.println('');
+        for(iEvidence in uut.mem.pairs) {
+            Sys.println(iEvidence.convToStr());
+        }
+
+        Assert.enforce(opX.counter > 0 && opY.counter > 0, "ops must have been called!");
     }
 
     // test if it tries to fullfill a goal when it is already fullfilled
@@ -133,10 +197,13 @@ class ExpDescn2 {
         testAnticipationConfirm1();
         testAnticipationConfirm2();
         testTraceEmpty1();
+        testGoalFullfill1();
+        testGoalFullfill3(); // MSC patricks test
         testGoalFullfillIfSatisfied1();
         testGoalFullfillIfSatisfied2();
 
-        var nExperimentThreads = 1; // number of threads for experiments
+
+        var nExperimentThreads = 3; // number of threads for experiments
 
 
         var dbgCyclesVerbose = true; // debugging : are cycles verbose?
@@ -270,7 +337,7 @@ class ExpDescn2 {
 
         //trace(Par.checkSubset(new Par([new Term("a")]), new Par([new Term("a")])));
 
-        var numberOfExperiments = 1;
+        var numberOfExperiments = 20;
 
         var nActiveExperimentThreads = 0; // how many threads are active for the experiment?
         var nActiveExperimentThreadsLock:sys.thread.Mutex = new sys.thread.Mutex();
@@ -313,8 +380,8 @@ class ExpDescn2 {
                 var cyclesAlien2:Int = 30000;          
                 var cyclesPong2:Int = 5*35001;//150000;
                 var executive:Executive = new Executive();
-                //doAlien1ExperimentWithExecutive(executive, cyclesAlien2);
-                //doPong2ExperimentWithExecutive(executive, cyclesPong2);
+                doAlien1ExperimentWithExecutive(executive, cyclesAlien2);
+                doPong2ExperimentWithExecutive(executive, cyclesPong2);
                 doSeaquestExperimentWithExecutive(executive, 30000);
                 
                 numberOfDoneExperiments++; // bump counter
