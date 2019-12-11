@@ -192,8 +192,103 @@ class ExpDescn2 {
         Assert.enforce(op.counter == 0, "op must not have been called!");
     }
 
+    // test forward chainer with implicit length = 2
+    public static function testGoalFullfillChain2_1() {
+        var uut:Executive = new Executive();
+
+        uut.goalSystem.eternalGoals.push(Term.Name("e"));
+
+
+        var opA = new TermInjOp("^a", uut, Term.Name("b"));
+        var opB = new TermInjOp("^b", uut, Term.Name("c"));
+        var opC = new TermInjOp("^c", uut, Term.Name("d"));
+        var opD = new TermInjOp("^d", uut, Term.Name("e"));
+        uut.acts.push({mass:1.0, act:opA});
+        uut.acts.push({mass:1.0, act:opB});
+        uut.acts.push({mass:1.0, act:opC});
+        uut.acts.push({mass:1.0, act:opD});
+
+
+        uut.step([Term.Name("a")]);
+        uut.step([Term.Name("^a")]);
+        uut.step([Term.Name("b")]);
+
+        // flood sequence out of memory
+        for(i in 0...50) {
+            uut.step([]);
+        }
+
+        uut.step([Term.Name("b")]);
+        uut.step([Term.Name("^b")]);
+        uut.step([Term.Name("c")]);
+
+        // flood sequence out of memory
+        for(i in 0...50) {
+            uut.step([]);
+        }
+
+        uut.step([Term.Name("c")]);
+        uut.step([Term.Name("^c")]);
+        uut.step([Term.Name("d")]);
+
+        // flood sequence out of memory
+        for(i in 0...50) {
+            uut.step([]);
+        }
+
+        uut.step([Term.Name("d")]);
+        uut.step([Term.Name("^d")]);
+        uut.step([Term.Name("e")]);
+
+        // flood sequence out of memory
+        for(i in 0...50) {
+            uut.step([]);
+        }
+
+        opA.counter = 0;
+        opB.counter = 0;
+        opC.counter = 0;
+        opD.counter = 0;
+
+        uut.step([Term.Name("a")]);
+ 
+        for(t in 0...1000) {
+            var events = [];
+            for(ie in opA.queue) {
+                events.push(ie);
+            }
+            for(ie in opB.queue) {
+                events.push(ie);
+            }
+            for(ie in opC.queue) {
+                events.push(ie);
+            }
+            for(ie in opD.queue) {
+                events.push(ie);
+            }
+            opA.queue=[];
+            opB.queue=[];
+            opC.queue=[];
+            opD.queue=[];
+
+            uut.step(events);
+        }
+
+        // debug all evidence
+        Sys.println('');
+        for(iEvidence in uut.mem.pairs) {
+            Sys.println(iEvidence.convToStr());
+        }
+
+        Assert.enforce(opD.counter > 0, "ops must have been called!");
+    }
+
     public static function main() {
         // short selftests
+        testGoalFullfillChain2_1();
+
+        return;
+
         testAnticipationConfirm1();
         testAnticipationConfirm2();
         testTraceEmpty1();
@@ -650,9 +745,16 @@ class Executive {
             var timeBefore2 = Sys.time();
             var candidatesByGoal: Array<{pair:Pair, exp:Float}> = goalSystem.retDecisionMakingCandidatesForCurrentEvents(parEvents);
             if(dbgDescisionMakingVerbose) Sys.println('descnMaking goal system time=${Sys.time()-timeBefore2}');
-            
+
+            var timeBefore3 = Sys.time();
+            var candidatesFromForwardChainer1 = ForwardChainer.step(parEvents, 1, this);
+            var candidatesFromForwardChainer2 = ForwardChainer.step(parEvents, 2, this);
+            if(dbgDescisionMakingVerbose) Sys.println('descnMaking goal system forward chainer time=${Sys.time()-timeBefore3}');
+
             var candidates: Array<{pair:Pair, exp:Float}> = candidatesByLocalChainedGoal
-                .concat(candidatesByGoal);
+                .concat(candidatesByGoal)
+                .concat(candidatesFromForwardChainer1)
+                .concat(candidatesFromForwardChainer2);
             bestDecisionMakingCandidate = selBestAct(candidates);
 
             var timeRequired = Sys.time()-timeBefore;
@@ -1012,7 +1114,7 @@ class AbstractGoalSystem {
         throw "VIRTUAL METHOD CALLED";
     }
 
-    public function retNoneternalGoals(): Array<ActiveGoal> {
+    public function retNoneternalGoals(executive:Executive): Array<ActiveGoal> {
         throw "VIRTUAL METHOD CALLED";
     }
 
@@ -1577,8 +1679,10 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
         return null;// sampling is not supported
     }
 
-    public override function retNoneternalGoals(): Array<ActiveGoal> {
-        throw "NOT IMPLEMENTED!"; // TODO
+    public override function retNoneternalGoals(executive:Executive): Array<ActiveGoal> {
+        return eternalGoals.map(term -> 
+            new ActiveGoal(term, new Tv(1.0, 0.9999), executive.createStamp(), executive.cycle)
+        );
     }
 
     public override function retDecisionMakingCandidateTv(pair:Pair):Tv {
@@ -1734,11 +1838,11 @@ class ForwardChainer {
     public function new() {}
 
     // dedicates one processing step
-    public function step(currentEvents:Array<Term>, exec:Executive) {
+    public static function step(currentEvents:Array<Term>, chainDepth:Int, exec:Executive): Array<{pair:Pair, exp:Float}> {
         // sample the current events and try to chain to a goal
 
         if (currentEvents.length == 0) {
-            return; // nothing to sample
+            return []; // nothing to sample
         }
 
 
@@ -1749,12 +1853,14 @@ class ForwardChainer {
         var chain: Array<Term> = [selChainEvent]; // chain of events
         var combinedStamp: Stamp = exec.createStamp(); // TODO< get stamp from selected event ! >
 
-        for(chainDepth in 0...2) {
+        var chain2 = [];
+
+        for(iChainDepth in 0...chainDepth) {
             var firstChainElementCandidate:Array<Pair> = exec.mem.pairs.filter(iPair -> iPair.cond.hasEvent(selChainEvent));
             
             // sample first chain element candidate
             if (firstChainElementCandidate.length == 0) {
-                return; // nothing to sample
+                return []; // nothing to sample
             }
 
 
@@ -1762,8 +1868,10 @@ class ForwardChainer {
             var selChainPair0Idx:Int = exec.rng.nextInt(firstChainElementCandidate.length);
             var selChainPair0: Pair = firstChainElementCandidate[selChainPair0Idx];
 
+            chain2.push(selChainPair0);
+
             if (Stamp.checkOverlap(selChainPair0.stamp, combinedStamp)) {
-                return; // we don't allow stamp overlap!
+                return []; // we don't allow stamp overlap!
             }
             combinedStamp = Stamp.merge(combinedStamp, selChainPair0.stamp);
 
@@ -1779,20 +1887,30 @@ class ForwardChainer {
 
         { // check if we hit a goal with the effect of the chained sequence
             var hitGoal = false; // did we hit a goal with the derived seq?
-            for(iGoal in exec.goalSystem.retNoneternalGoals()) {
+            for(iGoal in exec.goalSystem.retNoneternalGoals(exec)) {
                 if (TermUtils.equal(iGoal.term, selChainEvent)) {
                     hitGoal = true;
                     break; // optimization
                 }
             }
 
+            // TODO< compute exp correctly >
+            hitGoal = hitGoal || exec.goalSystem.retDecisionMakingCandidatesForCurrentEvents([selChainEvent]).length > 0; // did we hit a derived goal?
+
             if (!hitGoal) {
-                return; // because we derived something which doesn't hit a goal, it's pointless!
+                return[]; // because we derived something which doesn't hit a goal, it's pointless!
             }
         }
 
         // we are only here if we hit a goal with the chained effect
 
+        // execute first element
+        return [
+            {pair: chain2[0], exp:chainTv.exp()} // return only first chain element because our plan starts with it
+        ];
+
+
+        /* commented because old code which stores it, we can't do this and must use it for planning
         // * store derivation(s)
 
         { // build derived pair
@@ -1805,9 +1923,10 @@ class ForwardChainer {
             conclPair.effect = new Par([chain[4]]);
 
             exec.mem.addPair(conclPair); // TODO< check if conclusion exist already >
-        }        
+        }
 
         // TODO< build and add (&/, a, ^b, c, ^d, e)
+        */
     }
 }
 
@@ -1940,6 +2059,25 @@ class CountOp extends Act {
     }
 
     public override function exec() {
+        counter++;
+    }
+}
+
+// injects a term on call
+class TermInjOp extends Act {
+    public var uut:Executive;
+    public var term:Term;
+    public var counter:Int = 0;
+    public var queue:Array<Term> = [];
+
+    public function new(name:String, uut, term) {
+        super(name);
+        this.uut = uut;
+        this.term = term;
+    }
+
+    public override function exec() {
+        queue.push(TermUtils.cloneShallow(term));
         counter++;
     }
 }
