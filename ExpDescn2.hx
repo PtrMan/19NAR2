@@ -286,9 +286,6 @@ class ExpDescn2 {
     public static function main() {
         // short selftests
         testGoalFullfillChain2_1();
-
-        return;
-
         testAnticipationConfirm1();
         testAnticipationConfirm2();
         testTraceEmpty1();
@@ -298,7 +295,7 @@ class ExpDescn2 {
         testGoalFullfillIfSatisfied2();
 
 
-        var nExperimentThreads = 3; // number of threads for experiments
+        var nExperimentThreads = 1; // number of threads for experiments
 
 
         var dbgCyclesVerbose = true; // debugging : are cycles verbose?
@@ -432,7 +429,7 @@ class ExpDescn2 {
 
         //trace(Par.checkSubset(new Par([new Term("a")]), new Par([new Term("a")])));
 
-        var numberOfExperiments = 20;
+        var numberOfExperiments = 10;
 
         var nActiveExperimentThreads = 0; // how many threads are active for the experiment?
         var nActiveExperimentThreadsLock:sys.thread.Mutex = new sys.thread.Mutex();
@@ -475,7 +472,7 @@ class ExpDescn2 {
                 var cyclesAlien2:Int = 30000;          
                 var cyclesPong2:Int = 5*35001;//150000;
                 var executive:Executive = new Executive();
-                doAlien1ExperimentWithExecutive(executive, cyclesAlien2);
+                //doAlien1ExperimentWithExecutive(executive, cyclesAlien2);
                 doPong2ExperimentWithExecutive(executive, cyclesPong2);
                 doSeaquestExperimentWithExecutive(executive, 30000);
                 
@@ -743,7 +740,7 @@ class Executive {
             //candidatesByLocalChainedGoal = filterCandidatesByGoal(candidates); // chain local pair -> matching goal in goal system
             
             var timeBefore2 = Sys.time();
-            var candidatesByGoal: Array<{pair:Pair, exp:Float}> = goalSystem.retDecisionMakingCandidatesForCurrentEvents(parEvents);
+            var candidatesByGoal: Array<{pair:Pair, exp:Float}> = goalSystem.retDecisionMakingCandidatesForCurrentEvents(parEvents, parEvents);
             if(dbgDescisionMakingVerbose) Sys.println('descnMaking goal system time=${Sys.time()-timeBefore2}');
 
             var timeBefore3 = Sys.time();
@@ -772,6 +769,10 @@ class Executive {
                     case Name(n): n;
                     default: throw "Invalid name!";
                 }
+            }
+
+            if (bestDecisionMakingCandidate.act.length == 0) {
+                throw "Assertion violated!";
             }
 
             if (
@@ -1124,7 +1125,7 @@ class AbstractGoalSystem {
     }
 
     // returns the candidates for decision making which have parEvents as a precondition together with exp()
-    public function retDecisionMakingCandidatesForCurrentEvents(parEvents: Array<Term>): Array<{pair:Pair, exp:Float}> {
+    public function retDecisionMakingCandidatesForCurrentEvents(parEvents: Array<Term>, currentEvents: Array<Term>): Array<{pair:Pair, exp:Float}> {
         throw "VIRTUAL METHOD CALLED";
     }
 
@@ -1742,19 +1743,19 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
         return bestCandidateTv;
     }
 
-    public override function retDecisionMakingCandidatesForCurrentEvents(parEvents: Array<Term>): Array<{pair:Pair, exp:Float}> {
+    public override function retDecisionMakingCandidatesForCurrentEvents(parEvents: Array<Term>, currentEvents: Array<Term>): Array<{pair:Pair, exp:Float}> {
         var resultArr = [];
 
         {
             var candidateNodes:Array<PlanningTreeNode> = nodesByCond.queryByCond(parEvents)
                 .filter(v -> !v.sourcePair.isConcurrentImpl) // only allow =/>
                 .filter(ipTreeNode -> { // consider only candidates which fullfill not satisfied goals
-                    if(ipTreeNode.sourcePair != null && Par.checkIntersect( ipTreeNode.sourcePair.effect, new Par(parEvents))) {
+                    if(ipTreeNode.sourcePair != null && Par.checkIntersect( ipTreeNode.sourcePair.effect, new Par(currentEvents))) {
                         return false; // don't consider as candidate because the effects are already happening
                     }
                     
                     if(ipTreeNode.parent != null && ipTreeNode.parent.sourcePair != null) {
-                        if(Par.checkIntersect( ipTreeNode.parent.sourcePair.effect, new Par(parEvents))) {
+                        if(Par.checkIntersect( ipTreeNode.parent.sourcePair.effect, new Par(currentEvents))) {
                             return false; // don't consider as candidate because the effects are already happening
                         }
                     }
@@ -1856,7 +1857,12 @@ class ForwardChainer {
         var chain2 = [];
 
         for(iChainDepth in 0...chainDepth) {
-            var firstChainElementCandidate:Array<Pair> = exec.mem.pairs.filter(iPair -> iPair.cond.hasEvent(selChainEvent));
+            var firstChainElementCandidate:Array<Pair> = exec.mem.pairs.filter(
+                iPair ->
+                    iPair.cond.hasEvent(selChainEvent) &&
+                    !Par.checkIntersect(iPair.effect, new Par(currentEvents)) && // don't consider as candidate because the effects are already happening
+                    !iPair.isConcurrentImpl // can't be concurrent because it leads to wrong plans and we only care about actionable seq impl
+            );
             
             // sample first chain element candidate
             if (firstChainElementCandidate.length == 0) {
@@ -1895,7 +1901,7 @@ class ForwardChainer {
             }
 
             // TODO< compute exp correctly >
-            hitGoal = hitGoal || exec.goalSystem.retDecisionMakingCandidatesForCurrentEvents([selChainEvent]).length > 0; // did we hit a derived goal?
+            hitGoal = hitGoal || exec.goalSystem.retDecisionMakingCandidatesForCurrentEvents([selChainEvent], currentEvents).length > 0; // did we hit a derived goal?
 
             if (!hitGoal) {
                 return[]; // because we derived something which doesn't hit a goal, it's pointless!
