@@ -285,7 +285,7 @@ class ExpDescn2 {
 
     public static function main() {
         // short selftests
-        testGoalFullfillChain2_1();
+        //testGoalFullfillChain2_1();
         testAnticipationConfirm1();
         testAnticipationConfirm2();
         testTraceEmpty1();
@@ -295,10 +295,10 @@ class ExpDescn2 {
         testGoalFullfillIfSatisfied2();
 
 
-        var nExperimentThreads = 1; // number of threads for experiments
+        var nExperimentThreads = 4; // number of threads for experiments
 
 
-        var dbgCyclesVerbose = true; // debugging : are cycles verbose?
+        var dbgCyclesVerbose = false; // debugging : are cycles verbose?
 
         var alien1RatioDist:IncrementalCentralDistribution = new IncrementalCentralDistribution();
         var pong2RatioDist:IncrementalCentralDistribution = new IncrementalCentralDistribution();
@@ -429,7 +429,7 @@ class ExpDescn2 {
 
         //trace(Par.checkSubset(new Par([new Term("a")]), new Par([new Term("a")])));
 
-        var numberOfExperiments = 10;
+        var numberOfExperiments = 5;
 
         var nActiveExperimentThreads = 0; // how many threads are active for the experiment?
         var nActiveExperimentThreadsLock:sys.thread.Mutex = new sys.thread.Mutex();
@@ -473,7 +473,7 @@ class ExpDescn2 {
                 var cyclesPong2:Int = 5*35001;//150000;
                 var executive:Executive = new Executive();
                 //doAlien1ExperimentWithExecutive(executive, cyclesAlien2);
-                doPong2ExperimentWithExecutive(executive, cyclesPong2);
+                //doPong2ExperimentWithExecutive(executive, cyclesPong2);
                 doSeaquestExperimentWithExecutive(executive, 30000);
                 
                 numberOfDoneExperiments++; // bump counter
@@ -615,10 +615,10 @@ class Executive {
 
 
     public var dbgEvidence = false; // debugging - debug new and revised evidence?
-    public var dbgAnticipationVerbose = true; // are anticipations verbose?
+    public var dbgAnticipationVerbose = false; // are anticipations verbose?
 
     public var dbgDescisionMakingVerbose = false; // debugging : is decision making verbose
-    public var dbgExecVerbose = true; // debugging : is execution of ops verbose?
+    public var dbgExecVerbose = false; // debugging : is execution of ops verbose?
 
     public var mem = new Memory();
 
@@ -669,7 +669,7 @@ class Executive {
 
         { // do random action
             if(rng.nextFloat() < randomActProb && queuedAct == null) { // do random action
-                if (true) Sys.println('random act');
+                if (false) Sys.println('random act');
                 
                 var possibleActs = acts.filter(iAct -> iAct.act.refractoryPeriodCooldown <= 0); // only actions which are cooled down are possible as candidates
 
@@ -732,15 +732,15 @@ class Executive {
                 .filter(v -> !v.isConcurrentImpl); /////pairs.filter(v -> Par.checkSubset(new Par(parEvents), v.cond));
             
             // (&/, a, ^op) =/> b  where b!
-            var candidatesByLocalChainedGoal: Array<{pair:Pair, exp:Float}> = [
-                for (iPair in candidates) {pair:iPair, exp:Tv.calcExp(iPair.calcFreq(), iPair.calcConf())}
+            var candidatesByLocalChainedGoal: Array<{pair:Pair, tv:Tv, exp:Float}> = [
+                for (iPair in candidates) {pair:iPair, tv:new Tv(iPair.calcFreq(), iPair.calcConf()),  exp:Tv.calcExp(iPair.calcFreq(), iPair.calcConf())}
             ];
             
             //commented because it is to slow
             //candidatesByLocalChainedGoal = filterCandidatesByGoal(candidates); // chain local pair -> matching goal in goal system
             
             var timeBefore2 = Sys.time();
-            var candidatesByGoal: Array<{pair:Pair, exp:Float}> = goalSystem.retDecisionMakingCandidatesForCurrentEvents(parEvents, parEvents);
+            var candidatesByGoal: Array<{pair:Pair, tv:Tv, exp:Float}> = goalSystem.retDecisionMakingCandidatesForCurrentEvents(parEvents, parEvents);
             if(dbgDescisionMakingVerbose) Sys.println('descnMaking goal system time=${Sys.time()-timeBefore2}');
 
             var timeBefore3 = Sys.time();
@@ -748,7 +748,7 @@ class Executive {
             var candidatesFromForwardChainer2 = ForwardChainer.step(parEvents, 2, this);
             if(dbgDescisionMakingVerbose) Sys.println('descnMaking goal system forward chainer time=${Sys.time()-timeBefore3}');
 
-            var candidates: Array<{pair:Pair, exp:Float}> = candidatesByLocalChainedGoal
+            var candidates: Array<{pair:Pair, tv:Tv, exp:Float}> = candidatesByLocalChainedGoal
                 .concat(candidatesByGoal)
                 .concat(candidatesFromForwardChainer1)
                 .concat(candidatesFromForwardChainer2);
@@ -1125,7 +1125,7 @@ class AbstractGoalSystem {
     }
 
     // returns the candidates for decision making which have parEvents as a precondition together with exp()
-    public function retDecisionMakingCandidatesForCurrentEvents(parEvents: Array<Term>, currentEvents: Array<Term>): Array<{pair:Pair, exp:Float}> {
+    public function retDecisionMakingCandidatesForCurrentEvents(parEvents: Array<Term>, currentEvents: Array<Term>): Array<{pair:Pair, tv:Tv, exp:Float}> {
         throw "VIRTUAL METHOD CALLED";
     }
 
@@ -1743,7 +1743,7 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
         return bestCandidateTv;
     }
 
-    public override function retDecisionMakingCandidatesForCurrentEvents(parEvents: Array<Term>, currentEvents: Array<Term>): Array<{pair:Pair, exp:Float}> {
+    public override function retDecisionMakingCandidatesForCurrentEvents(parEvents: Array<Term>, currentEvents: Array<Term>): Array<{pair:Pair, tv:Tv, exp:Float}> {
         var resultArr = [];
 
         {
@@ -1765,7 +1765,7 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
             for(iCandidateNode in candidateNodes) {
                 var tv = iCandidateNode.retTv(null);
                 var exp:Float = Tv.calcExp(tv.freq, tv.conf);
-                resultArr.push({pair:iCandidateNode.sourcePair, exp:exp});
+                resultArr.push({pair:iCandidateNode.sourcePair, tv:tv, exp:exp});
             }
         }
         /* correct slow path, commented because it is to slow
@@ -1839,7 +1839,7 @@ class ForwardChainer {
     public function new() {}
 
     // dedicates one processing step
-    public static function step(currentEvents:Array<Term>, chainDepth:Int, exec:Executive): Array<{pair:Pair, exp:Float}> {
+    public static function step(currentEvents:Array<Term>, chainDepth:Int, exec:Executive): Array<{pair:Pair, tv:Tv, exp:Float}> {
         // sample the current events and try to chain to a goal
 
         if (currentEvents.length == 0) {
@@ -1900,20 +1900,34 @@ class ForwardChainer {
                 }
             }
 
-            // TODO< compute exp correctly >
-            hitGoal = hitGoal || exec.goalSystem.retDecisionMakingCandidatesForCurrentEvents([selChainEvent], currentEvents).length > 0; // did we hit a derived goal?
+            hitGoal = hitGoal ||
+                exec.goalSystem.retDecisionMakingCandidatesForCurrentEvents([selChainEvent], currentEvents).length > 0; // did we hit a derived goal?
 
             if (!hitGoal) {
-                return[]; // because we derived something which doesn't hit a goal, it's pointless!
+                return []; // because we derived something which doesn't hit a goal, it's pointless!
             }
         }
 
         // we are only here if we hit a goal with the chained effect
 
-        // execute first element
+        // "destinations" of chained goal
+        var chainDests = exec.goalSystem.retDecisionMakingCandidatesForCurrentEvents([selChainEvent], currentEvents);
+        
         return [
-            {pair: chain2[0], exp:chainTv.exp()} // return only first chain element because our plan starts with it
+            for (iChainDest in chainDests) {
+                var dedTv = Tv.deduction(chainTv, iChainDest.tv);
+                {
+                pair: chain2[0], // return only first chain element because our plan starts with it
+                tv:dedTv,
+                exp:dedTv.exp()};
+            }
         ];
+
+
+        // execute first element
+        //return [
+        //    {pair: chain2[0], exp:chainTv.exp()} // return only first chain element because our plan starts with it
+        //];
 
 
         /* commented because old code which stores it, we can't do this and must use it for planning
@@ -2782,11 +2796,11 @@ class Rule30Rng {
     }
 
     public function nextFloat():Float {
-        return nextIntInternal() / (1 << bVec.length);
+        return Math.random(); //nextIntInternal() / (1 << bVec.length);
     }
 
     public function nextInt(max:Int): Int {
-        return nextIntInternal() % max;
+        return Std.random(max); //nextIntInternal() % max;
     }
     
     // computes next vector with rule30
