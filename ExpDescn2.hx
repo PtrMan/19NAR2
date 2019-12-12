@@ -1,3 +1,4 @@
+import sys.FileSystem;
 import sys.io.File;
 import sys.io.FileOutput;
 import haxe.Int64;
@@ -297,7 +298,7 @@ class ExpDescn2 {
         testGoalFullfillIfSatisfied2();
 
 
-        var nExperimentThreads = 4; // number of threads for experiments
+        var nExperimentThreads = 1; // number of threads for experiments
 
 
         var dbgCyclesVerbose = false; // debugging : are cycles verbose?
@@ -403,7 +404,7 @@ class ExpDescn2 {
                     }
                 }
 
-                if(false) { // do we interactivly debug seaquest?
+                if(true && executive.cycle % 15 == 0) { // do we interactivly debug seaquest?
                     seaquest.consoleVis();
                     Sys.sleep(0.03);
                 }
@@ -2436,6 +2437,13 @@ class Seaquest1Act extends Act {
             w.cntShoots++; // bump statistics
             w.actShoot = true;
         }
+
+        if (this.name == "^l") {
+            w.dir = -1;
+        }
+        else if(this.name == "^r") {
+            w.dir = 1;
+        }
     }
 }
 
@@ -2460,6 +2468,7 @@ class Entity {
 class Seaquest1 {
     public var posX:Float = 0.35; // position of the agent
     public var posY:Float = 0.5; // position of the agent
+    public var dir:Int = 1; // "look" direction of submarine
 
     public var actShoot:Bool = false; // shoot in the next timestep?
 
@@ -2532,8 +2541,10 @@ class Seaquest1 {
                     enc += 'a';
                 }
 
-                stateAsStr += ' S$enc$idx';
-                res.push(Term.Name('S$enc$idx'));
+                var dirAsTerm = dir == 1 ? "p" : "n";
+
+                stateAsStr += ' S$dirAsTerm$enc$idx';
+                res.push(Term.Name('S$dirAsTerm$enc$idx'));
             }
         }
 
@@ -2547,7 +2558,7 @@ class Seaquest1 {
             // spawn projectile
             var spawnedProj = new Entity("p");
             entities.push(spawnedProj);
-            spawnedProj.velX = 0.02 * (1); // TODO< get from look direction >
+            spawnedProj.velX = 0.02 * dir;
             spawnedProj.posX = posX;
             spawnedProj.posY = posY;
         }
@@ -2821,6 +2832,7 @@ class Logger {
     public var f:FileOutput;
 
     public function new() {
+        FileSystem.deleteFile("logX.log"); // delete old file
         f = File.append("logX.log");
     }
 
