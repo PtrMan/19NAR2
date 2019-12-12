@@ -1,3 +1,5 @@
+import sys.io.File;
+import sys.io.FileOutput;
 import haxe.Int64;
 
 // decision making experiment
@@ -331,9 +333,9 @@ class ExpDescn2 {
             }
 
             // debug all evidence
-            Sys.println('');
+            Logger.log('');
             for(iEvidence in executive.mem.pairs) {
-                Sys.println(iEvidence.convToStr());
+                Logger.log(iEvidence.convToStr());
             }
 
             // add hit ratio to distribution
@@ -370,9 +372,9 @@ class ExpDescn2 {
             }
 
             // debug all evidence
-            Sys.println('');
+            Logger.log('');
             for(iEvidence in executive.mem.pairs) {
-                Sys.println(iEvidence.convToStr());
+                Logger.log(iEvidence.convToStr());
             }
 
             // add hit ratio to distribution
@@ -414,9 +416,9 @@ class ExpDescn2 {
             }
 
             // debug all evidence
-            Sys.println('');
+            Logger.log('');
             for(iEvidence in executive.mem.pairs) {
-                Sys.println(iEvidence.convToStr());
+                Logger.log(iEvidence.convToStr());
             }
 
             // add hit ratio to distribution
@@ -1613,14 +1615,14 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
                 nodeInfoStr = TermUtils.convToStr(node.goalTerm);
             }
 
-            Sys.println('$space$nodeInfoStr');
+            Logger.log('$space$nodeInfoStr');
 
             for(iChildren in node.children) {
                 debugTreeRec(iChildren, depth+1);
             }
         }
 
-        Sys.println('t=${executive.cycle}  goal tree:');
+        Logger.log('t=${executive.cycle}  goal tree:');
         for (iRoot in roots) {
             debugTreeRec(iRoot, 0);
         }
@@ -1644,7 +1646,7 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
                     rec(iRoot);
                 }
 
-                Sys.println('goal system  #treeNodes=$nTreeNodes');
+                Logger.log('goal system  #treeNodes=$nTreeNodes');
             }
             
             
@@ -2578,7 +2580,7 @@ class Seaquest1 {
                     }
 
                     if (hit) {
-                        Sys.println('seaquest  enemy hit!');
+                        //Sys.println('seaquest  enemy hit!');
 
                         state.push(Term.Name('s$subIdx')); // shot down
 
@@ -2811,6 +2813,28 @@ class Rule30Rng {
 	// we can only compute for 30 bits on javascript targets
     var bVec = [for (idx in 0...30) Std.random(2) == 1];
 }
+
+
+class Logger {
+    public static var singleton = new Logger();
+    
+    public var f:FileOutput;
+
+    public function new() {
+        f = File.append("logX.log");
+    }
+
+    public static function log(text:String) {
+        Logger.singleton.log2(text);
+    }
+
+    private function log2(text:String) {
+        f.writeString(text+"\n");
+        f.flush();
+    }
+}
+
+
 
 
 
