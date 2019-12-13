@@ -74,8 +74,7 @@ class ExpDescn2 {
 
         {
             var pair = new Pair(uut.createStamp());
-            pair.cond = new Par([Term.Name("b")]);
-            pair.act = [Term.Name("^x")];
+            pair.condops = [new CondOps(new Par([Term.Name("b")]), [Term.Name("^x")])];
             pair.effect = new Par([Term.Name("g")]);
             uut.mem.pairs.push(pair);
         }
@@ -151,8 +150,7 @@ class ExpDescn2 {
 
         {
             var pair = new Pair(uut.createStamp());
-            pair.cond = new Par([Term.Name("b")]);
-            pair.act = [Term.Name("^x")];
+            pair.condops = [new CondOps(new Par([Term.Name("b")]), [Term.Name("^x")])];
             pair.effect = new Par([Term.Name("g")]);
             uut.mem.pairs.push(pair);
         }
@@ -173,8 +171,7 @@ class ExpDescn2 {
         
         {
             var pair = new Pair(uut.createStamp());
-            pair.cond = new Par([Term.Name("a")]);
-            pair.act = [Term.Name("^x")];
+            pair.condops = [new CondOps(new Par([Term.Name("a")]), [Term.Name("^x")])];
             pair.effect = new Par([Term.Name("b")]);
             uut.mem.pairs.push(pair);
 
@@ -182,8 +179,7 @@ class ExpDescn2 {
 
         {
             var pair = new Pair(uut.createStamp());
-            pair.cond = new Par([Term.Name("b")]);
-            pair.act = [Term.Name("^x")];
+            pair.condops = [new CondOps(new Par([Term.Name("b")]), [Term.Name("^x")])];
             pair.effect = new Par([Term.Name("g")]);
             uut.mem.pairs.push(pair);
         }
@@ -298,7 +294,7 @@ class ExpDescn2 {
         testGoalFullfillIfSatisfied2();
 
 
-        var nExperimentThreads = 1; // number of threads for experiments
+        var nExperimentThreads = 4; // number of threads for experiments
 
 
         var dbgCyclesVerbose = false; // debugging : are cycles verbose?
@@ -404,7 +400,7 @@ class ExpDescn2 {
                     }
                 }
 
-                if(true && executive.cycle % 15 == 0) { // do we interactivly debug seaquest?
+                if(false && executive.cycle % 15 == 0) { // do we interactivly debug seaquest?
                     seaquest.consoleVis();
                     Sys.sleep(0.03);
                 }
@@ -432,7 +428,7 @@ class ExpDescn2 {
 
         //trace(Par.checkSubset(new Par([new Term("a")]), new Par([new Term("a")])));
 
-        var numberOfExperiments = 5;
+        var numberOfExperiments = 10;
 
         var nActiveExperimentThreads = 0; // how many threads are active for the experiment?
         var nActiveExperimentThreadsLock:sys.thread.Mutex = new sys.thread.Mutex();
@@ -578,7 +574,7 @@ class Memory {
     public function addPair(pair:Pair) {
         pairs.push(pair);
 
-        byCond.add(pair.cond.events, pair);
+        byCond.add(pair.condops[0].cond.events, pair);
     }
 
     // queries by conditional, either the complete parEvents or for single events (subset)
@@ -774,15 +770,15 @@ class Executive {
                 }
             }
 
-            if (bestDecisionMakingCandidate.act.length == 0) {
+            if (bestDecisionMakingCandidate.condops[0].ops.length == 0) {
                 throw "Assertion violated!";
             }
 
             if (
                 bestDecisionExp > decisionThreshold && 
-                retActByName(retName(bestDecisionMakingCandidate.act[0])).refractoryPeriodCooldown <= 0 // is it possible to execute the action based on refractory period?
+                retActByName(retName(bestDecisionMakingCandidate.condops[0].ops[0])).refractoryPeriodCooldown <= 0 // is it possible to execute the action based on refractory period?
             ) {
-                queuedAct = retName(bestDecisionMakingCandidate.act[0]); // queue action for next timestep
+                queuedAct = retName(bestDecisionMakingCandidate.condops[0].ops[0]); // queue action for next timestep
                 queuedActOrigin = bestDecisionMakingCandidate;
             }
         }
@@ -841,8 +837,7 @@ class Executive {
                                 if (dbgEvidence) {                            
                                     var stamp:Stamp = createStamp();
                                     var createdPair:Pair = new Pair(stamp);
-                                    createdPair.cond = new Par(nonactionsOf2);
-                                    createdPair.act = actionsOf1;
+                                    createdPair.condops = [new CondOps(new Par(nonactionsOf2), actionsOf1)];
                                     createdPair.effect = new Par(nonactionsOf0);
                                     trace('evidence  ${createdPair.convToStr()}');
                                 }
@@ -928,8 +923,8 @@ class Executive {
             if (
                 iPair.isConcurrentImpl == isConcurrentImpl &&
                 //iPair.act.length == 1 &&
-                (isConcurrentImpl ? true : TermUtils.equal(iPair.act[0], iActionTerm)) &&
-                Par.checkSubset(iPair.cond, new Par(conds)) // TODOOPTIMIZE< is not necessary >
+                (isConcurrentImpl ? true : TermUtils.equal(iPair.condops[0].ops[0], iActionTerm)) &&
+                Par.checkSubset(iPair.condops[0].cond, new Par(conds)) // TODOOPTIMIZE< is not necessary >
             ) {
                 // iPair.evidenceCnt++; // commented here because neg evidence should only come from neg-confirm, because we assume a open-world
 
@@ -945,8 +940,8 @@ class Executive {
             if (
                 iPair.isConcurrentImpl == isConcurrentImpl &&
                 //iPair.act.length == 1 &&
-                (isConcurrentImpl ? true : TermUtils.equal(iPair.act[0], iActionTerm)) &&
-                Par.checkSame(iPair.cond, new Par(conds)) // TODOOPTIMIZE< is not necessary >
+                (isConcurrentImpl ? true : TermUtils.equal(iPair.condops[0].ops[0], iActionTerm)) &&
+                Par.checkSame(iPair.condops[0].cond, new Par(conds)) // TODOOPTIMIZE< is not necessary >
             ) {
                 if (Par.checkSame(iPair.effect, new Par(effects))) {
                     existsEvidence = true;
@@ -958,8 +953,9 @@ class Executive {
             
             // store pair
             var createdPair:Pair = new Pair(stamp);
-            createdPair.cond = new Par(conds);
-            createdPair.act = iActionTerm != null ? [iActionTerm] : [];
+
+            var ops = iActionTerm != null ? [iActionTerm] : [];
+            createdPair.condops = [new CondOps(new Par(conds), ops)];
             createdPair.effect = new Par(effects);
             createdPair.isConcurrentImpl = isConcurrentImpl;
 
@@ -1435,7 +1431,7 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
                     return iPair.effect.hasEvent(node.goalTerm);
                 }
                 else {
-                    return Par.checkSubset(iPair.effect, node.sourcePair.cond);
+                    return Par.checkSubset(iPair.effect, node.sourcePair.condops[0].cond);
                 }
             }); // select all pairs which have the goal as a effect
 
@@ -1485,7 +1481,7 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
 
                 
                 { // add acceleration structure
-                    nodesByCond.add(createdChildren.sourcePair.cond.events, createdChildren);
+                    nodesByCond.add(createdChildren.sourcePair.condops[0].cond.events, createdChildren);
                 }
             }
         }
@@ -1706,7 +1702,7 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
                 add = Par.checkSubset(new Par([node.goalTerm]), pair.effect); // add it if it is equal
             }
             else {
-                add = Par.checkSubset(node.sourcePair.cond, pair.effect);
+                add = Par.checkSubset(node.sourcePair.condops[0].cond, pair.effect);
             }
             
             if (add) {
@@ -1862,7 +1858,7 @@ class ForwardChainer {
         for(iChainDepth in 0...chainDepth) {
             var firstChainElementCandidate:Array<Pair> = exec.mem.pairs.filter(
                 iPair ->
-                    iPair.cond.hasEvent(selChainEvent) &&
+                    iPair.condops[0].cond.hasEvent(selChainEvent) &&
                     !Par.checkIntersect(iPair.effect, new Par(currentEvents)) && // don't consider as candidate because the effects are already happening
                     !iPair.isConcurrentImpl // can't be concurrent because it leads to wrong plans and we only care about actionable seq impl
             );
@@ -1887,8 +1883,8 @@ class ForwardChainer {
             selChainEvent = selChainPair0.effect.events[0]; // TODO< select any event >
             chainTv = Tv.induction(chainTv, new Tv(selChainPair0.calcFreq(), selChainPair0.calcConf()));
 
-            for(iAct in selChainPair0.act) {
-                chain.push(iAct);
+            for(iOp in selChainPair0.condops[0].ops) {
+                chain.push(iOp);
             }
             chain.push(selChainEvent);
         }
@@ -2015,9 +2011,23 @@ class Par {
     }
 }
 
-class Pair {
+// sequence of condition and ops, ops are a sequence
+class CondOps {
     public var cond:Par = null;
-    public var act:Array<Term> = []; // TODO< rename to ops >
+    public var ops:Array<Term> = [];
+
+    public function new(cond, ops) {
+        this.cond = cond;
+        this.ops = ops;
+    }
+}
+
+class Pair {
+    public var condops:Array<CondOps> = []; // array of sequence of conditions and operations
+
+    //public var cond:Par = null;
+    //public var act:Array<Term> = []; // TODO< rename to ops >
+    
     public var effect:Par = null;
 
     public var evidencePositive = 1; // positive evidence counter
@@ -2043,10 +2053,16 @@ class Pair {
 
     public function convToStr():String {
         if (isConcurrentImpl) {
-            return '${cond.events.map(v -> TermUtils.convToStr(v))} =|> ${effect.events.map(v -> TermUtils.convToStr(v))} {${calcFreq()} ${calcConf()}} // cnt=$evidenceCnt';
+            return '${condops[0].cond.events.map(v -> TermUtils.convToStr(v))} =|> ${effect.events.map(v -> TermUtils.convToStr(v))} {${calcFreq()} ${calcConf()}} // cnt=$evidenceCnt';
+        }
+        
+        var seq = [];
+        for(iCondOp in condops) {
+            seq.push('${iCondOp.cond.events.map(v -> TermUtils.convToStr(v))}');
+            seq.push('${iCondOp.ops.map(v -> TermUtils.convToStr(v))}');
         }
 
-        return '(&/,${cond.events.map(v -> TermUtils.convToStr(v))},${act.map(v -> TermUtils.convToStr(v))}) =/> ${effect.events.map(v -> TermUtils.convToStr(v))} {${calcFreq()} ${calcConf()}} // cnt=$evidenceCnt';
+        return '(&/, ${seq.join(",")}) =/> ${effect.events.map(v -> TermUtils.convToStr(v))} {${calcFreq()} ${calcConf()}} // cnt=$evidenceCnt';
     }
 }
 
