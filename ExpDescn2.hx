@@ -282,7 +282,41 @@ class ExpDescn2 {
         Assert.enforce(opD.counter > 0, "ops must have been called!");
     }
 
+
+
+    // see if it picks up a 5 element sequence correctly
+    public static function dbgSeq5() {
+        var uut:Executive = new Executive();
+
+
+        var opA = new CountOp("^a");
+        var opB = new CountOp("^b");
+        uut.acts.push({mass:1.0, act:opA});
+        uut.acts.push({mass:1.0, act:opB});
+
+
+        uut.step([Term.Name("a")]);
+        uut.step([Term.Name("^a")]);
+        uut.step([Term.Name("b")]);
+        uut.step([Term.Name("^b")]);
+        uut.step([Term.Name("c")]);
+
+
+        // debug all evidence
+        Sys.println('');
+        for(iEvidence in uut.mem.pairs) {
+            Sys.println(iEvidence.convToStr());
+        }
+    }
+
+
+
+
     public static function main() {
+        dbgSeq5(); // just for debugging
+        return;
+
+
         // short selftests
         //testGoalFullfillChain2_1();
         testAnticipationConfirm1();
@@ -613,7 +647,7 @@ class Executive {
     public var rng:Rule30Rng = new Rule30Rng();
 
 
-    public var dbgEvidence = false; // debugging - debug new and revised evidence?
+    public var dbgEvidence = true; // debugging - debug new and revised evidence?
     public var dbgAnticipationVerbose = false; // are anticipations verbose?
 
     public var dbgDescisionMakingVerbose = false; // debugging : is decision making verbose
@@ -658,7 +692,7 @@ class Executive {
         this.trace[0] = new Par([]);
         this.trace[0].events = parEvents;
 
-        if (false) { // debug trace
+        if (true) { // debug trace
             Sys.println('trace');
             for(idx2 in 0...this.trace.length) {
                 var idx = this.trace.length-1-idx2;
@@ -734,6 +768,68 @@ class Executive {
             var candidatesByLocalChainedGoal: Array<{pair:Pair, tv:Tv, exp:Float}> = [
                 for (iPair in candidates) {pair:iPair, tv:new Tv(iPair.calcFreq(), iPair.calcConf()),  exp:Tv.calcExp(iPair.calcFreq(), iPair.calcConf())}
             ];
+
+            // * compute two op decision making candidates
+            // ex: (&/, a, ^x, b, ^y) =/> c
+            var enable5Seq = true; // are seq impl with 5 elements enabled? - costs a bit of performance
+            var canditates5SeqByLocalChainedGoal: Array<{pair:Pair, tv:Tv, exp:Float}> = [];
+            if(enable5Seq) {
+                // do terms contain a action?
+                function containsAction(terms:Array<Term>): Bool {
+                    return terms.filter(v -> TermUtils.isOp(v)).length > 0;
+                }
+
+                // aren't terms only actions?
+                function containsAnyNonaction(terms:Array<Term>): Bool {
+                    return terms.filter(v -> !TermUtils.isOp(v)).length > 0;
+                }
+
+                if (containsAnyNonaction(parEvents)) { // did candidate b just happen
+                    // scan for ^x
+                    var op0TraceIdx = -1; // -1 : not used
+                    for(iOp0TraceIdxCandidate in 1...this.trace.length-1) {
+                        if (containsAction(this.trace[iOp0TraceIdxCandidate].events)) {
+                            op0TraceIdx = iOp0TraceIdxCandidate;
+                            break;
+                        }
+                    }
+
+                    if(op0TraceIdx != -1) { // is valid?
+                        // scan for a
+                        var cond0TraceIdx = -1;
+                        for(iTraceIdx in op0TraceIdx+1...this.trace.length) {
+                            if (containsAction(this.trace[iTraceIdx].events)) {
+                                break; // break because we dont handle seq of multiple actions yet
+                            }
+                            if (containsAnyNonaction(this.trace[iTraceIdx].events)) {
+                                cond0TraceIdx = iTraceIdx; // found it
+                                break;
+                            }
+                        }
+
+                        if (cond0TraceIdx != -1) {
+                            // we are here if we found a candidate of a potential match in the trace
+                            //
+                            // now we need to check if we find a seq with these conditions in the database
+
+                            var seq5potentialCond0 = this.trace[cond0TraceIdx].events;
+                            var seq5potentialOp0 = this.trace[op0TraceIdx].events.filter(v -> TermUtils.isOp(v))[0];
+                            var seq5potentialCond1 = this.trace[0].events.filter(v -> !TermUtils.isOp(v));
+                            var seq5potentialCandidates:Array<Pair> = mem.queryPairsByCond(seq5potentialCond0);
+                            seq5potentialCandidates = seq5potentialCandidates.filter(iPair -> iPair.effect.events.filter(iEvent -> goalSystem.isEternalGoal(iEvent)).length > 0); // does it have a eternal goal as a effect?
+                            seq5potentialCandidates = seq5potentialCandidates.filter(iPair -> !iPair.isConcurrentImpl && iPair.condops.length == 2);
+                            seq5potentialCandidates = seq5potentialCandidates.filter(iPair -> iPair.condops[0].ops.length == 1 && TermUtils.equal(iPair.condops[0].ops[0], seq5potentialOp0)); // op of condops[0] must match up
+                            seq5potentialCandidates = seq5potentialCandidates.filter(iPair -> Par.checkIntersect(iPair.condops[1].cond, new Par(seq5potentialCond1))); // condition must match up with observed one
+
+                            // they are candidates for decision making if they match up!
+                            canditates5SeqByLocalChainedGoal = [
+                                for (iPair in seq5potentialCandidates) {pair:iPair, tv:new Tv(iPair.calcFreq(), iPair.calcConf()),  exp:Tv.calcExp(iPair.calcFreq(), iPair.calcConf())}
+                            ];
+                        }
+                    }
+                }
+
+            }
             
             //commented because it is to slow
             //candidatesByLocalChainedGoal = filterCandidatesByGoal(candidates); // chain local pair -> matching goal in goal system
@@ -770,15 +866,16 @@ class Executive {
                 }
             }
 
-            if (bestDecisionMakingCandidate.condops[0].ops.length == 0) {
+            var condOpsIdx = bestDecisionMakingCandidate.condops.length-1;
+            if (bestDecisionMakingCandidate.condops[condOpsIdx].ops.length == 0) {
                 throw "Assertion violated!";
             }
 
             if (
                 bestDecisionExp > decisionThreshold && 
-                retActByName(retName(bestDecisionMakingCandidate.condops[0].ops[0])).refractoryPeriodCooldown <= 0 // is it possible to execute the action based on refractory period?
+                retActByName(retName(bestDecisionMakingCandidate.condops[condOpsIdx].ops[0])).refractoryPeriodCooldown <= 0 // is it possible to execute the action based on refractory period?
             ) {
-                queuedAct = retName(bestDecisionMakingCandidate.condops[0].ops[0]); // queue action for next timestep
+                queuedAct = retName(bestDecisionMakingCandidate.condops[condOpsIdx].ops[0]); // queue action for next timestep
                 queuedActOrigin = bestDecisionMakingCandidate;
             }
         }
@@ -883,13 +980,56 @@ class Executive {
                 // so we need to scan the trace for a op which "connects" the event(s) before the op to the last event(s)
 
                 
-                for(idx in 1...this.trace.length-1) {
-                    if (containsAction(this.trace[idx].events)) {
-                        var traceIdxOfOpEvent = idx;
-
-
+                for(idxOp1 in 1...this.trace.length-1) {
+                    if (containsAction(this.trace[idxOp1].events)) {
+                        var traceIdxOfOpEvent = idxOp1;
 
                         scanBoundingEvntAndAddImplSeq(traceIdxOfOpEvent, hasMostRecentEventGoal);
+
+                        function fn5() {
+                            // search for 2nd op for building (&/, a, ^x, b, ^y) =/> c
+                            
+                            for(idxOp2 in idxOp1+1...this.trace.length-1) {
+                                if (containsAction(this.trace[idxOp2].events)) {
+
+                                    // search for event which was not action
+                                    for(idxNop2 in idxOp2+1...this.trace.length) {
+                                        if (containsAnyNonaction(this.trace[idxNop2].events)) {
+
+                                            // we found a (&/, a, ^x, b, ^y) =/> c   candidate
+
+                                            // scan for b candidates, add all as knowlede
+                                            for(nonOp1Idx in idxOp1+1...idxOp2) {
+                                                if (containsAnyNonaction(this.trace[nonOp1Idx].events)) {
+                                                    
+                                                    
+                                                    var nonOpsOf2:Array<Term> = this.trace[idxNop2].events.filter(v -> !TermUtils.isOp(v)); // a
+                                                    var opsOf2:Array<Term> = this.trace[idxOp2].events.filter(v -> TermUtils.isOp(v)); // ^x
+                                                    var nonOpsOf1:Array<Term> = this.trace[nonOp1Idx].events.filter(v -> !TermUtils.isOp(v)); // b
+                                                    var opsOf1:Array<Term> = this.trace[idxOp1].events.filter(v -> TermUtils.isOp(v)); // ^y
+                                                    var nonOpsOf0:Array<Term> = this.trace[0].events.filter(v -> !TermUtils.isOp(v)); // c
+
+                                                    // try to add to knowledge
+                                                    {
+                                                        // TODO< add different combinations of event, par event, op, etc >
+
+                                                        var condOps:Array<CondOps> = [new CondOps(new Par(nonOpsOf2), [opsOf2[0]]), new CondOps(new Par(nonOpsOf1), [opsOf1[0]])];
+                                                        trace("HERE3");
+                                                        addEvidence2(condOps, nonOpsOf0, createStamp(), false);
+                                                    }
+                                                }
+                                            }
+
+                                            return; // break up search
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        
+                        fn5();
+                        
 
                         // we care about all possible impl seq if the most recent events contain goal
                         if (!hasMostRecentEventGoal) {
@@ -908,7 +1048,7 @@ class Executive {
         cycle++; // advance global cycle timer
     }
 
-    
+    // TODO< replace with addEvidence2() >
     // adds new evidence
     // /param iActionTerm is the action term which is used for checking and, can be null if isConcurrentImpl is true
     private function addEvidence(conds:Array<Term>, effects:Array<Term>, stamp:Stamp, iActionTerm:Term, isConcurrentImpl) {
@@ -964,6 +1104,88 @@ class Executive {
             mem.addPair(createdPair); ///pairs.push(createdPair);
         }
     }
+
+
+
+
+    // adds new evidence
+    // /param iActionTerm is the action term which is used for checking and, can be null if isConcurrentImpl is true
+    private function addEvidence2(condOps:Array<CondOps>, effects:Array<Term>, stamp:Stamp, isConcurrentImpl) {
+        for (iCondOps in condOps) {
+            if (Par.checkIntersect(iCondOps.cond, new Par(effects))) {
+                return; // exclude (&/, a, ^b) =/> a
+            }
+        }
+        
+
+        for(iPair in mem.queryPairsByCond(condOps[0].cond.events)) { // search for existing evidence and try to revise
+            if (
+                iPair.isConcurrentImpl == isConcurrentImpl &&
+                iPair.condops.length == condOps.length &&
+                Par.checkSubset(iPair.effect, new Par(effects))
+            ) {
+                var isSame = true;                
+                for (iCondOpsIdx in 0...condOps.length) {
+                    if (
+                        (isConcurrentImpl && condOps[iCondOpsIdx].ops.length > 0 ? true : TermUtils.equal(iPair.condops[iCondOpsIdx].ops[0], condOps[iCondOpsIdx].ops[0])) &&
+                        Par.checkSubset(iPair.condops[iCondOpsIdx].cond, condOps[iCondOpsIdx].cond) // TODOOPTIMIZE< is not necessary >
+                    ) {}
+                    else {
+                        isSame = false;
+                        break; // optimization
+                    }
+                }
+
+                if (isSame) {
+                    iPair.evidenceCnt++;
+                    iPair.evidencePositive++;
+                }
+            }
+        }
+
+        var existsEvidence = false; // does exact evidence exist?
+        
+        for(iPair in mem.queryPairsByCond(condOps[0].cond.events)) { // search for exact evidence
+            if (
+                iPair.isConcurrentImpl == isConcurrentImpl &&
+                iPair.condops.length == condOps.length &&
+                Par.checkSame(iPair.effect, new Par(effects)) // TODOOPTIMIZE< is not necessary >
+            ) {
+
+                var isSame = true;                
+                for (iCondOpsIdx in 0...condOps.length) {
+                    if (
+                        (isConcurrentImpl && condOps[iCondOpsIdx].ops.length > 0 ? true : TermUtils.equal(iPair.condops[iCondOpsIdx].ops[0], condOps[iCondOpsIdx].ops[0])) &&
+                        Par.checkSame(iPair.condops[iCondOpsIdx].cond, condOps[iCondOpsIdx].cond) 
+                    ) {}
+                    else {
+                        isSame = false;
+                        break; // optimization
+                    }
+                }
+
+                if (isSame) {
+                    existsEvidence = true;
+                }
+            }
+        }
+        
+
+        if (!existsEvidence) { // create new evidence if it doesn't yet exist
+            
+            // store pair
+            var createdPair:Pair = new Pair(stamp);
+            createdPair.condops = condOps;
+            createdPair.effect = new Par(effects);
+            createdPair.isConcurrentImpl = isConcurrentImpl;
+
+            if(dbgEvidence) trace('create new evidence ${createdPair.convToStr()}');
+
+            mem.addPair(createdPair); ///pairs.push(createdPair);
+        }
+    }
+
+
 
     // decrements the remaining refractory period
     private function decisionmakingActionCooldown() {
