@@ -689,9 +689,6 @@ class Executive {
 
     public var cycle:Int = 0; // global cycle timer
 
-    public var rng:Rule30Rng = new Rule30Rng();
-
-
     public var dbgEvidence = true; // debugging - debug new and revised evidence?
     public var dbgAnticipationVerbose = false; // are anticipations verbose?
 
@@ -746,7 +743,7 @@ class Executive {
         }
 
         { // do random action
-            if(rng.nextFloat() < randomActProb && queuedAct == null) { // do random action
+            if(Math.random() < randomActProb && queuedAct == null) { // do random action
                 if (false) Sys.println('random act');
                 
                 var possibleActs = acts.filter(iAct -> iAct.act.refractoryPeriodCooldown <= 0); // only actions which are cooled down are possible as candidates
@@ -1377,7 +1374,7 @@ class AbstractGoalSystem {
     }
 
     // sample a goal based on probability distribution
-    public function sample(rng:Rule30Rng, time:Int): ActiveGoal {
+    public function sample(time:Int): ActiveGoal {
         throw "VIRTUAL METHOD CALLED";
     }
 
@@ -1771,7 +1768,7 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
                 // try to add entries to node
                 tryAdd(node);
                 
-                if (executive.rng.nextFloat() < terminationProbability) {
+                if (Math.random() < terminationProbability) {
                     return; // terminate
                 }
 
@@ -1780,7 +1777,7 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
                     return;
                 }
                 // pick random children
-                var idx = executive.rng.nextInt(node.children.length);
+                var idx = Std.random(node.children.length);
                 tryAddOrTerminate(node.children[idx], treeDepth+1);
             }
 
@@ -1813,7 +1810,7 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
             }
             var selectedNode: PlanningTreeNode = null;
             { // pick random node
-                var idx = executive.rng.nextInt(elementsOfTree.length);
+                var idx = Std.random(elementsOfTree.length);
                 selectedNode = elementsOfTree[idx];
             }
 
@@ -1942,7 +1939,7 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
         }
     }
 
-    public override function sample(rng:Rule30Rng, time:Int): ActiveGoal {
+    public override function sample(time:Int): ActiveGoal {
         return null;// sampling is not supported
     }
 
@@ -2113,7 +2110,7 @@ class ForwardChainer {
         }
 
 
-        var idx:Int = exec.rng.nextInt(currentEvents.length);
+        var idx:Int = Std.random(currentEvents.length);
         var selChainEvent: Term = currentEvents[idx]; // select event to try to chain
         var chainTv: Tv = new Tv(1.0, 0.99999); // tv of chaining - assumed to be axiomatic
 
@@ -2137,7 +2134,7 @@ class ForwardChainer {
 
 
 
-            var selChainPair0Idx:Int = exec.rng.nextInt(firstChainElementCandidate.length);
+            var selChainPair0Idx:Int = Std.random(firstChainElementCandidate.length);
             var selChainPair0: Pair = firstChainElementCandidate[selChainPair0Idx];
 
             chain2.push(selChainPair0);
@@ -3057,59 +3054,6 @@ class IncrementalCentralDistribution {
     public var mean:Float = 0.0;
     public var s:Float = 0.0;
 }
-
-// random generator which uses rule30
-class Rule30Rng {
-    static function main() {
-        var rng = new Rule30Rng();
-        
-        for(i in 0...30) {
-        	trace('${rng.nextFloat()}');
-        }
-    }
-    
-    
-    static function calcRule30(a:Bool,b:Bool,c:Bool) {
-        //100 	011 	010 	001
-        return
-            (a && !b && !c) ||
-            (!a && b && c) ||
-            (!a && b && !c) ||
-            (!a && !b && c);
-    }
-    
-    public function new() {}
-    
-    function nextIntInternal():Int {
-        var vInt = 0;
-        calcNextVec();
-        
-        for(idx in 0...bVec.length) {
-            if(bVec[idx]) {
-            	vInt += (1 << idx);
-        	}
-        }
-
-        return vInt;
-    }
-
-    public function nextFloat():Float {
-        return Math.random(); //nextIntInternal() / (1 << bVec.length);
-    }
-
-    public function nextInt(max:Int): Int {
-        return Std.random(max); //nextIntInternal() % max;
-    }
-    
-    // computes next vector with rule30
-    function calcNextVec() {
-        bVec = [for (idx in 0...bVec.length) calcRule30(bVec[(idx+bVec.length-1) % bVec.length], bVec[idx], bVec[(idx+bVec.length+1) % bVec.length])];
-    }
-    
-	// we can only compute for 30 bits on javascript targets
-    var bVec = [for (idx in 0...30) Std.random(2) == 1];
-}
-
 
 class Logger {
     public static var singleton = new Logger();
