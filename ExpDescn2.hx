@@ -684,6 +684,8 @@ class Executive {
 
     public var anticipationDeadline = 20; // config - anticipation deadline in cycles
 
+    public var horizon5seq:Float = 8.0; // config - horizon for 5seq
+
 
     public var cycle:Int = 0; // global cycle timer
 
@@ -1057,8 +1059,7 @@ class Executive {
                                                         // TODO< add different combinations of event, par event, op, etc >
 
                                                         var condOps:Array<CondOps> = [new CondOps(new Par(nonOpsOf2), [opsOf2[0]]), new CondOps(new Par(nonOpsOf1), [opsOf1[0]])];
-                                                        trace("HERE3");
-                                                        addEvidence2(condOps, nonOpsOf0, createStamp(), false);
+                                                        addEvidence2(condOps, nonOpsOf0, createStamp(), false, horizon5seq);
                                                     }
                                                 }
                                             }
@@ -1153,7 +1154,7 @@ class Executive {
 
     // adds new evidence
     // /param iActionTerm is the action term which is used for checking and, can be null if isConcurrentImpl is true
-    private function addEvidence2(condOps:Array<CondOps>, effects:Array<Term>, stamp:Stamp, isConcurrentImpl) {
+    private function addEvidence2(condOps:Array<CondOps>, effects:Array<Term>, stamp:Stamp, isConcurrentImpl, horizon:Float) {
         for (iCondOps in condOps) {
             if (Par.checkIntersect(iCondOps.cond, new Par(effects))) {
                 return; // exclude (&/, a, ^b) =/> a
@@ -1221,6 +1222,7 @@ class Executive {
             createdPair.condops = condOps;
             createdPair.effect = new Par(effects);
             createdPair.isConcurrentImpl = isConcurrentImpl;
+            createdPair.horizon = horizon;
 
             if(dbgEvidence) trace('create new evidence ${createdPair.convToStr()}');
 
@@ -2302,13 +2304,15 @@ class Pair {
 
     public var isConcurrentImpl = false; // is it =|> instead of =/> ?
 
+    public var horizon:Float = 1.0; // horizon for conf computation
+
     public function new(stamp) {
         this.stamp = stamp;
     }
 
     public function calcConf() {
         // see http://alumni.media.mit.edu/~kris/ftp/Helgason%20et%20al-AGI2013.pdf
-        return evidenceCnt / (evidenceCnt + 1.0);
+        return evidenceCnt / (evidenceCnt + horizon);
     }
 
     public function calcFreq() {
