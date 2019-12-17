@@ -309,11 +309,54 @@ class ExpDescn2 {
         }
     }
 
+    // see if it executes 5 element sequence correctly
+    public static function seq5Exec() {
+        var uut:Executive = new Executive();
+        {
+            var p:Pair = new Pair(uut.createStamp());
+            p.effect = new Par([Term.Name("g")]);
+            p.condops.push( new CondOps(new Par([Term.Name("a")]), [Term.Name("^x")]));
+            p.condops.push( new CondOps(new Par([Term.Name("b")]), [Term.Name("^y")]));
+            uut.mem.addPair(p);
+        }
+
+        uut.goalSystem.eternalGoals.push(Term.Name("g"));
+
+
+        var opA = new CountOp("^x");
+        var opB = new CountOp("^y");
+        uut.acts.push({mass:1.0, act:opA});
+        uut.acts.push({mass:1.0, act:opB});
+
+
+        uut.step([Term.Name("a")]);
+        uut.step([Term.Name("^x")]);
+        uut.step([Term.Name("b")]);
+
+        uut.step([]);
+        uut.step([]);
+        uut.step([]);
+        uut.step([]);
+
+
+        // debug all evidence
+        Sys.println('');
+        for(iEvidence in uut.mem.pairs) {
+            Sys.println(iEvidence.convToStr());
+        }
+
+        Assert.enforce(opB.counter > 0, "ops must have been called!");
+
+    }
+
 
 
 
     public static function main() {
-        dbgSeq5(); // just for debugging
+        //dbgSeq5(); // just for debugging
+
+        seq5Exec();
+
         return;
 
 
@@ -815,7 +858,7 @@ class Executive {
                             var seq5potentialCond0 = this.trace[cond0TraceIdx].events;
                             var seq5potentialOp0 = this.trace[op0TraceIdx].events.filter(v -> TermUtils.isOp(v))[0];
                             var seq5potentialCond1 = this.trace[0].events.filter(v -> !TermUtils.isOp(v));
-                            var seq5potentialCandidates:Array<Pair> = mem.queryPairsByCond(seq5potentialCond0);
+                            var seq5potentialCandidates:Array<Pair> = mem.queryPairsByCond(seq5potentialCond0);                            
                             seq5potentialCandidates = seq5potentialCandidates.filter(iPair -> iPair.effect.events.filter(iEvent -> goalSystem.isEternalGoal(iEvent)).length > 0); // does it have a eternal goal as a effect?
                             seq5potentialCandidates = seq5potentialCandidates.filter(iPair -> !iPair.isConcurrentImpl && iPair.condops.length == 2);
                             seq5potentialCandidates = seq5potentialCandidates.filter(iPair -> iPair.condops[0].ops.length == 1 && TermUtils.equal(iPair.condops[0].ops[0], seq5potentialOp0)); // op of condops[0] must match up
