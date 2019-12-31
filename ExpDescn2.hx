@@ -611,6 +611,17 @@ class ByCond<Type> {
         }
     }
 
+    public function hasKey(key:Array<Term>): Bool {
+        var keyComplete = ""+key.map(v -> TermUtils.convToStr(v));
+        var tableResult = pairsByCond.get(keyComplete);
+        return tableResult != null;
+    }
+
+    public function retByKey(key:Array<Term>): Array<Type> {
+        var keyComplete = ""+key.map(v -> TermUtils.convToStr(v));
+        return pairsByCond.get(keyComplete);
+    }
+
     public function queryByCond(parEvents:Array<Term>): Array<Type> {
         //Par.checkSubset(new Par(parEvents), v.cond)
 
@@ -639,12 +650,17 @@ class ByCond<Type> {
 
 
 class Memory {
+    public var sizePairsOfProceduralNode = 50; // how many pairs are in a procedural node?
+
     public var pairs:Array<Pair> = []; // all known pairs, read only!
     // is extremely slow to iterate on!
 
+    // procedural nodes
+    public var proceduralNodes: ByCond<ProceduralNode> = new ByCond<ProceduralNode>();
+
     // maps conditions to the pairs which contain the condition
     // key is the string serialization of the parallel key terms as a string
-    private var byCond:ByCond<Pair> = new ByCond<Pair>(); //:Map<String,Array<Pair>> = new Map<String,Array<Pair>>();
+    private var byCond:ByCond<Pair> = new ByCond<Pair>();
 
     public function new() {}
 
@@ -652,13 +668,60 @@ class Memory {
         pairs.push(pair);
 
         byCond.add(pair.condops[0].cond.events, pair);
+        
+        // add ProceduralNode by key if it doesn't yet exist
+        if(!hasProceduralNodeByName(pair.condops[0].cond.events)) {
+            proceduralNodes.add(pair.condops[0].cond.events, new ProceduralNode(pair.condops[0].cond.events));
+        }
+
+        { // add pair and keep under AIKR
+            for(ipn in proceduralNodes.retByKey(pair.condops[0].cond.events)) {
+                ipn.proceduralPairs.push(pair);
+
+                // TODO< check ordering >
+                ipn.proceduralPairs.sort((a, b) -> {
+                    var aExp:Float = Tv.calcExp(a.calcFreq(), a.calcConf());
+                    var bExp:Float = Tv.calcExp(b.calcFreq(), b.calcConf());
+                    if (aExp > bExp) {
+                        return 1;
+                    }
+                    if (aExp < bExp) {
+                        return -1;
+                    }
+                    return 0;
+                });
+                ipn.limitSize(sizePairsOfProceduralNode);
+            }
+        }
     }
 
     // queries by conditional, either the complete parEvents or for single events (subset)
     public function queryPairsByCond(parEvents:Array<Term>): Array<Pair> {
         return byCond.queryByCond(parEvents);
     }
+
+    private function hasProceduralNodeByName(name:Array<Term>) {
+        return proceduralNodes.hasKey(name);
+    }
 }
+
+// similar to node in ALANN, just for procedural knowledge
+// a node in ALANN is similar to a concept, the adressing is just different
+class ProceduralNode {
+    public var name:Array<Term>; // name of the node
+
+    // pairs, ordered by exp() to favor pairs which lead to better actions
+    public var proceduralPairs:Array<Pair> = [];
+    
+    public function new(name) {
+        this.name = name;
+    }
+
+    public function limitSize(size:Int) {
+        proceduralPairs = proceduralPairs.slice(0, size);
+    }
+}
+
 
 class Executive {
     
