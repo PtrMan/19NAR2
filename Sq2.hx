@@ -633,7 +633,7 @@ class Sq2 {
                         // <{b a}-->c>.
                         var mergedSet:Array<Term> = setMerge(setA, setB);
                         var conclusionTerm = Term.Cop(copA, Term.Set("{", mergedSet), predA);
-                        conclusions.push({term:conclusionTerm, tv:Tv.union(premiseATv, premiseBTv), punctation:".", stamp:mergedStamp, ruleName:"set union"});
+                        conclusions.push({term:conclusionTerm, tv:Tv.intersection(premiseATv, premiseBTv), punctation:".", stamp:mergedStamp, ruleName:"set union"});
                     }
                     
                     case _:
@@ -655,7 +655,7 @@ class Sq2 {
                         // <c-->[b a]>.
                         var mergedSet:Array<Term> = setMerge(setA, setB);
                         var conclusionTerm = Term.Cop(copA, subjA, Term.Set("[", mergedSet));
-                        conclusions.push({term:conclusionTerm, tv:Tv.union(premiseATv, premiseBTv), punctation:".", stamp:mergedStamp, ruleName:"set union"});
+                        conclusions.push({term:conclusionTerm, tv:Tv.intersection(premiseATv, premiseBTv), punctation:".", stamp:mergedStamp, ruleName:"set union"});
                     }
                     
                     case _:
