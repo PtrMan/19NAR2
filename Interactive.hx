@@ -37,6 +37,12 @@ class Interactive {
             else if (inputLine.charAt(0) == "t") { // show all tasks
                 reasoner.workingSet.debug();
             }
+            else if (inputLine == "d 1") { // enable debug conclusions
+                Sq2.Config.debug_derivations = true;
+            }
+            else if (inputLine == "d 0") { // disable debug conclusions
+                Sq2.Config.debug_derivations = false;
+            }
             else {
                 reasoner.input(inputLine);
             }
