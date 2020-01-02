@@ -20,6 +20,7 @@ class TermUtils {
             case ImgWild: ImgWild;
             case Var(type,name): Var(type,name);
             case Str(content): Str(content);
+            case Set(type, content): Set(type, content);
         }
     }
 
@@ -50,6 +51,9 @@ class TermUtils {
             case ImgWild: [];
             case Var(_,_): [];
             case Str(_): [];
+
+            case Set(_, _):
+            [term]; // we treat a set as it's own name 
         });
     }
 
@@ -70,6 +74,10 @@ class TermUtils {
             '( $narseseContent )';
             case Var(type,name): '$type$name';
             case Str(content): '"$content"'; // TODO< escape " and \   >
+            case Set(type, content):
+            var narseseContent = content.map(function(i) {return convToStr(i);}).join(" ");
+            var typeEnd = type == "{" ? "}" : "]";
+            '$type$narseseContent$typeEnd';
         }
     }
 
@@ -156,6 +164,23 @@ class TermUtils {
             switch(b) {
                 case Str(contentB):
                 return contentA==contentB;
+                case _:
+                return false;
+            }
+
+            case Set(typeA,contentA):
+            switch(b) {
+                case Set(typeB,contentB):
+                if (typeA != typeB) {
+                    return false;
+                }
+                if (contentA.length != contentB.length) { return false; }
+                for (idx in 0...contentA.length) {
+                    if (!equal(contentA[idx], contentB[idx])) {
+                        return false;
+                    }
+                }
+                return true;
                 case _:
                 return false;
             }

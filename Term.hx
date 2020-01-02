@@ -21,4 +21,5 @@ enum Term {
     Var(type:String,name:String); // variable, type can be "?","#","$"
 
     Str(content:String); // "content" , " and \ are escaped
+    Set(type:String, content:Array<Term>); // "[" or "{" set
 }

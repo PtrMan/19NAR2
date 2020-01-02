@@ -17,50 +17,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 // TODO< parse TV >
 // TODO< test parsing of TV >
 
-// TODO< ubuild union of sets (up to maximal size) >
-//<{a}-->c>.
-//<{b}-->c>.
-//<{b a}-->c>?
-
-// TODO< ubuild union of sets (up to maximal size) >
-//<a-->[c]>.
-//<a-->[d]>.
-//<a-->[c d]>?
-
-
-// TODO< infer impl only if it leads to more than two vars , ex with one var
-//<cat --> [bites]>.
-//<dog --> [bites]>.
-//<<cat --> $1> ==> <dog --> $1>>?
-//
-//mr_nars4
-//Answer: <<cat --> $1> ==> <dog --> $1>>. %1.00;0.40%
-//
-//
-// other ex:
-//<(*,a,b) --> R>.
-//<(*,b,a) --> R>.
-//<<(,$1,$2) --> R> ==> <(,$2,$1) --> R>>?
-//mr_nars4
-//Answer: <<(*,$1,$2) --> R> ==> <(*,$2,$1) --> R>>. %1.00;0.40%
-
-
-
-// TODO   var intro when structural similarity
-// ex: <(a * b * c) --> x>.
-//     <(a * c * n) --> x>.
-// |-
-//     <<(a * $1 * $2) --> x> <=> <(a * $1 * $2) --> x>>. {1.0 0.4}
-//     <<(a * b * $2) --> x> <=> <(a * $2 * c) --> x>>. {1.0 0.4}
-
-
-
-
-
-// <a<->b>.
-// <a-->b>?
-// should return < a --> b >. {1.0 0.9}
-
 
 
 // TODO BUG< do revision on input processing time too >
@@ -83,8 +39,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 // TODO< keep concepts(nodes) under AIKR (by calculating the max exp() and throwing the concepts out with lowest max exp() >
 
 // TODO< keep tasks under AIKR (by sorting by score(utility) and slicing)
-
-// TODO< add sets >
 
 // TODO CONTINUE IMPL< most NAL-2 like in new meta rules >
 
@@ -648,6 +602,73 @@ class Sq2 {
             }            
         }
 
+
+
+        // merge set
+        function setMerge(a:Array<Term>, b:Array<Term>): Array<Term> {
+            var merged = a;
+
+            for(iB in b) {
+                var hasB = merged.filter(iMerged -> TermUtils.equal(iMerged, iB)).length > 0;
+                if (!hasB) {
+                    merged.push(iB);
+                }
+            }
+
+            return merged;
+        }
+
+        // set handling
+        if (premiseAPunctation == "." && premiseBPunctation == ".") {
+            switch(premiseATerm) {
+                case Cop(copA, Set("{", setA), predA):
+
+
+                switch(premiseBTerm) {
+                    case Cop(copB, Set("{", setB), predB):
+                    if ((copA == "-->" || copA == "<->") && copA == copB && TermUtils.equal(predA, predB)) {
+                        // <{a}-->c>.
+                        // <{b}-->c>.
+                        // |-
+                        // <{b a}-->c>.
+                        var mergedSet:Array<Term> = setMerge(setA, setB);
+                        var conclusionTerm = Term.Cop(copA, Term.Set("{", mergedSet), predA);
+                        conclusions.push({term:conclusionTerm, tv:Tv.union(premiseATv, premiseBTv), punctation:".", stamp:mergedStamp, ruleName:"set union"});
+                    }
+                    
+                    case _:
+                }
+                case _:
+            }
+
+
+            switch(premiseATerm) {
+                case Cop(copA, subjA, Set("[", setA)):
+
+
+                switch(premiseBTerm) {
+                    case Cop(copB, subjB, Set("[", setB)):
+                    if ((copA == "-->" || copA == "<->") && copA == copB && TermUtils.equal(subjA, subjB)) {
+                        // <c-->[a]>.
+                        // <c-->[b]>.
+                        // |-
+                        // <c-->[b a]>.
+                        var mergedSet:Array<Term> = setMerge(setA, setB);
+                        var conclusionTerm = Term.Cop(copA, subjA, Term.Set("[", mergedSet));
+                        conclusions.push({term:conclusionTerm, tv:Tv.union(premiseATv, premiseBTv), punctation:".", stamp:mergedStamp, ruleName:"set union"});
+                    }
+                    
+                    case _:
+                }
+                case _:
+            }
+        } 
+
+
+
+
+
+
         // tries to unify a with b and return the unified term, returns null if it can't get unified
         // /param a contains variables
         // /param b contains values for the variables
@@ -970,7 +991,54 @@ class Sq2 {
 
 
 
+        { // unittest set union
+            var reasoner:Sq2 = new Sq2();
+            reasoner.conclusionStrArr = []; // enable output logging
 
+            // <z-->[c]>.
+            // <z-->[d]>.
+            // <z-->[c d]>.
+
+            var unittestPremises:Array<Term> = [
+                Cop("-->", Name("z"), Set("[",[Name("a")])),
+                Cop("-->", Name("z"), Set("[",[Name("b")])),
+            ];
+
+            for (iUnittestPremise in unittestPremises) {
+                reasoner.inputTerm(iUnittestPremise, new Tv(1.0, 0.9), ".");
+            }
+
+            reasoner.process(20);
+
+            if (reasoner.conclusionStrArr.indexOf("< z --> [a b] >. {1 0.81}", null) == -1) {
+                throw "Unittest failed!";
+            }
+        }
+
+        { // unittest set union
+            var reasoner:Sq2 = new Sq2();
+            reasoner.conclusionStrArr = []; // enable output logging
+
+            // <{a}-->z>.
+            // <{b}-->z>.
+            // |-
+            // <{b a}-->z>.
+
+            var unittestPremises:Array<Term> = [
+                Cop("-->", Set("{",[Name("a")]), Name("z")),
+                Cop("-->", Set("{",[Name("b")]), Name("z")),
+            ];
+
+            for (iUnittestPremise in unittestPremises) {
+                reasoner.inputTerm(iUnittestPremise, new Tv(1.0, 0.9), ".");
+            }
+
+            reasoner.process(20);
+
+            if (reasoner.conclusionStrArr.indexOf("< {a b} --> z >. {1 0.81}", null) == -1) {
+                throw "Unittest failed!";
+            }
+        }
 
 
         { // unittest stamp overlap
@@ -1371,6 +1439,9 @@ class Sq2 {
         }
 
 
+
+
+
         /* commented because BS
         { // unittest ==> detachment with swizzled premise 
             var reasoner:Sq2 = new Sq2();
@@ -1745,6 +1816,10 @@ class Unifier {
             }
 
             case Str(_): return term;
+
+            case Set(type,content):
+            // substitute vars in set
+            return Set(type,substituteArr(content));
         }
     }
 
@@ -1826,6 +1901,8 @@ class Unifier {
             case Var(typeA,nameA):
             throw "Internal error - should be handled earilier in function!";
             case Str(_):
+            return false; // doesn't unify because not equal
+            case Set(_,_):
             return false; // doesn't unify because not equal
         }
 
