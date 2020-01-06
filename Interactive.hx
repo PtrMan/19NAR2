@@ -30,17 +30,17 @@ class Interactive {
         while(true) {
             var inputLine: String = Sys.stdin().readLine();
 
-            if (inputLine.charAt(0) == "s") { // step
-                var steps = Std.parseInt(inputLine.substring(1, inputLine.length));
+            if (inputLine.charAt(0) == "!" && inputLine.charAt(1) == "s") { // step
+                var steps = Std.parseInt(inputLine.substring(2, inputLine.length));
                 reasoner.process(steps);
             }
-            else if (inputLine.charAt(0) == "t") { // show all tasks
+            else if (inputLine.charAt(0) == "!" && inputLine.charAt(1) == "t") { // show all tasks
                 reasoner.workingSet.debug();
             }
-            else if (inputLine == "d 1") { // enable debug conclusions
+            else if (inputLine == "!d 1") { // enable debug conclusions
                 Sq2.Config.debug_derivations = true;
             }
-            else if (inputLine == "d 0") { // disable debug conclusions
+            else if (inputLine == "!d 0") { // disable debug conclusions
                 Sq2.Config.debug_derivations = false;
             }
             else {
