@@ -146,12 +146,15 @@ class Sq2 {
     public function process(cycles:Int = 20) {
         function reportAnswer(sentence:Sentence) {
             var str = 'Answer:[  ?ms]${sentence.convToStr()}'; // report with ALANN formalism
+            trace(str);
 
             if (conclusionStrArr != null) { // used for debugging and unittesting
                 conclusionStrArr.push(str);
             }
 
-            trace(str);
+            if (answerHandler != null) {
+                answerHandler.report(sentence);
+            }
         }
 
         var cycleCounter = -1;
@@ -165,6 +168,10 @@ class Sq2 {
             if (Config.debug_derivations)   trace("");
             if (Config.debug_derivations)   trace("");
             if (Config.debug_derivations)   trace("");
+
+            if (workingSet.entities.length == 0) {
+                continue; // nothing to work on, continue
+            }
 
             // select random element from working set
             var chosenWorkingSetEntity;
@@ -1474,6 +1481,8 @@ class Sq2 {
         ProtoLexer.main(); // test parser
 
     }
+
+    public var answerHandler:AnswerHandler = null; // answer handler which is invoked when ever a new answer is derived
 }
 
 class Node {
@@ -1484,6 +1493,11 @@ class Node {
     public function new(name) {
         this.name = name;
     }
+}
+
+// handler which is called when ever a new answer is derived
+interface AnswerHandler {
+    function report(sentence:Sentence):Void;
 }
 
 class Memory {
