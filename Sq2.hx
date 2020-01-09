@@ -876,7 +876,10 @@ class Sq2 {
 
 
     public static function main() {
-        
+        ProtoLexer.main(); // test parser
+
+
+        return;
 
         /* TODO< add interesting unittest once it can build "&"
         { // create "seed" premise and put it into working set
@@ -1375,7 +1378,6 @@ class Sq2 {
 
 
 
-        ProtoLexer.main(); // test parser
 
     }
 
@@ -2545,6 +2547,18 @@ class ProtoLexer {
     public static function main() {
         // print printed terms to check right parsing manually
         var parseResults = [
+            // set
+            parse("<{a} --> x>."),
+            //parse("<{a b} --> x>."), // commented because multi sets are not supported
+
+            parse("<x --> [a]>."),
+            //parse("<x --> [a b]>."), // commented because multi sets are not supported
+
+
+            parse("<{a} --> [b]>."),
+            //parse("<{a b} --> [b]>."), // commented because multi sets are not supported
+
+
             parse("< a_ --><b --> c >  >."),
             parse("<a_.5--> b>?"),
             parse("<a_.5<-> b>?"),
@@ -2775,12 +2789,52 @@ class ProtoLexer {
 
         function braceSetEnd(parser : Parser<EnumOperationType>, currentToken : Token<EnumOperationType>) {
             var parser2 = cast(parser, NarseseParser);
-            // TODO
+
+            // scan till we hit the stored token for the set-beginning
+            var braceContentStack: Array<Term> = []; // content of brace in reversed order
+
+            var stackIdx = parser2.stack.length-1;
+            var found = false;
+            while (!found) {
+                var iStack: Term = parser2.stack[stackIdx]; // iterator value of stack
+                switch (iStack) {
+                    case Name("{"): // found "{" which is the beginning of the round brace
+                    found = true;
+                    case _:
+                    braceContentStack.push(iStack);
+                    stackIdx--;
+                }
+            }
+            
+            // clean up stack and remove all elements till index
+            parser2.stack = parser2.stack.slice(0, stackIdx);
+
+            parser2.stack.push(Set("{", braceContentStack));
         }
 
         function bracketSetEnd(parser : Parser<EnumOperationType>, currentToken : Token<EnumOperationType>) {
             var parser2 = cast(parser, NarseseParser);
-            // TODO
+            
+            // scan till we hit the stored token for the set-beginning
+            var braceContentStack: Array<Term> = []; // content of brace in reversed order
+
+            var stackIdx = parser2.stack.length-1;
+            var found = false;
+            while (!found) {
+                var iStack: Term = parser2.stack[stackIdx]; // iterator value of stack
+                switch (iStack) {
+                    case Name("["): // found "{" which is the beginning of the round brace
+                    found = true;
+                    case _:
+                    braceContentStack.push(iStack);
+                    stackIdx--;
+                }
+            }
+            
+            // clean up stack and remove all elements till index
+            parser2.stack = parser2.stack.slice(0, stackIdx);
+
+            parser2.stack.push(Set("[", braceContentStack));
         }
 
 
@@ -2830,9 +2884,9 @@ class ProtoLexer {
             /*  29 */new Arc<EnumOperationType>(EnumArcType.END, 0, null, -1, null),
 
             /*  30 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 18, tokenStore, 0, 31), // "*" - is a seperator of a product, just store it
-            /*  31 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 12, null, 32, 33), // "{"
+            /*  31 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 12, tokenStore, 32, 33), // "{" - we need to store token to know when the set ended
             /*  32 */new Arc<EnumOperationType>(EnumArcType.ARC, 80, null, 0, null),
-            /*  33 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 14, null, 34, null), // "["
+            /*  33 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 14, tokenStore, 34, null), // "[" - we need to store token to know when the set ended
             /*  34 */new Arc<EnumOperationType>(EnumArcType.ARC, 90, null, 0, null),
 
             /*  35 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
@@ -2965,10 +3019,6 @@ class ParserConfig {
 // TODO< add support for images in parser grammar >
 // TODO< add support for images in parser brace function >
 
-
-// TODO< add support for sets in language >
-// TODO< add support for sets to parser (I just need to write the function which is called to create a set) >
-// TODO< test sets parsing >
 
 // TODO< add tv to parsing >
 // TODO< add event occurence to parser >
