@@ -194,6 +194,25 @@ class TermUtils {
         }
     }
 
+    
+    public static function isSet(term:Term): Bool {
+        return switch (term) {
+            case Set(_,_): true;
+            case _ : false;
+        }
+    }
+
+    public static function isSameSet(a:Term, b:Term): Bool {
+        return switch (a) {
+            case Set(aType, _):
+            switch (b) {
+                case Set(bType,_): aType == bType;
+                case _: false;
+            }
+            case _ : false;
+        }
+    }
+
     // checks if the term encodes a op
     public static function isOp(term:Term):Bool {
         return switch (term) {
