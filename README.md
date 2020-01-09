@@ -1,11 +1,14 @@
 # Requirements
 
-It requires Haxe 4.0.X and was tested with Haxe 4.0.5
+It requires Haxe 4.0.X and was tested with Haxe 4.0.5.
+
+The Procedural Tests need the java support library for the Java backend of the Haxe compiler. Haxe will promt the user if it is not installed.
+Install it with
+
+> haxelib install hxjava 4.0.0-alpha 
+
 The procedural test require a JDK to compile the transpiled Java sourcecode.
 
-The Procedural Tests need the java binding of Haxe, Haxe will promt the user if it is not installed.
-
-TODO< figure out how to install Java bindings of Haxe >
 
 # Attention
 
