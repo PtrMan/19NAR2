@@ -29,7 +29,7 @@ enter
 
 run
 
-> haxe --run Interactive ALANN_CatBlueSkyWithoutSets.nal
+> haxe --run Interactive ALANN_CatBlueSky.nal
 
 to preload a `.nal` file for interactive Q&A. 
 (currently Q&A does work with narsese)
