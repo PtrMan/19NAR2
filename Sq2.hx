@@ -879,7 +879,6 @@ class Sq2 {
         ProtoLexer.main(); // test parser
 
 
-        return;
 
         /* TODO< add interesting unittest once it can build "&"
         { // create "seed" premise and put it into working set
