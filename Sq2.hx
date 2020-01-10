@@ -384,7 +384,6 @@ class Sq2 {
         // call to generated code for deriver
         Deriver.inferenceCode(premiseATerm, premiseAPunctation, premiseATv, premiseBTerm, premiseBPunctation, premiseBTv, mergedStamp, conclusions);
 
-
         if (premiseAPunctation == "." && premiseBPunctation == ".") {
 
             // NAL-3 union, intersection

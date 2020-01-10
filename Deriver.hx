@@ -146,14 +146,14 @@ class Deriver {
                             var aSyl:Term = $v{iCGRule.aCode == "subj"} ? subjA : predA;
                             var bSyl:Term = $v{iCGRule.bCode == "subj"} ? subjB : predB;
 
-                            if (TermUtils.equal(aSyl, bSyl) &&
-                                !TermUtils.isSet(aSyl) // never allow the common term to be a set!
+                            if (TermUtils.equal(aSyl, bSyl)
+                                //&& !TermUtils.isSet(aSyl) // never allow the common term to be a set!
                             ) {
                                 var precondsFullfilled = true; // are all preconditions fullfilled?
 
                                 for (iPrecond in $v{iCGRule.preconds}) { // iterate over each precondition
                                     switch (iPrecond) {
-                                        case NotSameSetType(a, b):
+                                        case Deriver.Precond.NotSameSetType(a, b):
                                         {
                                             var aTerm: Term = switch(a) {
                                                 case "a.subj": subjA;
