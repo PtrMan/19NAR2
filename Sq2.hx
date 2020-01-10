@@ -282,7 +282,7 @@ class Sq2 {
 
             if (Config.debug_derivations)   trace("|-");
             for (iConclusion in conclusions) {
-                var conclusionAsStr = TermUtils.convToStr(iConclusion.term) +  iConclusion.punctation+" " + iConclusion.tv.convToStr();
+                var conclusionAsStr = TermUtils.convToStr(iConclusion.term) +  iConclusion.punctation+(iConclusion.tv != null ? " " + iConclusion.tv.convToStr() : ""); // tv can be null
                 if (Config.debug_derivations)   trace(conclusionAsStr);
 
                 if (conclusionStrArr != null) { // used for debugging and unittesting
@@ -320,7 +320,9 @@ class Sq2 {
             // store conclusions
             for (iConclusion in conclusions) {
                 var sentence = new Sentence(iConclusion.term, iConclusion.tv, iConclusion.stamp, iConclusion.punctation);
-                mem.updateConceptsForJudgment(sentence);
+                if (sentence.punctation == ".") {
+                    mem.updateConceptsForJudgment(sentence);
+                }
             }
 
             
@@ -582,6 +584,37 @@ class Sq2 {
             }
         }
 
+        // NAL-6 impl/equiv backward inference
+        if (premiseAPunctation == "." && premiseBPunctation == "?") {
+            switch (premiseATerm) {
+                case Cop(cop, subj, pred) if (cop == "<=>" || cop == "==>"):
+
+                // TODO< write unittest for it >
+                
+                //
+                // ex:
+                // <<$x-->d> <=> <$x-->e>>.
+                // <y-->e>?
+                // |-
+                // <x-->d>? [1]
+                //
+                // ex:
+                // (OpenNARS does this one)
+                // <<$x-->d> ==> <$x-->e>>.
+                // <y-->e>?
+                // |-
+                // <x-->d>? [1]
+                //
+                var unifiedMap = new Map<String, Term>();
+                if (Unifier.unify(pred, premiseBTerm, unifiedMap)) { // try to unify the subj of the impl or equiv w/ the other premise                    
+                    var conclTerm = Unifier.substitute(subj, unifiedMap, "$");
+                    conclusions.push({term: conclTerm, tv:null, punctation:"?", stamp:premiseBStamp, ruleName:"NAL6-two impl/equiv Q&A 1"});
+                }
+
+                case _: null;
+            }
+        }
+
 
         return conclusions;
     }
@@ -617,6 +650,22 @@ class Sq2 {
             // TODO< bump derivation depth >
             
             var conclusionTerm = Term.Cop(copula, pred,subj);
+            
+            if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
+                var structuralOrigins = new StructuralOriginsStamp( premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]) );
+                conclusions.push({term:conclusionTerm, tv:premiseTv, punctation:".", stamp:new Stamp(premiseStamp.ids, structuralOrigins), ruleName:(copula == "<->" ? "NAL-2" : "NAL-6") + ".single structural"});
+            }
+
+            case _: null;
+        }
+
+        // NAL-2 <-> / NAL-6 <=> structural transformation to --> and ==>
+        if (premisePunctation == ".") switch (premiseTerm) {
+            case Cop(copula, subj, pred) if (copula == "<->" || copula == "<=>"):
+
+            // TODO< bump derivation depth >
+            
+            var conclusionTerm = Term.Cop(copula == "<->" ? "-->" : "==>", subj,pred);
             
             if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
                 var structuralOrigins = new StructuralOriginsStamp( premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]) );

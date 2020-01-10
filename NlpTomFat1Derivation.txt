@@ -1,0 +1,15 @@
+<(is * tom * fat) --> nlp>?
+<<($x * $y) --> is> <=> <(is * $x * $y) --> nlp>>.
+<tom --> human>.
+<(human * fat) --> is>.
+
+// structural transformation
+// <<($x * $y) --> is> <=> <(is * $x * $y) --> nlp>>.
+// |-
+// <<($x * $y) --> is> ==> <(is * $x * $y) --> nlp>>.
+
+// backward inference (OpenNARS does backward w/ impl)
+// <(is * tom * fat) --> nlp>?
+// <<($x * $y) --> is> ==> <(is * $x * $y) --> nlp>>.
+// |-
+// <(tom * fat) --> is>?
