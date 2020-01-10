@@ -202,6 +202,20 @@ class TermUtils {
         }
     }
 
+    public static function isSetExt(term:Term): Bool {
+        return switch (term) {
+            case Set("{",_): true;
+            case _ : false;
+        }
+    }
+
+    public static function isSetInt(term:Term): Bool {
+        return switch (term) {
+            case Set("[",_): true;
+            case _ : false;
+        }
+    }
+
     public static function isSameSet(a:Term, b:Term): Bool {
         return switch (a) {
             case Set(aType, _):
@@ -210,6 +224,42 @@ class TermUtils {
                 case _: false;
             }
             case _ : false;
+        }
+    }
+
+    
+    // merge set
+    public static function setMerge(a:Array<Term>, b:Array<Term>): Array<Term> {
+        var merged = a;
+
+        for(iB in b) {
+            var hasB = merged.filter(iMerged -> TermUtils.equal(iMerged, iB)).length > 0;
+            if (!hasB) {
+                merged.push(iB);
+            }
+        }
+
+        return merged;
+    }
+
+    public static function setMerge2(a:Term, b:Term): Term {
+        switch (a) {
+            case Set("[", sa):
+            switch (b) {
+                case Set("[", sb):
+                return Set("[", setMerge(sa, sb));
+                case _:
+                throw "Invalid set merge!";
+            }
+            case Set("{", sa):
+            switch (b) {
+                case Set("{", sb):
+                return Set("{", setMerge(sa, sb));
+                case _:
+                throw "Invalid set merge!";
+            }
+            case _:
+            throw "Invalid set merge!";
         }
     }
 

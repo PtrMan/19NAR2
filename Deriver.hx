@@ -44,6 +44,21 @@ class Deriver {
     // macro to compile a lot of rules
     public static macro function inferenceCode(a:Expr, aPunct:Expr, aTv:Expr, b:Expr, bPunct:Expr, bTv:Expr, mergedStamp:Expr, conclusions:Expr) {
         var cgrules:Array<CGRule> = []; // all code generation rules which we generated
+        
+        // add set rules
+        // <c-->[a]>.
+        // <c-->[b]>.
+        // |-
+        // <c-->[b a]>.
+        cgrules.push(new CGRule("-->", "subj", ".",  "-->", "subj", ".",    "a.subj", "-->", "x", [Precond.NotSet("a.subj"), Precond.SetInt("a.pred"), Precond.SetInt("b.pred")], [Postcond.SetUnion("x", "a.pred", "b.pred")], "intersection"));
+
+        // <{a}-->c>.
+        // <{b}-->c>.
+        // |-
+        // <{b a}-->c>.
+        cgrules.push(new CGRule("-->", "pred", ".",  "-->", "pred", ".",    "x", "-->", "a.pred", [Precond.NotSet("a.pred"), Precond.SetExt("a.subj"), Precond.SetExt("b.subj")], [Postcond.SetUnion("x", "a.subj", "b.subj")], "intersection"));
+
+
 
         // ======
         // generate rules for compact rule-table sylogistic inference for NAL-2 and NAL-6
@@ -83,7 +98,7 @@ class Deriver {
                             case _: throw "Internal error";
                         };
     
-                        cgrules.push(new CGRule(aCop, "subj", ".",  bCop, "subj", ".",    "a.pred", conclCop, "b.pred", [Precond.NotSet("a.pred"), Precond.NotSet("b.pred")], tfn));
+                        cgrules.push(new CGRule(aCop, "subj", ".",  bCop, "subj", ".",    "a.pred", conclCop, "b.pred", [Precond.NotSet("a.pred"), Precond.NotSet("b.pred")], [], tfn));
                     }
 
                     { // same predicate   b ??> a   c ??> a  |-   b ??> c
@@ -100,7 +115,7 @@ class Deriver {
                             case _: throw "Internal error";
                         };
     
-                        cgrules.push(new CGRule(aCop, "pred", ".",    bCop, "pred", ".",     "a.subj", conclCop, "b.subj", [Precond.NotSet("a.subj"), Precond.NotSet("b.subj")], tfn));
+                        cgrules.push(new CGRule(aCop, "pred", ".",    bCop, "pred", ".",     "a.subj", conclCop, "b.subj", [Precond.NotSet("a.subj"), Precond.NotSet("b.subj")], [], tfn));
                     }
 
                     { // same pred-subj   a ??> b   b ??> c   |-  a ??> c
@@ -117,7 +132,7 @@ class Deriver {
                             case _: throw "Internal error";
                         }
 
-                        cgrules.push(new CGRule(aCop, "pred",".",    bCop,"subj",".",     "a.subj", conclCop, "b.pred", [Precond.NotSameSetType("a.subj", "b.pred")], tfn));
+                        cgrules.push(new CGRule(aCop, "pred",".",    bCop,"subj",".",     "a.subj", conclCop, "b.pred", [Precond.NotSameSetType("a.subj", "b.pred")], [], tfn));
                     }
                 }
             }
@@ -141,34 +156,6 @@ class Deriver {
                             if (TermUtils.equal(aSyl, bSyl) &&
                                 !TermUtils.isSet(aSyl) // never allow the common term to be a set!
                             ) {
-                                // now we just need to build conclusion and compute TV
-
-                                // build conclusion term
-                                var conclSubj: Term = switch($v{iCGRule.conclSubj}) {
-                                    case "a.subj": subjA;
-                                    case "a.pred": predA;
-                                    case "b.subj": subjB;
-                                    case "b.pred": predB;
-                                    case _: null;
-                                }
-                                var conclPred: Term = switch($v{iCGRule.conclPred}) {
-                                    case "a.subj": subjA;
-                                    case "a.pred": predA;
-                                    case "b.subj": subjB;
-                                    case "b.pred": predB;
-                                    case _:null;
-                                }
-                                var conclTerm: Term = Term.Cop($v{iCGRule.conclCop}, conclSubj, conclPred);
-                                
-                                var conclusionTv: Tv = switch ($v{iCGRule.tfn}) {
-                                    case "induction": Tv.induction($aTv,$bTv);
-                                    case "deduction": Tv.deduction($aTv,$bTv);
-                                    case "abduction": Tv.abduction($aTv,$bTv);
-                                    case "analogy": Tv.analogy($aTv,$bTv);
-                                    case "resemblance": Tv.resemblance($aTv,$bTv);
-                                    case _:throw "Internal Error";
-                                }
-
                                 var precondsFullfilled = true; // are all preconditions fullfilled?
 
                                 for (iPrecond in $v{iCGRule.preconds}) { // iterate over each precondition
@@ -210,10 +197,110 @@ class Deriver {
                                                 precondsFullfilled = false;
                                             }
                                         }
+
+                                        case SetExt(x):
+                                        {
+                                            var xTerm: Term = switch(x) {
+                                                case "a.subj": subjA;
+                                                case "a.pred": predA;
+                                                case "b.subj": subjB;
+                                                case "b.pred": predB;
+                                                case _:null;
+                                            }
+
+                                            if (!TermUtils.isSetExt(xTerm)) {
+                                                precondsFullfilled = false;
+                                            }
+                                        }
+
+                                        case SetInt(x):
+                                        {
+                                            var xTerm: Term = switch(x) {
+                                                case "a.subj": subjA;
+                                                case "a.pred": predA;
+                                                case "b.subj": subjB;
+                                                case "b.pred": predB;
+                                                case _:null;
+                                            }
+
+                                            if (!TermUtils.isSetInt(xTerm)) {
+                                                precondsFullfilled = false;
+                                            }
+                                        }
                                     }
                                 }
                                 
                                 if (precondsFullfilled) { // preconditions must be fullfilled
+                                    var termX:Term = null; // special term computed by postcondition
+                                    
+                                    // compute postconditions
+                                    for (iPostcond in $v{iCGRule.postconds}) {
+                                        
+                                        switch(iPostcond) {
+                                            
+                                            case Deriver.Postcond.SetUnion(dest, a, b): // compute set union
+                                            {
+                                                var aTerm: Term = switch(a) {
+                                                    case "a.subj": subjA;
+                                                    case "a.pred": predA;
+                                                    case "b.subj": subjB;
+                                                    case "b.pred": predB;
+                                                    case _:null;
+                                                }
+
+                                                var bTerm: Term = switch(b) {
+                                                    case "a.subj": subjA;
+                                                    case "a.pred": predA;
+                                                    case "b.subj": subjB;
+                                                    case "b.pred": predB;
+                                                    case _:null;
+                                                }
+
+                                                // compute actual union
+                                                var mergedSet:Term = TermUtils.setMerge2(aTerm, bTerm);
+
+                                                // store
+                                                switch (dest) {
+                                                    case "x": termX = mergedSet;
+                                                    case _:null; // ignore
+                                                }
+                                            }
+                                        }
+                                        
+                                    }
+
+                                    // now we just need to build conclusion and compute TV
+
+                                    // build conclusion term
+                                    var conclSubj: Term = switch($v{iCGRule.conclSubj}) {
+                                        case "a.subj": subjA;
+                                        case "a.pred": predA;
+                                        case "b.subj": subjB;
+                                        case "b.pred": predB;
+                                        case "x": termX;
+                                        case _: null;
+                                    }
+                                    var conclPred: Term = switch($v{iCGRule.conclPred}) {
+                                        case "a.subj": subjA;
+                                        case "a.pred": predA;
+                                        case "b.subj": subjB;
+                                        case "b.pred": predB;
+                                        case "x": termX;
+                                        case _:null;
+                                    }
+                                    var conclTerm: Term = Term.Cop($v{iCGRule.conclCop}, conclSubj, conclPred);
+                                    
+                                    var conclusionTv: Tv = switch ($v{iCGRule.tfn}) {
+                                        case "induction": Tv.induction($aTv,$bTv);
+                                        case "deduction": Tv.deduction($aTv,$bTv);
+                                        case "abduction": Tv.abduction($aTv,$bTv);
+                                        case "analogy": Tv.analogy($aTv,$bTv);
+                                        case "resemblance": Tv.resemblance($aTv,$bTv);
+                                        case "intersection": Tv.intersection($aTv,$bTv);
+                                        case _:throw "Internal Error";
+                                    }
+                                    
+                                    
                                     // TODO< transfer rulename from rule to conclusions >
                                     conclusions.push({term:conclTerm, tv:conclusionTv, punctation:".", stamp:$mergedStamp, ruleName:"?"});
                                 }
@@ -235,7 +322,7 @@ class Deriver {
 // syllogistic code gen rule
 class CGRule {
     // /param tfn truth-function
-    public function new(aCop, aCode, aPunct, bCop, bCode,bPunct,    conclSubj, conclCop, conclPred, preconds:Array<Precond> ,tfn:String) {
+    public function new(aCop, aCode, aPunct, bCop, bCode,bPunct,    conclSubj, conclCop, conclPred, preconds:Array<Precond>, postconds:Array<Postcond>, tfn:String) {
         this.aCop=aCop; this.aCode=aCode;
         this.aPunct=aPunct; this.bPunct=bPunct;
         this.bCop=bCop; this.bCode=bCode;
@@ -243,6 +330,7 @@ class CGRule {
         this.conclCop=conclCop;
         this.conclPred=conclPred;
         this.preconds=preconds;
+        this.postconds=postconds;
         this.tfn=tfn;
     }
 
@@ -255,12 +343,21 @@ class CGRule {
     public var conclSubj:String;
     public var conclCop:String;
     public var conclPred:String;
-    public var preconds:Array<Precond>; // preconditions predicates
+    public var preconds:Array<Precond>; // precondition predicates
+    public var postconds:Array<Postcond>; // postcondition predicates
     public var tfn:String;
+}
+
+
+// postcondition - used for composing result
+enum Postcond {
+    SetUnion(dest:String, a:String, b:String); // compute set union and store under variable "dest"
 }
 
 // precondition
 enum Precond {
     NotSameSetType(a:String, b:String); // check that the premises don't have the same set type, set types can be extensional or intensional
     NotSet(a:String);
+    SetExt(a:String);
+    SetInt(a:String);
 }
