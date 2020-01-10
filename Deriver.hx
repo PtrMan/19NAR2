@@ -8,25 +8,18 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-import haxe.macro.Expr;
-
 /*
 TODO
 
 * remove superfluous rules to not generate redudantant code
-
-* implement set unification rules
-  ASET --> x
-  BSET --> x
-  |-
-  Union(Aset, Bset) --> x
-
 
 unittest:
 
 test that it doesn't derive if the set constraints are not fullfilled!
 
 */
+
+import haxe.macro.Expr;
 
 class Deriver {
     public static function main() {
