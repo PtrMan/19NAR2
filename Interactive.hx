@@ -16,8 +16,9 @@ class Interactive {
         var reasoner = new Sq2();
         reasoner.conclusionStrArr = []; // enable output logging
 
-        if (Sys.args().length > 0) {
-            var pathToLoad = Sys.args()[0];
+        // load zero or any number of *.nal files
+        for (iArg in Sys.args()) {
+            var pathToLoad = iArg;
             var nalFileContent = File.getContent(pathToLoad);
 
             var nalLines = nalFileContent.split("\r\n");
