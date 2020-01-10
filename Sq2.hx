@@ -659,7 +659,9 @@ class Sq2 {
             case _: null;
         }
 
-        // NAL-2 <-> / NAL-6 <=> structural transformation to --> and ==>
+        // NAL-2 / NAL-6 structural deduction
+        // (S <-> P) |- (S --> P) Truth_StructuralDeduction
+        // (S <=> P) |- (S ==> P) Truth_StructuralDeduction
         if (premisePunctation == ".") switch (premiseTerm) {
             case Cop(copula, subj, pred) if (copula == "<->" || copula == "<=>"):
 
@@ -669,7 +671,24 @@ class Sq2 {
             
             if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
                 var structuralOrigins = new StructuralOriginsStamp( premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]) );
-                conclusions.push({term:conclusionTerm, tv:premiseTv, punctation:".", stamp:new Stamp(premiseStamp.ids, structuralOrigins), ruleName:(copula == "<->" ? "NAL-2" : "NAL-6") + ".single structural"});
+                conclusions.push({term:conclusionTerm, tv:Tv.structDeduction(premiseTv), punctation:".", stamp:new Stamp(premiseStamp.ids, structuralOrigins), ruleName:(copula == "<->" ? "NAL-2" : "NAL-6") + ".single structural ded"});
+            }
+
+            case _: null;
+        }
+
+        // NAL-2 structural abduction
+        // (S --> P) |- (S <-> P) Truth_StructuralAbduction
+        if (premisePunctation == ".") switch (premiseTerm) {
+            case Cop(copula, subj, pred) if (copula == "-->"):
+
+            // TODO< bump derivation depth >
+            
+            var conclusionTerm = Term.Cop("<->", subj,pred);
+            
+            if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
+                var structuralOrigins = new StructuralOriginsStamp( premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]) );
+                conclusions.push({term:conclusionTerm, tv:Tv.structAbduction(premiseTv), punctation:".", stamp:new Stamp(premiseStamp.ids, structuralOrigins), ruleName:"NAL-2" + ".single structural abd"});
             }
 
             case _: null;

@@ -73,7 +73,15 @@ class Tv {
         return new Tv(f, c);
     }
 
+    public static function structDeduction(x) {
+        var v_structural = new Tv(1.0, 0.9);
+        return deduction(x, v_structural);
+    }
 
+    public static function structAbduction(x) {
+        var v_structural = new Tv(1.0, 0.9);
+        return abduction(x, v_structural);
+    }
 
 
     public static function intersection(a, b) {
