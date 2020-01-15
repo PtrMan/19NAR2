@@ -1,4 +1,4 @@
 <(is * tom * fat) --> nlp>?
-<<($x * $y) --> is> <=> <(is * $x * $y) --> nlp>>.
+<<($x * $y) --> R> <=> <(is * $x * $y) --> nlp>>.
 <tom --> human>.
-<(human * fat) --> is>.
+<(human * fat) --> R>.
