@@ -200,6 +200,9 @@ class Sq2 {
 
                     // try to find better answer
                     for (iBelief in nodeOfTerm.judgments) {
+                        //trace('Q&A check answer ${TermUtils.convToStr(iBelief.term)}');
+                        //trace('unifies = ${Unifier.checkUnify(premiseSentence.term, iBelief.term)}');
+
                         if (iBelief.tv.exp() > chosenWorkingSetEntity.bestAnswerExp && Unifier.checkUnify(premiseSentence.term, iBelief.term) ) {
                             // found a better answer
                             chosenWorkingSetEntity.bestAnswerExp = iBelief.tv.exp();
@@ -1724,8 +1727,13 @@ class Unifier {
             throw "Internal error - should be handled earilier in function!";
             case Str(_):
             return false; // doesn't unify because not equal
-            case Set(_,_):
-            return false; // doesn't unify because not equal
+            case Set(typeA,contentA):
+            switch (b) {
+                case Set(typeB, contentB) if (typeA==typeB):
+                return unifyArr(contentA, contentB);
+                case _:
+                return false; // can't unify because it is different
+            }
         }
 
         return true; // can unify
