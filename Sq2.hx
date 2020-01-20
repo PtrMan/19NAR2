@@ -358,66 +358,12 @@ class Sq2 {
             return true; // TODO< implement >
         }
 
-        // reduces/foldes term
-        // ex: ( a & b & (a & c) )  ====>  ( a & b & c )
-        function fold(foldedType:String, extInt:Term):Term {
-            var terms = [];
-
-            function processRec(term) {
-                switch (term) {
-                    case Term.Compound(foldedType,content):
-                    for (iContent in content) {
-                        processRec(iContent);
-                    }
-                    case _:
-                    if (!Utils.contains(terms, term)) {
-                        terms.push(term);
-                    }
-                }
-            }
-            processRec(extInt);
-
-            return Compound(foldedType, terms);
-        }
-
         var mergedStamp = Stamp.merge(premiseAStamp, premiseBStamp);
 
         var conclusions:Array<{term:Term, tv:Tv, punctation:String, stamp:Stamp, ruleName:String}> = [];
 
         // call to generated code for deriver
         Deriver.inferenceCode(premiseATerm, premiseAPunctation, premiseATv, premiseBTerm, premiseBPunctation, premiseBTv, mergedStamp, conclusions);
-
-        if (premiseAPunctation == "." && premiseBPunctation == ".") {
-
-            // NAL-3 union, intersection
-            switch (premiseATerm) {
-                case Cop("-->", subjA, predA):
-
-                switch (premiseBTerm) {
-                    case Cop("-->", subjB, predB) if (TermUtils.equal(predA, predB) && !TermUtils.equal(subjA, subjB) && !checkSet(subjA) && !checkSet(subjB) && checkNoCommonSubterm(subjA, subjB)):
-
-                    {
-                        // #R[(P --> M) (S --> M) |- ((S & P) --> M) :post (:t/union))
-                        var conclusionSubj = fold("&", Compound("&",[subjA, subjB]));
-                        var conclusionTerm = Term.Cop("-->", conclusionSubj, predA);
-                        conclusions.push({term:conclusionTerm, tv:Tv.union(premiseATv, premiseBTv), punctation:".", stamp:mergedStamp, ruleName:"NAL-3.two union"});
-                    }
-
-                    {
-                        // #R[(P --> M) (S --> M) |- ((S | P) --> M) :post (:t/intersection)
-                        var conclusionSubj = fold("|", Compound("|",[subjA, subjB]));
-                        var conclusionTerm = Term.Cop("-->", conclusionSubj, predA);
-                        conclusions.push({term:conclusionTerm, tv:Tv.intersection(premiseATv, premiseBTv), punctation:".", stamp:mergedStamp, ruleName:"NAL-3.two intersection"});
-                    }
-
-
-                    case _: null;
-                }
-
-                case _: null;
-            }            
-        }
-
 
 
         // tries to unify a with b and return the unified term, returns null if it can't get unified

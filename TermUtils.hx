@@ -263,6 +263,28 @@ class TermUtils {
         }
     }
 
+    // reduces/foldes term
+    // ex: ( a & b & (a & c) )  ====>  ( a & b & c )
+    public static function fold(foldedType:String, extInt:Term):Term {
+        var terms = [];
+
+        function processRec(term) {
+            switch (term) {
+                case Term.Compound(foldedType,content):
+                for (iContent in content) {
+                    processRec(iContent);
+                }
+                case _:
+                if (!Utils.contains(terms, term)) {
+                    terms.push(term);
+                }
+            }
+        }
+        processRec(extInt);
+
+        return Compound(foldedType, terms);
+    }
+
     // checks if the term encodes a op
     public static function isOp(term:Term):Bool {
         return switch (term) {

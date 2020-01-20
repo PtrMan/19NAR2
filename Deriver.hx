@@ -52,6 +52,14 @@ class Deriver {
         cgrules.push(new CGRule("-->", "pred", ".",  "-->", "pred", ".",    "x", "-->", "a.pred", [Precond.NotSet("a.pred"), Precond.SetExt("a.subj"), Precond.SetExt("b.subj")], [Postcond.SetUnion("x", "a.subj", "b.subj")], "intersection"));
 
 
+        // <P --> M>
+        // <S --> M>
+        // |-
+        // <(S | P) --> M>
+        // <(S & P) --> M>
+        cgrules.push(new CGRule("-->", "pred", ".",  "-->", "pred", ".",   "x", "-->", "a.pred", [], [Postcond.FoldCompound("x", "|", "a.subj", "b.subj")], "intersection"));
+        cgrules.push(new CGRule("-->", "pred", ".",  "-->", "pred", ".",   "x", "-->", "a.pred", [], [Postcond.FoldCompound("x", "&", "a.subj", "b.subj")], "union"));
+
 
         // ======
         // generate rules for compact rule-table sylogistic inference for NAL-2 and NAL-6
@@ -258,6 +266,34 @@ class Deriver {
                                                     case _:null; // ignore
                                                 }
                                             }
+
+                                            case Deriver.Postcond.FoldCompound(dest, type, a, b):
+                                            {
+                                                var aTerm: Term = switch(a) {
+                                                    case "a.subj": subjA;
+                                                    case "a.pred": predA;
+                                                    case "b.subj": subjB;
+                                                    case "b.pred": predB;
+                                                    case _:null;
+                                                }
+
+                                                var bTerm: Term = switch(b) {
+                                                    case "a.subj": subjA;
+                                                    case "a.pred": predA;
+                                                    case "b.subj": subjB;
+                                                    case "b.pred": predB;
+                                                    case _:null;
+                                                }
+                                                
+                                                var compound = Term.Compound(type, [aTerm, bTerm]);
+                                                compound = TermUtils.fold(type, compound);
+                                                
+                                                // store
+                                                switch (dest) {
+                                                    case "x": termX = compound;
+                                                    case _:null; // ignore
+                                                }
+                                            }
                                         }
                                         
                                     }
@@ -290,6 +326,7 @@ class Deriver {
                                         case "analogy": Tv.analogy($aTv,$bTv);
                                         case "resemblance": Tv.resemblance($aTv,$bTv);
                                         case "intersection": Tv.intersection($aTv,$bTv);
+                                        case "union": Tv.union($aTv,$bTv);
                                         case _:throw "Internal Error";
                                     }
                                     
@@ -345,6 +382,7 @@ class CGRule {
 // postcondition - used for composing result
 enum Postcond {
     SetUnion(dest:String, a:String, b:String); // compute set union and store under variable "dest"
+    FoldCompound(dest:String, type:String, a:String, b:String); // create compound, fold it, and store under variable "dest"
 }
 
 // precondition
