@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Robert Wünsche
+Copyright 2020 Robert Wünsche
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
@@ -24,14 +24,19 @@ class Interactive {
             var nalLines = nalFileContent.split("\r\n");
             for (iNalLine in nalLines) {
                 trace(iNalLine); // debug read line
-                reasoner.input(iNalLine);
+
+                if (iNalLine.length == 0) {} // ignore empty lines
+                else {
+                    reasoner.input(iNalLine);
+                }
             }
         }
 
         while(true) {
             var inputLine: String = Sys.stdin().readLine();
 
-            if (inputLine.charAt(0) == "!" && inputLine.charAt(1) == "s") { // step
+            if (inputLine.length == 0) {} // ignore empty lines
+            else if (inputLine.charAt(0) == "!" && inputLine.charAt(1) == "s") { // step
                 var steps = Std.parseInt(inputLine.substring(2, inputLine.length));
                 reasoner.process(steps);
             }
