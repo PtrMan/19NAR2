@@ -738,7 +738,6 @@ class Sq2 {
         ProtoLexer.main(); // test parser
 
 
-
         /* TODO< add interesting unittest once it can build "&"
         { // create "seed" premise and put it into working set
             var premiseTerm:Term = Cop("-->", Prod([Name("a"), Name("a")]), Name("c"));
@@ -2172,6 +2171,10 @@ enum EnumOperationType {
     STAR; // *
     SLASH; // "/"
     UNDERSCORE; // _
+    AMPERSAND; // &
+    PIPE; // |
+    MINUS; // -
+
     //COMMA; // ,
     //DOUBLEAMPERSAND; // &&
     //AMPERSAND; // &
@@ -2213,6 +2216,9 @@ class NarseseLexer extends Lexer<EnumOperationType> {
             /* 21*/"^\"[a-z0-9A-Z_!\\?:\\.,;\\ \\-\\(\\)\\[\\]{}<>]*\"", // string 
 
             /* 22*/"^\\_",
+            /* 23*/"^&", // used for compounds
+            /* 24*/"^\\|", // used for compounds
+            /* 25*/"^-", // used for compounds
         ];
     }
 
@@ -2350,6 +2356,24 @@ class NarseseLexer extends Lexer<EnumOperationType> {
             res.contentString = matchedString;
             return res;
 
+            case 23:
+            var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
+            res.contentOperation = EnumOperationType.AMPERSAND;
+            res.contentString = matchedString;
+            return res;
+
+            case 24:
+            var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
+            res.contentOperation = EnumOperationType.PIPE;
+            res.contentString = matchedString;
+            return res;
+
+            case 25:
+            var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
+            res.contentOperation = EnumOperationType.MINUS;
+            res.contentString = matchedString;
+            return res;
+
             default:
             throw 'Not implemented regex rule index=$ruleIndex!';
         }
@@ -2395,6 +2419,9 @@ class NarseseParser extends Parser<EnumOperationType> {
             case STAR: 18; // *
             case SLASH: 19; // "/"
             case UNDERSCORE: 22; // _
+            case AMPERSAND: 23; // &
+            case PIPE: 24; // |
+            case MINUS: 25; // -
         }
     }
 }
@@ -2410,6 +2437,12 @@ class ProtoLexer {
     public static function main() {
         // print printed terms to check right parsing manually
         var parseResults = [
+            parse("<(a & b) --> x>."),
+            parse("<(a & b & c) --> x>."),
+            parse("<(a | b) --> x>."),
+            parse("<(a | b | c) --> x>."),
+            parse("<(a - b) --> x>."),
+
             // set
             parse("<{a} --> x>."),
             //parse("<{a b} --> x>."), // commented because multi sets are not supported
@@ -2600,44 +2633,60 @@ class ProtoLexer {
             // type of product, can be null if it is not known or "PROD" if it is a product
             var type = switch (braceContent[1]) {
                 case Name("*"): // is product
-                "PROD";
+                "*";
+                case Name("&"):
+                "&";
+                case Name("|"):
+                "|";
+                case Name("-"):
+                "-";
                 case _:
-                throw "Parsing failed: content in \"(\" ... \")\" must be a product!"; // TODO< can also be a image >
+                // TODO< better error message >
+                throw "Parsing failed: content in \"(\" ... \")\" must be a product or conj/disj!"; // TODO< can also be a image >
+            }
+
+            if (braceContent.length%2 != 1) { // must be uneven
+                throw "Parsing failed: invalid content of brace!";
+            }
+
+            // check type
+            var idx = 1;
+            while (idx < braceContent.length) {
+                switch (braceContent[idx]) {
+                    case Name(type2) if (type2 == type):
+                    case _:
+                    throw "Parsing failed: product elements must be seperated with * !";
+                }
+                idx+=2;
+            }
+
+            // enumerate content
+            var productContent: Array<Term> = [];
+            idx = 0;
+            while (idx < braceContent.length) {
+                switch (braceContent[idx]) {
+                    case Name(type2) if (type2 == "*" || type2 == "&" || type2 == "|" || type2 == "-"):
+                    throw 'Parsing failed: product elements must not be $type2 !';
+                    case _:
+                    productContent.push(braceContent[idx]);
+                }
+                idx+=2;
             }
 
             switch (type) {
-                case "PROD": // is a product
-
-                if (braceContent.length%2 != 1) { // must be uneven
-                    throw "Parsing failed: invalid product!";
-                }
-
-                // check type
-                var idx = 1;
-                while (idx < braceContent.length) {
-                    switch (braceContent[idx]) {
-                        case Name("*"):
-                        case _:
-                        throw "Parsing failed: product elements must be seperated with * !";
-                    }
-                    idx+=2;
-                }
-
-                // enumerate content
-                var productContent: Array<Term> = [];
-                idx = 0;
-                while (idx < braceContent.length) {
-                    switch (braceContent[idx]) {
-                        case Name("*"):
-                        throw "Parsing failed: product elements must not be * !";
-                        case _:
-                        productContent.push(braceContent[idx]);
-                    }
-                    idx+=2;
-                }
-
+                case "*": // is a product
                 // build and return Prod(productContent) to stack
                 parser2.stack.push(Prod(productContent));
+
+                case type2 if (type2 == "&" || type2 == "|"): // is compound
+                parser2.stack.push(Compound(type2, productContent));
+
+                case "-": // is compound
+                // check
+                if (productContent.length != 2) {
+                    throw 'Parsing failed: difference defined for two elements!';
+                }
+                parser2.stack.push(Compound("-", productContent));
 
                 case _:
                 throw "Internal error"; // TODO< remove with special enum >
@@ -2749,12 +2798,12 @@ class ProtoLexer {
             /*  30 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 18, tokenStore, 0, 31), // "*" - is a seperator of a product, just store it
             /*  31 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 12, tokenStore, 32, 33), // "{" - we need to store token to know when the set ended
             /*  32 */new Arc<EnumOperationType>(EnumArcType.ARC, 80, null, 0, null),
-            /*  33 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 14, tokenStore, 34, null), // "[" - we need to store token to know when the set ended
+            /*  33 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 14, tokenStore, 34, 35), // "[" - we need to store token to know when the set ended
             /*  34 */new Arc<EnumOperationType>(EnumArcType.ARC, 90, null, 0, null),
 
-            /*  35 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
-            /*  36 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
-            /*  37 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  35 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 23, tokenStore, 0, 36), // "&" - is a seperator for compound, just store it
+            /*  36 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 24, tokenStore, 0, 37), // "|" - is a seperator for compound, just store it
+            /*  37 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 25, tokenStore, 0, null), // "-" - is a seperator for compound, just store it
             /*  38 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
             /*  39 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
 
