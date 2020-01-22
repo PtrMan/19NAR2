@@ -157,9 +157,12 @@ class Sq2 {
                             // we found an answer to a question
                             // now we can "boost" the answer (if it exists as a task, so we search the matching task and boost it)
                             {
+                                var needToRecompute = false;
+
                                 for (iWorkingSetEntity in workingSet.entities) {
                                     if (Sentence.equal(iWorkingSetEntity.sentence, iBelief)) {
                                         iWorkingSetEntity.isAnswerToQuestion = true;
+                                        needToRecompute = true;
 
                                         trace('Q&A boost answer ${iWorkingSetEntity.sentence.convToStr()}');
 
@@ -167,7 +170,9 @@ class Sq2 {
                                     }
                                 }
 
-                                // TODO< recompute priority distribution >
+                                if (needToRecompute) {
+                                    workingSet.recompute(); // recompute priority distribution
+                                }
                             }
                         }
                     }
@@ -1385,6 +1390,19 @@ class WorkingSet {
             res += '   ${iEntity.sentence.convToStr()}:  score=${iEntity.calcUtility()} accScore=${iEntity.accuScore}\n';
         }
         return res;
+    }
+
+    // forces a recomputation of the entire distribution
+    public function recompute() {
+        if (entities.length == 0) {
+            return;
+        }
+
+        entities[0].accuScore = entities[0].calcUtility();
+
+        for(idx in 1...entities.length) {
+            entities[idx].accuScore = entities[idx-1].accuScore + entities[idx].calcUtility();
+        }
     }
 
     // commented because not used
