@@ -144,6 +144,8 @@ class Sq2 {
                     }
                     var nodeOfTerm: Node = mem.retConceptByName(TermUtils.convToStr(iTermName));
 
+                    var needToRecompute = false;
+
                     // try to find better answer
                     for (iBelief in nodeOfTerm.judgments) {
                         //trace('Q&A check answer ${TermUtils.convToStr(iBelief.term)}');
@@ -157,8 +159,6 @@ class Sq2 {
                             // we found an answer to a question
                             // now we can "boost" the answer (if it exists as a task, so we search the matching task and boost it)
                             {
-                                var needToRecompute = false;
-
                                 for (iWorkingSetEntity in workingSet.entities) {
                                     if (Sentence.equal(iWorkingSetEntity.sentence, iBelief)) {
                                         iWorkingSetEntity.isAnswerToQuestion = true;
@@ -169,12 +169,12 @@ class Sq2 {
                                         break;
                                     }
                                 }
-
-                                if (needToRecompute) {
-                                    workingSet.recompute(); // recompute priority distribution
-                                }
                             }
                         }
+                    }
+
+                    if (needToRecompute) {
+                        workingSet.recompute(); // recompute priority distribution
                     }
                 }
             }
