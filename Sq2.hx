@@ -133,7 +133,10 @@ class Sq2 {
     public function input(narsese:String) {
         var parseResult = ProtoLexer.parse(narsese);
 
-        var tv = new Tv(1.0, 0.9); // standard TV
+        var tv = null;
+        if (parseResult.punctuation != "?") {
+            tv = new Tv(1.0, 0.9); // standard TV
+        }
         if (parseResult.tvFreq != null) {
             tv.freq = parseResult.tvFreq;
             tv.conf = parseResult.tvConf;
