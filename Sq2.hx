@@ -645,6 +645,27 @@ class Sq2 {
             case _: null;
         }
 
+        // NAL-3 structural decomposition for question for better Q&A
+        if (premisePunctation == "?") switch (premiseTerm) {
+            // <(a & b) --> c>?
+            // |-
+            // <a --> c>?
+            // <b --> c>?
+            case Cop(cop, Compound(compType, compContent), pred) if (compType == "&" || compType == "|"):
+
+            for(iCompContent in compContent) {
+                // TODO< bump derivation depth >
+                
+                var conclusionTerm = Term.Cop(cop, iCompContent, pred);
+
+                // we don't need to check structural stamp, because it is not necessary
+                var structuralOrigins = new StructuralOriginsStamp([]);
+                conclusions.push({term:conclusionTerm, tv:premiseTv, punctation:premisePunctation, stamp:new Stamp(premiseStamp.ids, structuralOrigins), ruleName:"NAL-3" + '.single structural decompose $compType'});
+            }
+
+            case _: null;
+        }
+
 
         // NAL-4  product to image transform
         if (premisePunctation == "." || premisePunctation == "?") switch (premiseTerm) {
