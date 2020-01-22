@@ -34,73 +34,16 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 // TODO< attention mechanism : stresstest attention >
 
-// TODO< backward derivation >
-
 // TODO< keep concepts(nodes) under AIKR (by calculating the max exp() and throwing the concepts out with lowest max exp() >
 
 // TODO< keep tasks under AIKR (by sorting by score(utility) and slicing)
-
-// TODO CONTINUE IMPL< most NAL-2 like in new meta rules >
-
-
-
-// TODO< check if it builds and implement if not derived:
-// <shape1 --> rectangle>.
-// <shape1 --> [filled]>.
-// to
-// <shape1 --> (&, rectangle, [filled])>
 
 
 // TODO COMPLICATED< Q&A - do structural transformations on question side without adding the question to the memory or the tasks, sample all possible structural transformations and remember which transformations were done, etc >
 
 
-
-// DONE< variables >
-
-// DONE< structural transformation of <-> and <=> >
-// DONE TEST< unittest structural transformation of <-> and <=> >
-
-// DONE< rename to Node like in ALANN >
-
-// DONE< structural transform from images back to products >
-// DONE TEST< structural transform from images back to products >
-// DONE TEST< structural transform from products to images >
-
-// DONE< revision >
-
-// DONE< equivalence structural transformation with two premises ded >
-// ex:
-// <<$x-->d> <=> <$x-->e>>. [2]
-// <c-->d>. [1]
-// |-
-// <c-->e>. [1]
-// DONE< impl structural transformation with two premises ded >
-// ex:
-// <<$x-->d> ==> <$x-->e>>. [2]
-// <c-->d>. [1]
-// |-
-// <c-->e>. [1]
-
-// DONE< ATTENTION - probabilistic selection of task by probability mass >
-
-// DONE< ATTENTION - test attention mechanism with A-->I example from ALANN >
-
-
-// DONE< structural decomposition >
-//<(*,a,b) --> (*,c,d)>.
-//|-
-//<a-->c>.
-// (and other forms)
-//
-//<(*,a,b) <-> (*,c,d)>.
-//|-
-//<a<->c>.
-// (and other forms)
-
-
-
-
 // TODO< safe structuralOrigins correctly by appending >
+
 class Sq2 {
     public var mem:Memory = new Memory();
 
