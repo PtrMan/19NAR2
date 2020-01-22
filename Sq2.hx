@@ -644,7 +644,7 @@ class Sq2 {
 
 
         // NAL-4  product to image transform
-        if (premisePunctation == ".") switch (premiseTerm) {
+        if (premisePunctation == "." || premisePunctation == "?") switch (premiseTerm) {
             case Cop("-->", Prod([prod0, prod1]), inhPred):
 
             // TODO< bump derivation depth >
@@ -654,7 +654,7 @@ class Sq2 {
             if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
                 // <prod0 --> (/,inhPred,_,prod1)>
                 var structuralOrigins = new StructuralOriginsStamp( premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]) );
-                conclusions.push({term:conclusionTerm, tv:premiseTv, punctation:".", stamp:new Stamp(premiseStamp.ids, structuralOrigins), ruleName:"NAL-6.single prod->img"});
+                conclusions.push({term:conclusionTerm, tv:premiseTv, punctation:premisePunctation, stamp:new Stamp(premiseStamp.ids, structuralOrigins), ruleName:"NAL-6.single prod->img"});
             }
 
             conclusionTerm = Term.Cop("-->", prod1, Img(inhPred, [prod0, ImgWild]));
@@ -663,14 +663,14 @@ class Sq2 {
 
                 // <prod1 --> (/,inhPred,prod0,_)>
                 var structuralOrigins = new StructuralOriginsStamp( premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]) );
-                conclusions.push({term:conclusionTerm, tv:premiseTv, punctation:".", stamp:new Stamp(premiseStamp.ids, structuralOrigins), ruleName:"NAL-6.single prod->img"});
+                conclusions.push({term:conclusionTerm, tv:premiseTv, punctation:premisePunctation, stamp:new Stamp(premiseStamp.ids, structuralOrigins), ruleName:"NAL-6.single prod->img"});
             }
 
             case _: null;
         }
 
         // NAL-4  image to product transform
-        if (premisePunctation == ".") switch (premiseTerm) {
+        if (premisePunctation == "." || premisePunctation == "?") switch (premiseTerm) {
             case Cop("-->", inhSubj, Img(inhPred, [ImgWild, prod1])):
 
             // TODO< bump derivation depth >
@@ -680,7 +680,7 @@ class Sq2 {
             if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
                 // <(*, inhSubj, prod1) --> inhPred>
                 var structuralOrigins = new StructuralOriginsStamp( premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]) );
-                conclusions.push({term:conclusionTerm, tv:premiseTv, punctation:".", stamp:new Stamp(premiseStamp.ids, structuralOrigins), ruleName:"NAL-6.single img->prod"});
+                conclusions.push({term:conclusionTerm, tv:premiseTv, punctation:premisePunctation, stamp:new Stamp(premiseStamp.ids, structuralOrigins), ruleName:"NAL-6.single img->prod"});
             }
 
 
@@ -693,7 +693,7 @@ class Sq2 {
             if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
                 // <(*, prod0, inhSubj) --> inhPred>
                 var structuralOrigins = new StructuralOriginsStamp( premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]) );
-                conclusions.push({term:conclusionTerm, tv:premiseTv, punctation:".", stamp:new Stamp(premiseStamp.ids, structuralOrigins), ruleName:"NAL-6.single img->prod"});
+                conclusions.push({term:conclusionTerm, tv:premiseTv, punctation:premisePunctation, stamp:new Stamp(premiseStamp.ids, structuralOrigins), ruleName:"NAL-6.single img->prod"});
             }
 
             case _: null;
