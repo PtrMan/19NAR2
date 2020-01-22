@@ -1379,10 +1379,12 @@ class WorkingSet {
         entities[entities.length-1].accuScore += entity.calcUtility();
     }
 
-    public function debug() {
-        for (iEntity in entities) {
-            trace('   ${TermUtils.convToStr(iEntity.sentence.term)}${iEntity.sentence.punctation}  score=${iEntity.calcUtility()}');
-        }        
+    public function debug(): String {
+        var res = "";
+        for(iEntity in entities) {
+            res += '   ${iEntity.sentence.convToStr()}:  score=${iEntity.calcUtility()} accScore=${iEntity.accuScore}\n';
+        }
+        return res;
     }
 
     // commented because not used

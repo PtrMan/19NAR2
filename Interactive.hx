@@ -51,9 +51,7 @@ class Interactive {
             }
             else if (inputLine == "!dw") { // debug working set
                 // print working set
-                for(iEntity in reasoner.workingSet.entities) {
-                    Sys.println('   ${iEntity.sentence.convToStr()}:  score=${iEntity.calcUtility()} accScore=${iEntity.accuScore}');
-                }
+                Sys.println(reasoner.workingSet.debug());
             }
             else {
                 reasoner.input(inputLine);
