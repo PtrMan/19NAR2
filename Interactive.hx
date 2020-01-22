@@ -49,6 +49,12 @@ class Interactive {
             else if (inputLine == "!d 0") { // disable debug conclusions
                 Sq2.Config.debug_derivations = false;
             }
+            else if (inputLine == "!dw") { // debug working set
+                // print working set
+                for(iEntity in reasoner.workingSet.entities) {
+                    Sys.println('   ${iEntity.sentence.convToStr()}:  score=${iEntity.calcUtility()} accScore=${iEntity.accuScore}');
+                }
+            }
             else {
                 reasoner.input(inputLine);
             }
