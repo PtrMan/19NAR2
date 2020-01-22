@@ -210,6 +210,22 @@ class Sq2 {
                             // found a better answer
                             chosenWorkingSetEntity.bestAnswerExp = iBelief.tv.exp();
                             reportAnswer(iBelief);
+                            
+                            // we found an answer to a question
+                            // now we can "boost" the answer (if it exists as a task, so we search the matching task and boost it)
+                            {
+                                for (iWorkingSetEntity in workingSet.entities) {
+                                    if (Sentence.equal(iWorkingSetEntity.sentence, iBelief)) {
+                                        iWorkingSetEntity.isAnswerToQuestion = true;
+
+                                        trace('Q&A boost answer ${iWorkingSetEntity.sentence.convToStr()}');
+
+                                        break;
+                                    }
+                                }
+
+                                // TODO< recompute priority distribution >
+                            }
                         }
                     }
                 }
@@ -1379,6 +1395,8 @@ class WorkingSetEntity {
 
     public var bestAnswerExp:Float = 0.0;
 
+    public var isAnswerToQuestion:Bool = false; // is it a answer to a question? is only valid for judgements
+
     public var accuScore = 0.0; // accumulated score of the items in working set up to this item, we store it here for efficiency
 
     public function new(sentence) {
@@ -1391,9 +1409,13 @@ class WorkingSetEntity {
             // questions don't have a TV so we have to provide a specific base utility
             return 0.8; // TODO< expose as tunable parameter >
         }
-        
+
         // TODO< take time into account >
-        return sentence.tv.conf;
+        var baseUtility:Float = sentence.tv.conf;
+
+        var utility:Float = baseUtility * (isAnswerToQuestion ? 2.0 : 1.0); // "boost" answers to questions
+        
+        return utility;
     }
 }
 
