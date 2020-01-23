@@ -67,7 +67,16 @@ class Sq2 {
             mem.updateConceptsForJudgment(sentence);
         }
 
-        var workingSetEntity = new WorkingSetEntity(sentence);
+        var workingSetEntity:WorkingSetEntity = null;
+        if (punctation == ".") {
+            workingSetEntity = new WorkingSetEntity(new JudgementTask(sentence));
+        }
+        else if (punctation == "?") {
+            workingSetEntity = new WorkingSetEntity(new QuestionTask(sentence, QuestionLink.Null));
+        }
+        else {
+            throw "Invalid punctation!";
+        }
 
         workingSet.append(workingSetEntity);
     }
@@ -129,10 +138,12 @@ class Sq2 {
                 chosenWorkingSetEntity = workingSet.entities[idx];
             }
 
-            var premiseSentence = chosenWorkingSetEntity.sentence;
+            var premiseSentence = chosenWorkingSetEntity.task.sentence;
 
             // Q&A
             if (premiseSentence.punctation == "?") {
+                var questionTask = cast(chosenWorkingSetEntity.task, QuestionTask);
+
                 // enumerate subterms
                 // checked terms for enumeration of subterms of question
                 var checkedTerms = TermUtils.enumTerms(premiseSentence.term);
@@ -154,24 +165,30 @@ class Sq2 {
                         var unifies:Bool = Unifier.checkUnify(premiseSentence.term, iBelief.term);
 
                         // check for same exp() because partial answers may have roughtly the same exp(), we still want to boost them
-                        if (Math.abs(iBelief.tv.exp() - chosenWorkingSetEntity.bestAnswerExp) < 0.001 && unifies) {
+                        if (Math.abs(iBelief.tv.exp() - questionTask.bestAnswerExp) < 0.001 && unifies) {
                             // we found an (potential) answer to a question
                             // now we can "boost" the answer (if it exists as a task, so we search the matching task and boost it)
                             for (iWorkingSetEntity in workingSet.entities) {
-                                if (Sentence.equal(iWorkingSetEntity.sentence, iBelief)) {
-                                    iWorkingSetEntity.isAnswerToQuestion = true;
+                                if (iWorkingSetEntity.task.retPunctation() != ".") {
+                                    continue;
+                                }
+                                
+                                var judgmentTask = cast(iWorkingSetEntity.task, JudgementTask);
+                                
+                                if (Sentence.equal(iWorkingSetEntity.task.sentence, iBelief)) {
+                                    judgmentTask.isAnswerToQuestion = true;
                                     needToRecompute = true;
 
-                                    if(Config.debug_qaBoost)   trace('Q&A boost (potential) answer ${iWorkingSetEntity.sentence.convToStr()}');
+                                    if(Config.debug_qaBoost)   trace('Q&A boost (potential) answer ${iWorkingSetEntity.task.sentence.convToStr()}');
 
                                     break;
                                 }
                             }
                         }
 
-                        if (iBelief.tv.exp() > chosenWorkingSetEntity.bestAnswerExp && unifies ) {
+                        if (iBelief.tv.exp() > questionTask.bestAnswerExp && unifies ) {
                             // found a better answer
-                            chosenWorkingSetEntity.bestAnswerExp = iBelief.tv.exp();
+                            questionTask.bestAnswerExp = iBelief.tv.exp();
                             reportAnswer(iBelief);
                         }
                     }
@@ -182,11 +199,11 @@ class Sq2 {
                 }
             }
 
-            var premiseTerm = chosenWorkingSetEntity.sentence.term;
-            var premiseTermStructuralOrigins = chosenWorkingSetEntity.sentence.stamp.structuralOrigins.arr;
-            var premiseTv = chosenWorkingSetEntity.sentence.tv;
-            var premisePunctation = chosenWorkingSetEntity.sentence.punctation;
-            var premiseStamp = chosenWorkingSetEntity.sentence.stamp;
+            var premiseTerm = chosenWorkingSetEntity.task.sentence.term;
+            var premiseTermStructuralOrigins = chosenWorkingSetEntity.task.sentence.stamp.structuralOrigins.arr;
+            var premiseTv = chosenWorkingSetEntity.task.sentence.tv;
+            var premisePunctation = chosenWorkingSetEntity.task.sentence.punctation;
+            var premiseStamp = chosenWorkingSetEntity.task.sentence.stamp;
             var conclusionsSinglePremise = deriveSinglePremise(premiseTerm, premiseTermStructuralOrigins, premiseTv, premisePunctation, premiseStamp);
 
             var conclusionsTwoPremises = [];
@@ -274,12 +291,21 @@ class Sq2 {
             for (iConclusion in conclusions) {
                 var sentence = new Sentence(iConclusion.term, iConclusion.tv, iConclusion.stamp, iConclusion.punctation);
 
-                var workingSetEntity = new WorkingSetEntity(sentence);
+                var workingSetEntity = null;
+                if (sentence.punctation == ".") {
+                    workingSetEntity = new WorkingSetEntity(new JudgementTask(sentence));
+                }
+                else if (sentence.punctation == "?") {
+                    workingSetEntity = new WorkingSetEntity(new QuestionTask(sentence, QuestionLink.Null));
+                }
+                else {
+                    throw "Internal error";
+                }
                 
                 // try to find conclusion in working set and add only if it doesn't yet exist
                 var existsSentenceInWorkingSet = false;
                 for (iWorkingSetEntity in workingSet.entities) {
-                    if (Sentence.equal(iWorkingSetEntity.sentence, sentence)) {
+                    if (Sentence.equal(iWorkingSetEntity.task.sentence, sentence)) {
                         existsSentenceInWorkingSet = true;
                         break;
                     }
@@ -1335,22 +1361,62 @@ class Sentence {
     }
 }
 
-class WorkingSetEntity {
+// abstract class for a task
+class Task {
     public var sentence:Sentence;
-
-    public var bestAnswerExp:Float = 0.0;
-
-    public var isAnswerToQuestion:Bool = false; // is it a answer to a question? is only valid for judgements
-
-    public var accuScore = 0.0; // accumulated score of the items in working set up to this item, we store it here for efficiency
 
     public function new(sentence) {
         this.sentence = sentence;
     }
 
+    public function retPunctation():String {
+        return sentence.punctation;
+    }
+}
+
+class QuestionTask extends Task {
+    // TODO< link it with a weak link by a global id because AIKR >
+    public var questionLink:QuestionLink; // links the question to a parent question
+    public var questionCompositionChildrenLinks:Array<QuestionTask> = []; // links to compositional children (for one single composition)
+
+    public var bestAnswerExp:Float = 0.0;
+
+    public function new(sentence, questionLink) {
+        super(sentence);
+        this.questionLink = questionLink;
+    }
+}
+
+enum QuestionLink {
+    Null; // isn't linked
+    StructuralSingle(parent:QuestionTask); // question was derived by structural derivation with single premise
+    ComposeSingle(index:Int, parent:QuestionTask); // question was derived by structural decomposition of compound, ex: (a & b)? |- a? |- b?
+                                                   // index is the index in the composition
+}
+
+class JudgementTask extends Task {
+    public var isAnswerToQuestion:Bool = false; // is it a answer to a question?    
+
+    public function new(sentence) {
+        super(sentence);
+    }
+}
+
+
+
+
+class WorkingSetEntity {
+    public var task:Task;
+
+    public var accuScore = 0.0; // accumulated score of the items in working set up to this item, we store it here for efficiency
+
+    public function new(task) {
+        this.task = task;
+    }
+
     // /param scoreSumOfUnboosted
     public function calcUtility(scoreSumOfUnboosted:Float) {
-        if (sentence.punctation == "?") {
+        if (task.retPunctation() == "?") {
             // TODO< take time into account >
             // questions don't have a TV so we have to provide a specific base utility
             return 0.8; // TODO< expose as tunable parameter >
@@ -1358,14 +1424,14 @@ class WorkingSetEntity {
 
         // TODO< take time into account >
         var utility:Float = 0.0;
-        if (isAnswerToQuestion) {
+        if (task.retPunctation() == "." && cast(task, JudgementTask).isAnswerToQuestion) {
             utility = /* commented because something else doesn't work yet   sentence.tv.conf * */ 2.0 * scoreSumOfUnboosted; // "boost" answer to question
         }
         else {
-            utility = sentence.tv.conf;
+            utility = task.sentence.tv.conf;
         }
         
-        utility = sentence.tv.conf;
+        utility = task.sentence.tv.conf;
 
 
         return utility;
@@ -1388,7 +1454,7 @@ class WorkingSet {
             entities[entities.length-1].accuScore = entities[entities.length-2].accuScore;
         }
 
-        if (!entity.isAnswerToQuestion) {
+        if (!(entity.task.retPunctation() == "." && cast(entity.task, JudgementTask).isAnswerToQuestion)) {
             scoreSumOfUnboosted += entity.calcUtility(0.0);
         }
 
@@ -1402,7 +1468,7 @@ class WorkingSet {
 
         for(iEntity in entities) {
             //if(iEntity.isAnswerToQuestion)
-            res += '   ${iEntity.sentence.convToStr()}:  ${labelBoosted && iEntity.isAnswerToQuestion ? "BOOSTED" : ""}  score=${iEntity.calcUtility(scoreSumOfUnboosted)} accScore=${iEntity.accuScore}\n';
+            res += '   ${iEntity.task.sentence.convToStr()}:  ${labelBoosted && (iEntity.task.retPunctation() == "." && cast(iEntity.task, JudgementTask).isAnswerToQuestion) ? "BOOSTED" : ""}  score=${iEntity.calcUtility(scoreSumOfUnboosted)} accScore=${iEntity.accuScore}\n';
         }
         return res;
     }
@@ -1416,7 +1482,7 @@ class WorkingSet {
         // recompute sum of unboosted entities
         scoreSumOfUnboosted = 0.0;
         for(iEntity in entities) {
-            if (!iEntity.isAnswerToQuestion) {
+            if (!(iEntity.task.retPunctation() == "." && cast(iEntity.task, JudgementTask).isAnswerToQuestion)) {
                 scoreSumOfUnboosted += iEntity.calcUtility(0.0);
             }
         }
