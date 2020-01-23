@@ -151,25 +151,28 @@ class Sq2 {
                         //trace('Q&A check answer ${TermUtils.convToStr(iBelief.term)}');
                         //trace('unifies = ${Unifier.checkUnify(premiseSentence.term, iBelief.term)}');
 
-                        if (iBelief.tv.exp() > chosenWorkingSetEntity.bestAnswerExp && Unifier.checkUnify(premiseSentence.term, iBelief.term) ) {
+                        var unifies:Bool = Unifier.checkUnify(premiseSentence.term, iBelief.term);
+
+                        // check for same exp() because partial answers may have roughtly the same exp(), we still want to boost them
+                        if (Math.abs(iBelief.tv.exp() - chosenWorkingSetEntity.bestAnswerExp) < 0.001 && unifies) {
+                            // we found an (potential) answer to a question
+                            // now we can "boost" the answer (if it exists as a task, so we search the matching task and boost it)
+                            for (iWorkingSetEntity in workingSet.entities) {
+                                if (Sentence.equal(iWorkingSetEntity.sentence, iBelief)) {
+                                    iWorkingSetEntity.isAnswerToQuestion = true;
+                                    needToRecompute = true;
+
+                                    trace('Q&A boost (potential) answer ${iWorkingSetEntity.sentence.convToStr()}');
+
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (iBelief.tv.exp() > chosenWorkingSetEntity.bestAnswerExp && unifies ) {
                             // found a better answer
                             chosenWorkingSetEntity.bestAnswerExp = iBelief.tv.exp();
                             reportAnswer(iBelief);
-                            
-                            // we found an answer to a question
-                            // now we can "boost" the answer (if it exists as a task, so we search the matching task and boost it)
-                            {
-                                for (iWorkingSetEntity in workingSet.entities) {
-                                    if (Sentence.equal(iWorkingSetEntity.sentence, iBelief)) {
-                                        iWorkingSetEntity.isAnswerToQuestion = true;
-                                        needToRecompute = true;
-
-                                        trace('Q&A boost answer ${iWorkingSetEntity.sentence.convToStr()}');
-
-                                        break;
-                                    }
-                                }
-                            }
                         }
                     }
 
@@ -829,19 +832,13 @@ class Sq2 {
             reasoner.process(180); // needs a few more cycles
 
             trace("content:");
-
-            for (iEntity in reasoner.workingSet.entities) {
-                trace('   ${TermUtils.convToStr(iEntity.sentence.term)}${iEntity.sentence.punctation}  score=${iEntity.calcUtility()}');
-            }
+            trace('${reasoner.workingSet.debug()}');
                 
 
 
             if (reasoner.conclusionStrArr.indexOf("Answer:[  ?ms]< a --> c >. {1 0.81}", null) == -1) {
                 trace("content:");
-
-                for (iEntity in reasoner.workingSet.entities) {
-                    trace('   ${TermUtils.convToStr(iEntity.sentence.term)}${iEntity.sentence.punctation}  score=${iEntity.calcUtility()}');
-                }
+                trace('${reasoner.workingSet.debug()}');
                 
                 
                 throw "Unittest failed!";
@@ -1351,7 +1348,8 @@ class WorkingSetEntity {
         this.sentence = sentence;
     }
 
-    public function calcUtility() {
+    // /param scoreSumOfUnboosted
+    public function calcUtility(scoreSumOfUnboosted:Float) {
         if (sentence.punctation == "?") {
             // TODO< take time into account >
             // questions don't have a TV so we have to provide a specific base utility
@@ -1359,10 +1357,17 @@ class WorkingSetEntity {
         }
 
         // TODO< take time into account >
-        var baseUtility:Float = sentence.tv.conf;
-
-        var utility:Float = baseUtility * (isAnswerToQuestion ? 2.0 : 1.0); // "boost" answers to questions
+        var utility:Float = 0.0;
+        if (isAnswerToQuestion) {
+            utility = /* commented because something else doesn't work yet   sentence.tv.conf * */ 2.0 * scoreSumOfUnboosted; // "boost" answer to question
+        }
+        else {
+            utility = sentence.tv.conf;
+        }
         
+        utility = sentence.tv.conf;
+
+
         return utility;
     }
 }
@@ -1370,6 +1375,8 @@ class WorkingSetEntity {
 
 class WorkingSet {
     public var entities:Array<WorkingSetEntity> = [];
+
+    public var scoreSumOfUnboosted:Float = 0.0; // sum of all scores of unboosted entities
 
     public function new() {}
 
@@ -1381,13 +1388,21 @@ class WorkingSet {
             entities[entities.length-1].accuScore = entities[entities.length-2].accuScore;
         }
 
-        entities[entities.length-1].accuScore += entity.calcUtility();
+        if (!entity.isAnswerToQuestion) {
+            scoreSumOfUnboosted += entity.calcUtility(0.0);
+        }
+
+        entities[entities.length-1].accuScore += entity.calcUtility(scoreSumOfUnboosted);
     }
 
     public function debug(): String {
+        var labelBoosted = true; // do we label boosted entries?
+
         var res = "";
+
         for(iEntity in entities) {
-            res += '   ${iEntity.sentence.convToStr()}:  score=${iEntity.calcUtility()} accScore=${iEntity.accuScore}\n';
+            //if(iEntity.isAnswerToQuestion)
+            res += '   ${iEntity.sentence.convToStr()}:  ${labelBoosted && iEntity.isAnswerToQuestion ? "BOOSTED" : ""}  score=${iEntity.calcUtility(scoreSumOfUnboosted)} accScore=${iEntity.accuScore}\n';
         }
         return res;
     }
@@ -1398,10 +1413,18 @@ class WorkingSet {
             return;
         }
 
-        entities[0].accuScore = entities[0].calcUtility();
+        // recompute sum of unboosted entities
+        scoreSumOfUnboosted = 0.0;
+        for(iEntity in entities) {
+            if (!iEntity.isAnswerToQuestion) {
+                scoreSumOfUnboosted += iEntity.calcUtility(0.0);
+            }
+        }
+
+        entities[0].accuScore = entities[0].calcUtility(scoreSumOfUnboosted);
 
         for(idx in 1...entities.length) {
-            entities[idx].accuScore = entities[idx-1].accuScore + entities[idx].calcUtility();
+            entities[idx].accuScore = entities[idx-1].accuScore + entities[idx].calcUtility(scoreSumOfUnboosted);
         }
     }
 
