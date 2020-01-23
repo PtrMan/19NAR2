@@ -162,7 +162,7 @@ class Sq2 {
                                     iWorkingSetEntity.isAnswerToQuestion = true;
                                     needToRecompute = true;
 
-                                    trace('Q&A boost (potential) answer ${iWorkingSetEntity.sentence.convToStr()}');
+                                    if(Config.debug_qaBoost)   trace('Q&A boost (potential) answer ${iWorkingSetEntity.sentence.convToStr()}');
 
                                     break;
                                 }
@@ -1581,6 +1581,7 @@ class WorkingSet {
 class Config {
     public static var beliefsPerNode:Int = 30;
     public static var debug_derivations:Bool = false; // debug derivations to console
+    public static var debug_qaBoost:Bool = false; // debug boosted answers for questions to console?
 }
 
 
