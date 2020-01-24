@@ -204,7 +204,7 @@ class Sq2 {
             var premiseTv = chosenWorkingSetEntity.task.sentence.tv;
             var premisePunctation = chosenWorkingSetEntity.task.sentence.punctation;
             var premiseStamp = chosenWorkingSetEntity.task.sentence.stamp;
-            var conclusionsSinglePremise = deriveSinglePremise(premiseTerm, premiseTermStructuralOrigins, premiseTv, premisePunctation, premiseStamp);
+            var conclusionsSinglePremise:Array<Task> = deriveSinglePremise(chosenWorkingSetEntity.task);
 
             var conclusionsTwoPremises = [];
             { // two premise derivation
@@ -259,11 +259,27 @@ class Sq2 {
                 }
             }
 
-            var conclusions = [].concat(conclusionsSinglePremise).concat(conclusionsTwoPremises);
+            var conclusionTasks:Array<Task> = conclusionsSinglePremise;
+
+            // adapter to create tasks for conclusions with two premises
+            for (iConclusion in conclusionsTwoPremises) {
+                var sentence = new Sentence(iConclusion.term, iConclusion.tv, iConclusion.stamp, iConclusion.punctation);
+
+                var workingSetEntity = null;
+                if (sentence.punctation == ".") {
+                    conclusionTasks.push(new JudgementTask(sentence));
+                }
+                else if (sentence.punctation == "?") {
+                    conclusionTasks.push(new QuestionTask(sentence, QuestionLink.Null));
+                }
+                else {
+                    throw "Internal error";
+                }
+            }
 
             // filter out invalid statments like a-->a and a<->a
-            conclusions = conclusions.filter(iConclusion -> {
-                return switch (iConclusion.term) {
+            conclusionTasks = conclusionTasks.filter(iConclusionTask -> {
+                return switch (iConclusionTask.sentence.term) {
                     case Cop(copula,a,b) if((copula == "-->" || copula == "<->" || copula == "==>" || copula == "<=>") && TermUtils.equal(a,b)):
                     false;
                     case _: true;
@@ -271,7 +287,8 @@ class Sq2 {
             });
 
             if (Config.debug_derivations)   trace("|-");
-            for (iConclusion in conclusions) {
+            for (iConclusionTask in conclusionTasks) {
+                var iConclusion = iConclusionTask.sentence;
                 var conclusionAsStr = TermUtils.convToStr(iConclusion.term) +  iConclusion.punctation+(iConclusion.tv != null ? " " + iConclusion.tv.convToStr() : ""); // tv can be null
                 if (Config.debug_derivations)   trace(conclusionAsStr);
 
@@ -288,24 +305,13 @@ class Sq2 {
 
 
             // put conclusions back into working set
-            for (iConclusion in conclusions) {
-                var sentence = new Sentence(iConclusion.term, iConclusion.tv, iConclusion.stamp, iConclusion.punctation);
-
-                var workingSetEntity = null;
-                if (sentence.punctation == ".") {
-                    workingSetEntity = new WorkingSetEntity(new JudgementTask(sentence));
-                }
-                else if (sentence.punctation == "?") {
-                    workingSetEntity = new WorkingSetEntity(new QuestionTask(sentence, QuestionLink.Null));
-                }
-                else {
-                    throw "Internal error";
-                }
+            for (iConclusionTask in conclusionTasks) {
+                var workingSetEntity = new WorkingSetEntity(iConclusionTask);
                 
                 // try to find conclusion in working set and add only if it doesn't yet exist
                 var existsSentenceInWorkingSet = false;
                 for (iWorkingSetEntity in workingSet.entities) {
-                    if (Sentence.equal(iWorkingSetEntity.task.sentence, sentence)) {
+                    if (Sentence.equal(iWorkingSetEntity.task.sentence, iConclusionTask.sentence)) {
                         existsSentenceInWorkingSet = true;
                         break;
                     }
@@ -317,14 +323,12 @@ class Sq2 {
             }
 
             // store conclusions
-            for (iConclusion in conclusions) {
-                var sentence = new Sentence(iConclusion.term, iConclusion.tv, iConclusion.stamp, iConclusion.punctation);
-                if (sentence.punctation == ".") {
-                    mem.updateConceptsForJudgment(sentence);
+            for (iConclusionTask in conclusionTasks) {
+                var iConclusionSentence = iConclusionTask.sentence;
+                if (iConclusionSentence.punctation == ".") {
+                    mem.updateConceptsForJudgment(iConclusionSentence);
                 }
             }
-
-            
         }
 
         var numberOfConcepts = 0;
@@ -564,9 +568,15 @@ class Sq2 {
     }
 
     // single premise derivation
-    public static function deriveSinglePremise(premiseTerm:Term,premiseTermStructuralOrigins:Array<Term>,premiseTv:Tv,premisePunctation:String, premiseStamp:Stamp) {
+    public static function deriveSinglePremise(premiseTask:Task): Array<Task> {
+        var premiseTerm = premiseTask.sentence.term;
+        var premiseTermStructuralOrigins = premiseTask.sentence.stamp.structuralOrigins.arr;
+        var premiseTv = premiseTask.sentence.tv;
+        var premisePunctation = premiseTask.sentence.punctation;
+        var premiseStamp = premiseTask.sentence.stamp;
 
-        // we store the structural origin to avoid doing the same conversion over and over again
+        var conclusionTasks: Array<Task> = [];
+
         var conclusions:Array<{term:Term, tv:Tv, punctation:String, stamp:Stamp, ruleName:String}> = [];
 
         
@@ -581,7 +591,10 @@ class Sq2 {
             
             if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
                 var structuralOrigins = new StructuralOriginsStamp( premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]) );
-                conclusions.push({term:conclusionTerm, tv:Tv.conversion(premiseTv), punctation:".", stamp:new Stamp(premiseStamp.ids, structuralOrigins), ruleName:"NAL-2.single contraposition"});
+
+                // ruleName:"NAL-2.single contraposition"
+                var conclusionSentence = new Sentence(conclusionTerm, Tv.conversion(premiseTv), new Stamp(premiseStamp.ids, structuralOrigins), ".");
+                conclusionTasks.push(new JudgementTask(conclusionSentence));
             }
 
             case _: null;
@@ -597,7 +610,10 @@ class Sq2 {
             
             if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
                 var structuralOrigins = new StructuralOriginsStamp( premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]) );
-                conclusions.push({term:conclusionTerm, tv:premiseTv, punctation:".", stamp:new Stamp(premiseStamp.ids, structuralOrigins), ruleName:(copula == "<->" ? "NAL-2" : "NAL-6") + ".single structural"});
+                
+                // ruleName:(copula == "<->" ? "NAL-2" : "NAL-6") + ".single structural"
+                var conclusionSentence = new Sentence(conclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), ".");
+                conclusionTasks.push(new JudgementTask(conclusionSentence));
             }
 
             case _: null;
@@ -615,7 +631,10 @@ class Sq2 {
             
             if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
                 var structuralOrigins = new StructuralOriginsStamp( premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]) );
-                conclusions.push({term:conclusionTerm, tv:Tv.structDeduction(premiseTv), punctation:".", stamp:new Stamp(premiseStamp.ids, structuralOrigins), ruleName:(copula == "<->" ? "NAL-2" : "NAL-6") + ".single structural ded"});
+                
+                // ruleName:(copula == "<->" ? "NAL-2" : "NAL-6") + ".single structural ded"
+                var conclusionSentence = new Sentence(conclusionTerm, Tv.structDeduction(premiseTv), new Stamp(premiseStamp.ids, structuralOrigins), ".");
+                conclusionTasks.push(new JudgementTask(conclusionSentence));
             }
 
             case _: null;
@@ -632,7 +651,10 @@ class Sq2 {
             
             if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
                 var structuralOrigins = new StructuralOriginsStamp( premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]) );
-                conclusions.push({term:conclusionTerm, tv:Tv.structAbduction(premiseTv), punctation:".", stamp:new Stamp(premiseStamp.ids, structuralOrigins), ruleName:"NAL-2" + ".single structural abd"});
+                
+                //  ruleName:"NAL-2" + ".single structural abd"
+                var conclusionSentence = new Sentence(conclusionTerm, Tv.structAbduction(premiseTv), new Stamp(premiseStamp.ids, structuralOrigins), ".");
+                conclusionTasks.push(new JudgementTask(conclusionSentence));
             }
 
             case _: null;
@@ -653,7 +675,17 @@ class Sq2 {
 
                 // we don't need to check structural stamp, because it is not necessary
                 var structuralOrigins = new StructuralOriginsStamp([]);
-                conclusions.push({term:conclusionTerm, tv:premiseTv, punctation:premisePunctation, stamp:new Stamp(premiseStamp.ids, structuralOrigins), ruleName:"NAL-3" + '.single structural decompose $compType'});
+
+                // ruleName:"NAL-3" + '.single structural decompose $compType'
+                var conclusionSentence = new Sentence(conclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), premisePunctation);
+                if (premisePunctation == "?") {
+                    // we need to link them
+                    // TODO< link them >
+                    conclusionTasks.push(new QuestionTask(conclusionSentence, QuestionLink.Null));
+                }
+                else {
+                    conclusionTasks.push(new JudgementTask(conclusionSentence));
+                }
             }
 
             case _: null;
@@ -671,7 +703,16 @@ class Sq2 {
             if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
                 // <prod0 --> (/,inhPred,_,prod1)>
                 var structuralOrigins = new StructuralOriginsStamp( premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]) );
-                conclusions.push({term:conclusionTerm, tv:premiseTv, punctation:premisePunctation, stamp:new Stamp(premiseStamp.ids, structuralOrigins), ruleName:"NAL-6.single prod->img"});
+                
+                // ruleName:"NAL-6.single prod->img"
+                var conclusionSentence = new Sentence(conclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), premisePunctation);
+                if (premisePunctation == "?") {
+                    // TODO< link them >
+                    conclusionTasks.push(new QuestionTask(conclusionSentence, QuestionLink.Null));
+                }
+                else {
+                    conclusionTasks.push(new JudgementTask(conclusionSentence));
+                }
             }
 
             conclusionTerm = Term.Cop("-->", prod1, Img(inhPred, [prod0, ImgWild]));
@@ -680,7 +721,16 @@ class Sq2 {
 
                 // <prod1 --> (/,inhPred,prod0,_)>
                 var structuralOrigins = new StructuralOriginsStamp( premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]) );
-                conclusions.push({term:conclusionTerm, tv:premiseTv, punctation:premisePunctation, stamp:new Stamp(premiseStamp.ids, structuralOrigins), ruleName:"NAL-6.single prod->img"});
+
+                // ruleName:"NAL-6.single prod->img"
+                var conclusionSentence = new Sentence(conclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), premisePunctation);
+                if (premisePunctation == "?") {
+                    // TODO< link them >
+                    conclusionTasks.push(new QuestionTask(conclusionSentence, QuestionLink.Null));
+                }
+                else {
+                    conclusionTasks.push(new JudgementTask(conclusionSentence));
+                }
             }
 
             case _: null;
@@ -697,7 +747,16 @@ class Sq2 {
             if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
                 // <(*, inhSubj, prod1) --> inhPred>
                 var structuralOrigins = new StructuralOriginsStamp( premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]) );
-                conclusions.push({term:conclusionTerm, tv:premiseTv, punctation:premisePunctation, stamp:new Stamp(premiseStamp.ids, structuralOrigins), ruleName:"NAL-6.single img->prod"});
+                
+                // ruleName:"NAL-6.single img->prod"
+                var conclusionSentence = new Sentence(conclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), premisePunctation);
+                if (premisePunctation == "?") {
+                    // TODO< link them >
+                    conclusionTasks.push(new QuestionTask(conclusionSentence, QuestionLink.Null));
+                }
+                else {
+                    conclusionTasks.push(new JudgementTask(conclusionSentence));
+                }
             }
 
 
@@ -710,7 +769,16 @@ class Sq2 {
             if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
                 // <(*, prod0, inhSubj) --> inhPred>
                 var structuralOrigins = new StructuralOriginsStamp( premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]) );
-                conclusions.push({term:conclusionTerm, tv:premiseTv, punctation:premisePunctation, stamp:new Stamp(premiseStamp.ids, structuralOrigins), ruleName:"NAL-6.single img->prod"});
+
+                // ruleName:"NAL-6.single img->prod"
+                var conclusionSentence = new Sentence(conclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), premisePunctation);
+                if (premisePunctation == "?") {
+                    // TODO< link them >
+                    conclusionTasks.push(new QuestionTask(conclusionSentence, QuestionLink.Null));
+                }
+                else {
+                    conclusionTasks.push(new JudgementTask(conclusionSentence));
+                }
             }
 
             case _: null;
@@ -736,7 +804,10 @@ class Sq2 {
             for (iConclusionTerm in conclusionTerms) {
                 if (!Utils.contains(premiseTermStructuralOrigins, iConclusionTerm)) { // avoid deriving the same structural conclusions
                     var structuralOrigins = new StructuralOriginsStamp( premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]) );
-                    conclusions.push({term:iConclusionTerm, tv:premiseTv, punctation:".", stamp:new Stamp(premiseStamp.ids, structuralOrigins), ruleName:"NAL-6.single struct decomposition"});
+                    
+                    // ruleName:"NAL-6.single struct decomposition"
+                    var conclusionSentence = new Sentence(iConclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), premisePunctation);
+                    conclusionTasks.push(new JudgementTask(conclusionSentence));
                 }
             }
 
@@ -746,7 +817,7 @@ class Sq2 {
 
         if (Config.debug_derivations)   trace(TermUtils.convToStr(premiseTerm)+premisePunctation);
 
-        return conclusions;
+        return conclusionTasks;
         
     }
 
