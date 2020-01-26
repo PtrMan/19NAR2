@@ -667,7 +667,8 @@ class Sq2 {
             // <a --> c>?
             // <b --> c>?
             case Cop(cop, Compound(compType, compContent), pred) if (compType == "&" || compType == "|"):
-
+            
+            var componentIdx = 0; // used for linkage
             for(iCompContent in compContent) {
                 // TODO< bump derivation depth >
                 
@@ -679,13 +680,14 @@ class Sq2 {
                 // ruleName:"NAL-3" + '.single structural decompose $compType'
                 var conclusionSentence = new Sentence(conclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), premisePunctation);
                 if (premisePunctation == "?") {
-                    // we need to link them
-                    // TODO< link them >
-                    conclusionTasks.push(new QuestionTask(conclusionSentence, QuestionLink.Null));
+                    var link:QuestionLink = QuestionLink.ComposeSingle(componentIdx, cast(premiseTask, QuestionTask)); // we need to link them
+                    conclusionTasks.push(new QuestionTask(conclusionSentence, link));
                 }
                 else {
                     conclusionTasks.push(new JudgementTask(conclusionSentence));
                 }
+
+                componentIdx++;
             }
 
             case _: null;
@@ -707,8 +709,8 @@ class Sq2 {
                 // ruleName:"NAL-6.single prod->img"
                 var conclusionSentence = new Sentence(conclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), premisePunctation);
                 if (premisePunctation == "?") {
-                    // TODO< link them >
-                    conclusionTasks.push(new QuestionTask(conclusionSentence, QuestionLink.Null));
+                    var link:QuestionLink = QuestionLink.StructuralSingle(cast(premiseTask, QuestionTask)); // we need to link them
+                    conclusionTasks.push(new QuestionTask(conclusionSentence, link));
                 }
                 else {
                     conclusionTasks.push(new JudgementTask(conclusionSentence));
@@ -725,8 +727,8 @@ class Sq2 {
                 // ruleName:"NAL-6.single prod->img"
                 var conclusionSentence = new Sentence(conclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), premisePunctation);
                 if (premisePunctation == "?") {
-                    // TODO< link them >
-                    conclusionTasks.push(new QuestionTask(conclusionSentence, QuestionLink.Null));
+                    var link:QuestionLink = QuestionLink.StructuralSingle(cast(premiseTask, QuestionTask)); // we need to link them
+                    conclusionTasks.push(new QuestionTask(conclusionSentence, link));
                 }
                 else {
                     conclusionTasks.push(new JudgementTask(conclusionSentence));
@@ -751,8 +753,8 @@ class Sq2 {
                 // ruleName:"NAL-6.single img->prod"
                 var conclusionSentence = new Sentence(conclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), premisePunctation);
                 if (premisePunctation == "?") {
-                    // TODO< link them >
-                    conclusionTasks.push(new QuestionTask(conclusionSentence, QuestionLink.Null));
+                    var link:QuestionLink = QuestionLink.StructuralSingle(cast(premiseTask, QuestionTask)); // we need to link them
+                    conclusionTasks.push(new QuestionTask(conclusionSentence, link));
                 }
                 else {
                     conclusionTasks.push(new JudgementTask(conclusionSentence));
@@ -773,8 +775,8 @@ class Sq2 {
                 // ruleName:"NAL-6.single img->prod"
                 var conclusionSentence = new Sentence(conclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), premisePunctation);
                 if (premisePunctation == "?") {
-                    // TODO< link them >
-                    conclusionTasks.push(new QuestionTask(conclusionSentence, QuestionLink.Null));
+                    var link:QuestionLink = QuestionLink.StructuralSingle(cast(premiseTask, QuestionTask)); // we need to link them
+                    conclusionTasks.push(new QuestionTask(conclusionSentence, link));
                 }
                 else {
                     conclusionTasks.push(new JudgementTask(conclusionSentence));
