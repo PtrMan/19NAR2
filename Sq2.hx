@@ -248,9 +248,7 @@ class Sq2 {
                             }
                         }
                         else { // can't do revision, try normal inference
-                            var conclusionsTwoPremisesAB = deriveTwoPremise(premiseTerm, premiseTv, premisePunctation, premiseStamp,   secondaryTerm, secondaryTv, secondaryPunctation, secondaryStamp);
-                            var conclusionsTwoPremisesBA = deriveTwoPremise(secondaryTerm, secondaryTv, secondaryPunctation, secondaryStamp,   premiseTerm, premiseTv, premisePunctation, premiseStamp);
-                            conclusionsTwoPremises = [].concat(conclusionsTwoPremisesAB).concat(conclusionsTwoPremisesBA);
+                            conclusionsTwoPremises = deriveTwoPremise(premiseTerm, premiseTv, premisePunctation, premiseStamp,   secondaryTerm, secondaryTv, secondaryPunctation, secondaryStamp); //[].concat(conclusionsTwoPremisesAB).concat(conclusionsTwoPremisesBA);
                         }
                     }
                     else {
@@ -345,8 +343,15 @@ class Sq2 {
 
     }
     
-
     public static function deriveTwoPremise(premiseATerm:Term,premiseATv:Tv,premiseAPunctation:String,premiseAStamp:Stamp,  premiseBTerm:Term,premiseBTv:Tv,premiseBPunctation:String,premiseBStamp:Stamp) {
+        var conclusionsTwoPremisesAB = deriveTwoPremiseInternal(premiseATerm, premiseATv, premiseAPunctation, premiseAStamp,   premiseBTerm, premiseBTv, premiseBPunctation, premiseBStamp);
+        var conclusionsTwoPremisesBA = deriveTwoPremiseInternal(premiseBTerm, premiseBTv, premiseBPunctation, premiseBStamp,   premiseATerm, premiseATv, premiseAPunctation, premiseAStamp);
+        return [].concat(conclusionsTwoPremisesAB).concat(conclusionsTwoPremisesBA);
+    }
+
+
+    // internal helper function which processes only one combination of premises (sides are not switched)
+    public static function deriveTwoPremiseInternal(premiseATerm:Term,premiseATv:Tv,premiseAPunctation:String,premiseAStamp:Stamp,  premiseBTerm:Term,premiseBTv:Tv,premiseBPunctation:String,premiseBStamp:Stamp) {
         
         // checks if term is a set
         function checkSet(t:Term):Bool {
