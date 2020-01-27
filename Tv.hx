@@ -96,6 +96,11 @@ class Tv {
         return new Tv(f, c);
     }
 
+    public static function difference(a:Tv, b:Tv):Tv {
+        var c = and(a.conf, b.conf);
+        return new Tv(a.freq * (1.0 - b.freq), c);
+    }
+
     
     public static function calcExp(freq:Float, conf:Float) {
         return (freq - 0.5) * conf + 0.5;

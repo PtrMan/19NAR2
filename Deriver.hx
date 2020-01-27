@@ -60,6 +60,15 @@ class Deriver {
         cgrules.push(new CGRule("-->", "pred", ".",  "-->", "pred", ".",   "x", "-->", "a.pred", [], [Postcond.FoldCompound("x", "|", "a.subj", "b.subj")], "intersection"));
         cgrules.push(new CGRule("-->", "pred", ".",  "-->", "pred", ".",   "x", "-->", "a.pred", [], [Postcond.FoldCompound("x", "&", "a.subj", "b.subj")], "union"));
 
+        // <M --> P>, <M --> S>
+        // |-
+        // <M --> (P & S)>
+        // <M --> (P | S)>
+        // <M --> (P - S)>
+        cgrules.push(new CGRule("-->", "subj", ".",  "-->", "subj", ".",   "a.subj", "-->", "x", [], [Postcond.FoldCompound("x", "&", "a.pred", "b.pred")], "intersection"));
+        cgrules.push(new CGRule("-->", "subj", ".",  "-->", "subj", ".",   "a.subj", "-->", "x", [], [Postcond.FoldCompound("x", "|", "a.pred", "b.pred")], "union"));
+        cgrules.push(new CGRule("-->", "subj", ".",  "-->", "subj", ".",   "a.subj", "-->", "x", [], [Postcond.FoldCompound("x", "-", "a.pred", "b.pred")], "difference"));
+
 
         // ======
         // generate rules for compact rule-table sylogistic inference for NAL-2 and NAL-6
@@ -327,6 +336,7 @@ class Deriver {
                                         case "resemblance": Tv.resemblance($aTv,$bTv);
                                         case "intersection": Tv.intersection($aTv,$bTv);
                                         case "union": Tv.union($aTv,$bTv);
+                                        case "difference": Tv.difference($aTv,$bTv);
                                         case _:throw "Internal Error";
                                     }
                                     
