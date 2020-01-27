@@ -29,9 +29,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 // TODO< test attention mechanism with other examples from ALANN >
 
-
-// TODO< attention mechansim : questions have way higher priority than judgments >
-
 // TODO< attention mechanism : stresstest attention >
 
 // TODO< keep concepts(nodes) under AIKR (by calculating the max exp() and throwing the concepts out with lowest max exp() >
@@ -97,20 +94,22 @@ class Sq2 {
         inputTerm(parseResult.term, tv, parseResult.punctuation);
     }
 
+    private function reportAnswer(question:QuestionTask, sentence:Sentence) {
+        var str = 'Answer:[  ?ms]${sentence.convToStr()}'; // report with ALANN formalism
+        trace(str);
+
+        if (conclusionStrArr != null) { // used for debugging and unittesting
+            conclusionStrArr.push(str);
+        }
+
+        if (answerHandler != null) {
+            answerHandler.report(sentence);
+        }
+    }
+
     // run the reasoner for a number of cycles
     public function process(cycles:Int = 20) {
-        function reportAnswer(sentence:Sentence) {
-            var str = 'Answer:[  ?ms]${sentence.convToStr()}'; // report with ALANN formalism
-            trace(str);
-
-            if (conclusionStrArr != null) { // used for debugging and unittesting
-                conclusionStrArr.push(str);
-            }
-
-            if (answerHandler != null) {
-                answerHandler.report(sentence);
-            }
-        }
+        
 
         var cycleCounter = -1;
         while(true) { // main loop
@@ -211,8 +210,8 @@ class Sq2 {
 
                         if (iBelief.tv.exp() > questionTask.retBestAnswerExp() && unifies ) {
                             // found a better answer
-                            questionTask.bestAnswerSentenceCandidates = [iBelief];
-                            reportAnswer(iBelief);
+                            questionTask.bestAnswerSentence = iBelief;
+                            reportAnswer(questionTask, iBelief);
                         }
                     }
 
@@ -382,7 +381,34 @@ class Sq2 {
             case Null: // has no link - nothing to do!
             case StructuralSingle(parent): // has structural parent - we only need to derive structural transformations and try to answer the parent
 
-            // TODO
+            var premiseTask = new JudgementTask(answer);
+            var conclusionTasks:Array<Task> = deriveSinglePremise(premiseTask);
+
+            // only terms which unify with the question can be answers!
+            for(iPotentialConclusionTask in conclusionTasks) {
+                var iPotentialConclusion = iPotentialConclusionTask.sentence;
+
+                var unifies:Bool = Unifier.checkUnify(parent.sentence.term, iPotentialConclusion.term);
+                if (unifies) {
+                    if (Config.debug_derivations_qacomposition) { // debug potential conclusion
+                        trace('|- ${TermUtils.convToStr(iPotentialConclusion.term)}');
+                    }
+
+                    // and we need to report the potential answer
+                    // (with a recursive call, only when exp is above best reported one)
+
+                    var sentence = new Sentence(iPotentialConclusion.term, iPotentialConclusion.tv, iPotentialConclusion.stamp, iPotentialConclusion.punctation);
+
+                    if (iPotentialConclusion.tv.exp() > parent.retBestAnswerExp() && unifies ) {
+                        // found a better answer
+                        parent.bestAnswerSentence = sentence;
+                        reportAnswer(parent, sentence);
+
+                        // propagate
+                        propagatePartialAnswer(parent, sentence);
+                    }
+                }
+            }
 
             case ComposeSingle(index, parent): // has compositional parent - we need to try to compose partial answers and answer parent
             {
@@ -410,7 +436,7 @@ class Sq2 {
                     // now we need to make sure that all partial questions were answered to compose the answer
 
                     for(iLinkedTask in linkedQuestionTasksByIndex) {
-                        if (iLinkedTask.bestAnswerSentenceCandidates.length == 0) {
+                        if (iLinkedTask.bestAnswerSentence == null) {
                             return; // composition wasn't completely answered!
                         }
                     }
@@ -428,15 +454,9 @@ class Sq2 {
                         //trace('${linkedQuestionTasksByIndex[1].bestAnswerSentence.convToStr()}');
 
 
-                        if (Stamp.checkOverlap(linkedQuestionTasksByIndex[0].bestAnswerSentenceCandidates[0].stamp, linkedQuestionTasksByIndex[1].bestAnswerSentenceCandidates[0].stamp)) {
-                            //trace('OVERLAP!');
-                            
+                        if (Stamp.checkOverlap(linkedQuestionTasksByIndex[0].bestAnswerSentence.stamp, linkedQuestionTasksByIndex[1].bestAnswerSentence.stamp)) {
                             return;
                         }
-
-                        trace("NO OVERLAP");
-
-                        /*
 
                         if (Config.debug_derivations_qacomposition)   trace("inf : Q&A : try compose");
                         if (Config.debug_derivations_qacomposition) {
@@ -466,23 +486,27 @@ class Sq2 {
 
                         // only terms which unify with the question can be answers!
                         for(iPotentialConclusion in potentialConclusions) {
-                            // debug potential conclusion
-
                             var unifies:Bool = Unifier.checkUnify(parent.sentence.term, iPotentialConclusion.term);
                             if (unifies) {
-                                if (Config.debug_derivations_qacomposition) {
+                                if (Config.debug_derivations_qacomposition) { // debug potential conclusion
                                     trace('|- ${TermUtils.convToStr(iPotentialConclusion.term)}');
+                                }
+
+                                // and we need to report the potential answer
+                                // (with a recursive call, only when exp is above best reported one)
+
+                                var sentence = new Sentence(iPotentialConclusion.term, iPotentialConclusion.tv, iPotentialConclusion.stamp, iPotentialConclusion.punctation);
+
+                                if (iPotentialConclusion.tv.exp() > parent.retBestAnswerExp() && unifies ) {
+                                    // found a better answer
+                                    parent.bestAnswerSentence = sentence;
+                                    reportAnswer(parent, sentence);
+
+                                    // propagate
+                                    propagatePartialAnswer(parent, sentence);
                                 }
                             }
                         }
-
-                        // and we need to report the potential answer
-                        // (with a recursive call, only when exp is above best reported one)
-
-                        throw "TODO";
-
-                        */
-
                     }
                     else {
                         trace('warning - structural composition of partial answers is not implemented for this case!');
@@ -1620,8 +1644,7 @@ class QuestionTask extends Task {
     public var questionLink:QuestionLink; // links the question to a parent question
     public var questionCompositionChildrenLinks:Array<QuestionTask> = []; // links to compositional children (for one single composition)
 
-    // stamp must not overlap and exp must be roughtly the same
-    public var bestAnswerSentenceCandidates:Array<Sentence> = [];
+    public var bestAnswerSentence:Sentence = null;
 
     public function new(sentence, questionLink) {
         super(sentence);
@@ -1629,10 +1652,10 @@ class QuestionTask extends Task {
     }
 
     public function retBestAnswerExp(): Float {
-        if (bestAnswerSentenceCandidates.length == 0) {
+        if (bestAnswerSentence == null) {
             return 0.0;
         }
-        return bestAnswerSentenceCandidates[0].tv.exp();
+        return bestAnswerSentence.tv.exp();
     }
 }
 
