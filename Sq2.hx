@@ -165,7 +165,7 @@ class Sq2 {
                         var unifies:Bool = Unifier.checkUnify(premiseSentence.term, iBelief.term);
 
                         // check for same exp() because partial answers may have roughtly the same exp(), we still want to boost them
-                        if (Math.abs(iBelief.tv.exp() - questionTask.bestAnswerExp) < 0.001 && unifies) {
+                        if (Math.abs(iBelief.tv.exp() - questionTask.retBestAnswerExp()) < 0.001 && unifies) {
                             // we found an (potential) answer to a question
                             // now we can "boost" the answer (if it exists as a task, so we search the matching task and boost it)
                             for (iWorkingSetEntity in workingSet.entities) {
@@ -186,9 +186,32 @@ class Sq2 {
                             }
                         }
 
-                        if (iBelief.tv.exp() > questionTask.bestAnswerExp && unifies ) {
+                        // check if we can propagate answer and propagate it down the question task chain/tree
+                        // we can afford to do so because we assume that the depth of the tree is not to high
+                        if (iBelief.tv.exp() - questionTask.retBestAnswerExp() > -0.001 && unifies) {
+                            // try to store candidate if it is not overlapping
+                            /* commented because not useful {
+                                var noOverlap:Bool = [for (iCandidate in questionTask.bestAnswerSentenceCandidates) Stamp.checkOverlap(iCandidate.stamp, iBelief.stamp)].length == 0;
+                                if (noOverlap) {
+                                    questionTask.bestAnswerSentenceCandidates.push(iBelief);
+
+                                    // limit size to keep under AIKR
+                                    questionTask.bestAnswerSentenceCandidates = questionTask.bestAnswerSentenceCandidates.slice(0, 4);
+                                    
+                                    if (questionTask.bestAnswerSentenceCandidates.length > 1) {
+                                        trace('${questionTask.bestAnswerSentenceCandidates[0].convToStr()}');
+                                        trace('${questionTask.bestAnswerSentenceCandidates[1].convToStr()}');
+                                        throw 'here';
+                                    }
+                                }
+                            } */
+                            
+                            propagatePartialAnswer(questionTask, iBelief);
+                        }
+
+                        if (iBelief.tv.exp() > questionTask.retBestAnswerExp() && unifies ) {
                             // found a better answer
-                            questionTask.bestAnswerExp = iBelief.tv.exp();
+                            questionTask.bestAnswerSentenceCandidates = [iBelief];
                             reportAnswer(iBelief);
                         }
                     }
@@ -341,6 +364,135 @@ class Sq2 {
         if (Config.debug_derivations)   trace('   #workingset.entities= ${workingSet.entities.length}');
 
 
+    }
+
+    // Q&A - propagates a (partial) answer down the hierachy/tree of partial question tasks
+    //
+    // combines partial structural answers to more complete answers
+    // ex: 
+    // (a & b) --> c?
+    //     a --> c?  answered with a --> c
+    //     b --> c?  answered with b --> c
+    // |- will compose answer to the question with partial answers:
+    // (a & b) --> c
+    //
+    // calls itself recursivly!
+    private function propagatePartialAnswer(questionTask:QuestionTask, answer:Sentence) {        
+        switch(questionTask.questionLink) {
+            case Null: // has no link - nothing to do!
+            case StructuralSingle(parent): // has structural parent - we only need to derive structural transformations and try to answer the parent
+
+            // TODO
+
+            case ComposeSingle(index, parent): // has compositional parent - we need to try to compose partial answers and answer parent
+            {
+                if (parent.questionCompositionChildrenLinks.length == 2) {
+                    var linkedQuestionTasksByIndex:Array<QuestionTask> = [null, null];
+                    
+                    // enumerate linked question tasks - necessary because AIKR and because linked tasks can get forgotten
+                    for(iLinkedTask in parent.questionCompositionChildrenLinks) {
+                        switch(iLinkedTask.questionLink) {
+                            case ComposeSingle(index2, _):
+                            linkedQuestionTasksByIndex[index2] = iLinkedTask;
+                            case _: // ignore
+                        }
+                    }
+
+                    // we have the linked question tasks for the composition
+                    // now we have to make sure that they are valid
+                    for(iLinkedTask in linkedQuestionTasksByIndex) {
+                        if (iLinkedTask == null) {
+                            return; // break propagation up because composition wasn't completely answered
+                        }
+                    }
+
+                    // we are here when all questions are valid
+                    // now we need to make sure that all partial questions were answered to compose the answer
+
+                    for(iLinkedTask in linkedQuestionTasksByIndex) {
+                        if (iLinkedTask.bestAnswerSentenceCandidates.length == 0) {
+                            return; // composition wasn't completely answered!
+                        }
+                    }
+
+                    //trace('debug structural compose');
+
+                    // now we can combine the partial answers to (hopefully) get a composed answer
+
+                    if (linkedQuestionTasksByIndex.length == 2) {
+                        // check overlap
+
+                        //trace('here, check stamp overlap');
+
+                        //trace('${linkedQuestionTasksByIndex[0].bestAnswerSentence.convToStr()}');
+                        //trace('${linkedQuestionTasksByIndex[1].bestAnswerSentence.convToStr()}');
+
+
+                        if (Stamp.checkOverlap(linkedQuestionTasksByIndex[0].bestAnswerSentenceCandidates[0].stamp, linkedQuestionTasksByIndex[1].bestAnswerSentenceCandidates[0].stamp)) {
+                            //trace('OVERLAP!');
+                            
+                            return;
+                        }
+
+                        trace("NO OVERLAP");
+
+                        /*
+
+                        if (Config.debug_derivations_qacomposition)   trace("inf : Q&A : try compose");
+                        if (Config.debug_derivations_qacomposition) {
+                            trace('   ${linkedQuestionTasksByIndex[0].bestAnswerSentence.convToStr()}');
+                            trace('   ${linkedQuestionTasksByIndex[1].bestAnswerSentence.convToStr()}');
+                        }
+
+                        var potentialConclusions = deriveTwoPremise(
+                            linkedQuestionTasksByIndex[0].bestAnswerSentence.term,
+                            linkedQuestionTasksByIndex[0].bestAnswerSentence.tv,
+                            linkedQuestionTasksByIndex[0].bestAnswerSentence.punctation,
+                            linkedQuestionTasksByIndex[0].bestAnswerSentence.stamp,
+
+                            linkedQuestionTasksByIndex[1].bestAnswerSentence.term,
+                            linkedQuestionTasksByIndex[1].bestAnswerSentence.tv,
+                            linkedQuestionTasksByIndex[1].bestAnswerSentence.punctation,
+                            linkedQuestionTasksByIndex[1].bestAnswerSentence.stamp
+                        );
+
+                        if (Config.debug_derivations_qacomposition) {
+                            trace('|- (structural composition candidates)');
+                        
+                            for(iPotentialConclusion in potentialConclusions) {
+                                trace('   ${TermUtils.convToStr(iPotentialConclusion.term)}');
+                            }
+                        }
+
+                        // only terms which unify with the question can be answers!
+                        for(iPotentialConclusion in potentialConclusions) {
+                            // debug potential conclusion
+
+                            var unifies:Bool = Unifier.checkUnify(parent.sentence.term, iPotentialConclusion.term);
+                            if (unifies) {
+                                if (Config.debug_derivations_qacomposition) {
+                                    trace('|- ${TermUtils.convToStr(iPotentialConclusion.term)}');
+                                }
+                            }
+                        }
+
+                        // and we need to report the potential answer
+                        // (with a recursive call, only when exp is above best reported one)
+
+                        throw "TODO";
+
+                        */
+
+                    }
+                    else {
+                        trace('warning - structural composition of partial answers is not implemented for this case!');
+                    }
+                }
+                else { // we don't support this yet!
+                    trace('warning - structural composition for compositions of more than two elements is not supported: ${questionTask.sentence.convToStr()}');
+                }
+            }
+        }
     }
     
     public static function deriveTwoPremise(premiseATerm:Term,premiseATv:Tv,premiseAPunctation:String,premiseAStamp:Stamp,  premiseBTerm:Term,premiseBTv:Tv,premiseBPunctation:String,premiseBStamp:Stamp) {
@@ -673,26 +825,37 @@ class Sq2 {
             // <b --> c>?
             case Cop(cop, Compound(compType, compContent), pred) if (compType == "&" || compType == "|"):
             
-            var componentIdx = 0; // used for linkage
-            for(iCompContent in compContent) {
-                // TODO< bump derivation depth >
-                
-                var conclusionTerm = Term.Cop(cop, iCompContent, pred);
+            var premiseQuestionTask:QuestionTask = cast(premiseTask, QuestionTask);
 
-                // we don't need to check structural stamp, because it is not necessary
-                var structuralOrigins = new StructuralOriginsStamp([]);
+            // were compositional questions ever derived?
+            if (premiseQuestionTask.questionCompositionChildrenLinks.length != compContent.length) {
+                premiseQuestionTask.questionCompositionChildrenLinks = []; // simplest solution is to flush 
 
-                // ruleName:"NAL-3" + '.single structural decompose $compType'
-                var conclusionSentence = new Sentence(conclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), premisePunctation);
-                if (premisePunctation == "?") {
-                    var link:QuestionLink = QuestionLink.ComposeSingle(componentIdx, cast(premiseTask, QuestionTask)); // we need to link them
-                    conclusionTasks.push(new QuestionTask(conclusionSentence, link));
+                var componentIdx = 0; // used for linkage
+                for(iCompContent in compContent) {
+                    // TODO< bump derivation depth >
+                    
+                    var conclusionTerm = Term.Cop(cop, iCompContent, pred);
+    
+                    // we don't need to check structural stamp, because it is not necessary
+                    var structuralOrigins = new StructuralOriginsStamp([]);
+    
+                    // ruleName:"NAL-3" + '.single structural decompose $compType'
+                    var conclusionSentence = new Sentence(conclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), premisePunctation);
+                    if (premisePunctation == "?") {
+                        var link:QuestionLink = QuestionLink.ComposeSingle(componentIdx, premiseQuestionTask); // we need to link them
+                        var derivedQuestionTask = new QuestionTask(conclusionSentence, link);
+                        conclusionTasks.push(derivedQuestionTask);
+
+                        // link from parent to children
+                        premiseQuestionTask.questionCompositionChildrenLinks.push(derivedQuestionTask);
+                    }
+                    else {
+                        trace('internal inconsistency!'); // path is not implemented/valid!
+                    }
+    
+                    componentIdx++;
                 }
-                else {
-                    conclusionTasks.push(new JudgementTask(conclusionSentence));
-                }
-
-                componentIdx++;
             }
 
             case _: null;
@@ -1457,11 +1620,19 @@ class QuestionTask extends Task {
     public var questionLink:QuestionLink; // links the question to a parent question
     public var questionCompositionChildrenLinks:Array<QuestionTask> = []; // links to compositional children (for one single composition)
 
-    public var bestAnswerExp:Float = 0.0;
+    // stamp must not overlap and exp must be roughtly the same
+    public var bestAnswerSentenceCandidates:Array<Sentence> = [];
 
     public function new(sentence, questionLink) {
         super(sentence);
         this.questionLink = questionLink;
+    }
+
+    public function retBestAnswerExp(): Float {
+        if (bestAnswerSentenceCandidates.length == 0) {
+            return 0.0;
+        }
+        return bestAnswerSentenceCandidates[0].tv.exp();
     }
 }
 
@@ -1725,6 +1896,8 @@ class WorkingSet {
 class Config {
     public static var beliefsPerNode:Int = 30;
     public static var debug_derivations:Bool = false; // debug derivations to console
+    public static var debug_derivations_qacomposition:Bool = true; // debug composition for Q&A to console?
+    
     public static var debug_qaBoost:Bool = false; // debug boosted answers for questions to console?
 }
 
