@@ -1,0 +1,8 @@
+<{shape1} --> rectangle>.
+<{shape3} --> [filled]>.
+<({shape1} * {shape2}) --> leftOf>.
+<({shape3} * {shape2}) --> leftOf>.
+
+<(([filled] & rectangle) * {?1}) --> leftOf>?
+
+// good check for backward composition for Q&A because it fails without it
