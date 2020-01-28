@@ -53,6 +53,8 @@ class Sq2 {
 
     public var stampIdCounter = haxe.Int64.make(0, 0);
 
+    public var globalCycleCounter = 0;
+
     public function new() {}
 
     // puts new input from the outside of the system into the system
@@ -69,7 +71,9 @@ class Sq2 {
             workingSetEntity = new WorkingSetEntity(new JudgementTask(sentence));
         }
         else if (punctation == "?") {
-            workingSetEntity = new WorkingSetEntity(new QuestionTask(sentence, QuestionLink.Null));
+            var q = new QuestionTask(sentence, QuestionLink.Null);
+            q.questionTime = globalCycleCounter;
+            workingSetEntity = new WorkingSetEntity(q);
         }
         else {
             throw "Invalid punctation!";
@@ -95,8 +99,11 @@ class Sq2 {
     }
 
     private function reportAnswer(question:QuestionTask, sentence:Sentence) {
-        var str = 'Answer:[  ?ms]${sentence.convToStr()}'; // report with ALANN formalism
-        trace(str);
+        var cycleStr = question.questionTime != -1 ? ('[${globalCycleCounter-question.questionTime}cycles]'): "";
+        
+        //var str = 'Answer:[  ?ms  ?cycl]${sentence.convToStr()}'; // report with time and cycles  // commented because we don't know the time it took
+        var str = 'Answer:${cycleStr}${sentence.convToStr()}'; // report with time and cycles
+        Sys.println(str);
 
         if (conclusionStrArr != null) { // used for debugging and unittesting
             conclusionStrArr.push(str);
@@ -109,8 +116,6 @@ class Sq2 {
 
     // run the reasoner for a number of cycles
     public function process(cycles:Int = 20) {
-        
-
         var cycleCounter = -1;
         while(true) { // main loop
             cycleCounter++;
@@ -118,6 +123,8 @@ class Sq2 {
             if (cycleCounter > cycles) {
                 break;
             }
+
+            globalCycleCounter++;
 
             if (Config.debug_derivations)   trace("");
             if (Config.debug_derivations)   trace("");
@@ -1645,6 +1652,8 @@ class QuestionTask extends Task {
     public var questionCompositionChildrenLinks:Array<QuestionTask> = []; // links to compositional children (for one single composition)
 
     public var bestAnswerSentence:Sentence = null;
+
+    public var questionTime:Int = -1; // global cycle time of the question, -1 if it is not tracked
 
     public function new(sentence, questionLink) {
         super(sentence);
