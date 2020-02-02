@@ -40,9 +40,6 @@ class Interactive {
                 var steps = Std.parseInt(inputLine.substring(2, inputLine.length));
                 reasoner.process(steps);
             }
-            else if (inputLine.charAt(0) == "!" && inputLine.charAt(1) == "t") { // show all tasks
-                reasoner.workingSet.debug();
-            }
             else if (inputLine == "!d 1") { // enable debug conclusions
                 Sq2.Config.debug_derivations = true;
             }
@@ -52,6 +49,12 @@ class Interactive {
             else if (inputLine == "!dw") { // debug working set
                 // print working set
                 Sys.println(reasoner.workingSet.debug());
+            }
+            else if (inputLine == "!ds") { // debug summary
+                reasoner.debugSummary();
+            }
+            else if (inputLine.length > 0 && inputLine.charAt(0) == "!") {
+                Sys.println('unknown command "$inputLine"');
             }
             else {
                 reasoner.input(inputLine);
