@@ -16,20 +16,26 @@ class Interactive {
         var reasoner = new Sq2();
         reasoner.conclusionStrArr = []; // enable output logging
 
-        // load zero or any number of *.nal files
-        for (iArg in Sys.args()) {
-            var pathToLoad = iArg;
+        // loads narsese from file
+        function loadFromFile(pathToLoad:String) {
             var nalFileContent = File.getContent(pathToLoad);
 
             var nalLines = nalFileContent.split("\r\n");
             for (iNalLine in nalLines) {
-                trace(iNalLine); // debug read line
+                Sys.println('//input: $iNalLine'); // debug read line
 
                 if (iNalLine.length == 0) {} // ignore empty lines
+                else if(iNalLine.substring(0, 2) == "//") {} // ignore commented lines
                 else {
                     reasoner.input(iNalLine);
                 }
             }
+        }
+
+        // load zero or any number of *.nal files
+        for (iArg in Sys.args()) {
+            var pathToLoad = iArg;
+            loadFromFile(pathToLoad);
         }
 
         while(true) {
@@ -53,13 +59,16 @@ class Interactive {
             else if (inputLine == "!ds") { // debug summary
                 reasoner.debugSummary();
             }
+            else if (inputLine.substr(0, 3) == "!l ") {
+                var path:String = inputLine.substring(3);
+                loadFromFile(path);
+            }
             else if (inputLine.length > 0 && inputLine.charAt(0) == "!") {
                 Sys.println('unknown command "$inputLine"');
             }
             else {
                 reasoner.input(inputLine);
             }
-
         }
     }
 }
