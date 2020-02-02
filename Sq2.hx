@@ -58,6 +58,8 @@ class Sq2 {
 
     public var globalCycleCounter = 0;
 
+    public var taskIdCounter = 100000; // used to uniquly identify task globably
+
     public function new() {
         // init for different derivation depths
         workingQueueByDepth.push(new WorkingArr());
@@ -77,10 +79,10 @@ class Sq2 {
         var task:Task = null;
 
         if (punctation == ".") {
-            task = new JudgementTask(sentence);
+            task = new JudgementTask(sentence, taskIdCounter++);
         }
         else if (punctation == "?") {
-            var q = new QuestionTask(sentence, QuestionLink.Null);
+            var q = new QuestionTask(sentence, QuestionLink.Null, taskIdCounter++);
             q.questionTime = globalCycleCounter;
             task = q;
         }
@@ -342,10 +344,10 @@ class Sq2 {
 
                 var workingSetEntity = null;
                 if (sentence.punctation == ".") {
-                    conclusionTasks.push(new JudgementTask(sentence));
+                    conclusionTasks.push(new JudgementTask(sentence, taskIdCounter++));
                 }
                 else if (sentence.punctation == "?") {
-                    conclusionTasks.push(new QuestionTask(sentence, QuestionLink.Null));
+                    conclusionTasks.push(new QuestionTask(sentence, QuestionLink.Null, taskIdCounter++));
                 }
                 else {
                     throw "Internal error";
@@ -464,7 +466,8 @@ class Sq2 {
             case Null: // has no link - nothing to do!
             case StructuralSingle(parent): // has structural parent - we only need to derive structural transformations and try to answer the parent
 
-            var premiseTask = new JudgementTask(answer);
+            // task id is -1 because it is dummy
+            var premiseTask = new JudgementTask(answer, -1);
             var conclusionTasks:Array<Task> = deriveSinglePremise(premiseTask);
 
             // only terms which unify with the question can be answers!
@@ -838,7 +841,7 @@ class Sq2 {
     }
 
     // single premise derivation
-    public static function deriveSinglePremise(premiseTask:Task): Array<Task> {
+    public function deriveSinglePremise(premiseTask:Task): Array<Task> {
         var premiseTerm = premiseTask.sentence.term;
         var premiseTermStructuralOrigins = premiseTask.sentence.stamp.structuralOrigins.arr;
         var premiseTv = premiseTask.sentence.tv;
@@ -859,7 +862,7 @@ class Sq2 {
                 // ruleName:"NAL-2.single contraposition"
                 var conclusionSentence = new Sentence(conclusionTerm, Tv.conversion(premiseTv), new Stamp(premiseStamp.ids, structuralOrigins), ".");
                 conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
-                conclusionTasks.push(new JudgementTask(conclusionSentence));
+                conclusionTasks.push(new JudgementTask(conclusionSentence, taskIdCounter++));
             }
 
             case _: null;
@@ -877,7 +880,7 @@ class Sq2 {
                 // ruleName:(copula == "<->" ? "NAL-2" : "NAL-6") + ".single structural"
                 var conclusionSentence = new Sentence(conclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), ".");
                 conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
-                conclusionTasks.push(new JudgementTask(conclusionSentence));
+                conclusionTasks.push(new JudgementTask(conclusionSentence, taskIdCounter++));
             }
 
             case _: null;
@@ -897,7 +900,7 @@ class Sq2 {
                 // ruleName:(copula == "<->" ? "NAL-2" : "NAL-6") + ".single structural ded"
                 var conclusionSentence = new Sentence(conclusionTerm, Tv.structDeduction(premiseTv), new Stamp(premiseStamp.ids, structuralOrigins), ".");
                 conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
-                conclusionTasks.push(new JudgementTask(conclusionSentence));
+                conclusionTasks.push(new JudgementTask(conclusionSentence, taskIdCounter++));
             }
 
             case _: null;
@@ -916,7 +919,7 @@ class Sq2 {
                 //  ruleName:"NAL-2" + ".single structural abd"
                 var conclusionSentence = new Sentence(conclusionTerm, Tv.structAbduction(premiseTv), new Stamp(premiseStamp.ids, structuralOrigins), ".");
                 conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
-                conclusionTasks.push(new JudgementTask(conclusionSentence));
+                conclusionTasks.push(new JudgementTask(conclusionSentence, taskIdCounter++));
             }
 
             case _: null;
@@ -949,7 +952,7 @@ class Sq2 {
                     conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
                     if (premisePunctation == "?") {
                         var link:QuestionLink = QuestionLink.ComposeSingle(componentIdx, premiseQuestionTask); // we need to link them
-                        var derivedQuestionTask = new QuestionTask(conclusionSentence, link);
+                        var derivedQuestionTask = new QuestionTask(conclusionSentence, link, taskIdCounter++);
                         conclusionTasks.push(derivedQuestionTask);
 
                         // link from parent to children
@@ -982,10 +985,10 @@ class Sq2 {
                 conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
                 if (premisePunctation == "?") {
                     var link:QuestionLink = QuestionLink.StructuralSingle(cast(premiseTask, QuestionTask)); // we need to link them
-                    conclusionTasks.push(new QuestionTask(conclusionSentence, link));
+                    conclusionTasks.push(new QuestionTask(conclusionSentence, link, taskIdCounter++));
                 }
                 else {
-                    conclusionTasks.push(new JudgementTask(conclusionSentence));
+                    conclusionTasks.push(new JudgementTask(conclusionSentence, taskIdCounter++));
                 }
             }
 
@@ -1001,10 +1004,10 @@ class Sq2 {
                 conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
                 if (premisePunctation == "?") {
                     var link:QuestionLink = QuestionLink.StructuralSingle(cast(premiseTask, QuestionTask)); // we need to link them
-                    conclusionTasks.push(new QuestionTask(conclusionSentence, link));
+                    conclusionTasks.push(new QuestionTask(conclusionSentence, link, taskIdCounter++));
                 }
                 else {
-                    conclusionTasks.push(new JudgementTask(conclusionSentence));
+                    conclusionTasks.push(new JudgementTask(conclusionSentence, taskIdCounter++));
                 }
             }
 
@@ -1026,10 +1029,10 @@ class Sq2 {
                 conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
                 if (premisePunctation == "?") {
                     var link:QuestionLink = QuestionLink.StructuralSingle(cast(premiseTask, QuestionTask)); // we need to link them
-                    conclusionTasks.push(new QuestionTask(conclusionSentence, link));
+                    conclusionTasks.push(new QuestionTask(conclusionSentence, link, taskIdCounter++));
                 }
                 else {
-                    conclusionTasks.push(new JudgementTask(conclusionSentence));
+                    conclusionTasks.push(new JudgementTask(conclusionSentence, taskIdCounter++));
                 }
             }
 
@@ -1047,10 +1050,10 @@ class Sq2 {
                 conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
                 if (premisePunctation == "?") {
                     var link:QuestionLink = QuestionLink.StructuralSingle(cast(premiseTask, QuestionTask)); // we need to link them
-                    conclusionTasks.push(new QuestionTask(conclusionSentence, link));
+                    conclusionTasks.push(new QuestionTask(conclusionSentence, link, taskIdCounter++));
                 }
                 else {
-                    conclusionTasks.push(new JudgementTask(conclusionSentence));
+                    conclusionTasks.push(new JudgementTask(conclusionSentence, taskIdCounter++));
                 }
             }
 
@@ -1079,7 +1082,7 @@ class Sq2 {
                     // ruleName:"NAL-6.single struct decomposition"
                     var conclusionSentence = new Sentence(iConclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), premisePunctation);
                     conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
-                    conclusionTasks.push(new JudgementTask(conclusionSentence));
+                    conclusionTasks.push(new JudgementTask(conclusionSentence, taskIdCounter++));
                 }
             }
 
@@ -1211,8 +1214,11 @@ class Sentence {
 class Task {
     public var sentence:Sentence;
 
-    public function new(sentence) {
+    public var id:Int; // unique id of the task
+
+    public function new(sentence, id) {
         this.sentence = sentence;
+        this.id = id;
     }
 
     public function retPunctation():String {
@@ -1229,8 +1235,8 @@ class QuestionTask extends Task {
 
     public var questionTime:Int = -1; // global cycle time of the question, -1 if it is not tracked
 
-    public function new(sentence, questionLink) {
-        super(sentence);
+    public function new(sentence, questionLink, id) {
+        super(sentence, id);
         this.questionLink = questionLink;
     }
 
@@ -1252,8 +1258,8 @@ enum QuestionLink {
 class JudgementTask extends Task {
     public var isAnswerToQuestion:Bool = false; // is it a answer to a question?    
 
-    public function new(sentence) {
-        super(sentence);
+    public function new(sentence, id) {
+        super(sentence, id);
     }
 }
 
