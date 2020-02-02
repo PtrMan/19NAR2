@@ -30,12 +30,12 @@ class Deriver {
         var y = Term.Cop("-->", Term.Name("b"), Term.Name("c"));
 
         var conclusions = [];
-        inferenceCode(x, ".", new Tv(1.0, 0.9), y, ".", new Tv(1.0, 0.9), null, conclusions);
+        inferenceCode(x, ".", new Tv(1.0, 0.9), y, ".", new Tv(1.0, 0.9), null, conclusions, 1);
         trace(conclusions);
     }
 
     // macro to compile a lot of rules
-    public static macro function inferenceCode(a:Expr, aPunct:Expr, aTv:Expr, b:Expr, bPunct:Expr, bTv:Expr, mergedStamp:Expr, conclusions:Expr) {
+    public static macro function inferenceCode(a:Expr, aPunct:Expr, aTv:Expr, b:Expr, bPunct:Expr, bTv:Expr, mergedStamp:Expr, conclusions:Expr, conclDepth:Expr) {
         var cgrules:Array<CGRule> = []; // all code generation rules which we generated
         
         // add set rules
@@ -342,7 +342,7 @@ class Deriver {
                                     
                                     
                                     // TODO< transfer rulename from rule to conclusions >
-                                    conclusions.push({term:conclTerm, tv:conclusionTv, punctation:".", stamp:$mergedStamp, ruleName:"?"});
+                                    conclusions.push({term:conclTerm, tv:conclusionTv, punctation:".", stamp:$mergedStamp, ruleName:"?", depth:$conclDepth});
                                 }
                             }
 

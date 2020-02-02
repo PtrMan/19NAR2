@@ -47,6 +47,9 @@ class Sq2 {
     // working set of tasks
     public var workingSet:WorkingSet = new WorkingSet();
 
+    // working set by derivation depth
+    public var workingQueueByDepth: Array<WorkingArr> = [];
+
     // used for debugging and unittesting
     // set to null to disable adding conclusions to this array
     public var conclusionStrArr:Array<String> = null;
@@ -55,7 +58,12 @@ class Sq2 {
 
     public var globalCycleCounter = 0;
 
-    public function new() {}
+    public function new() {
+        // init for different derivation depths
+        workingQueueByDepth.push(new WorkingArr());
+        workingQueueByDepth.push(new WorkingArr());
+        workingQueueByDepth.push(new WorkingArr());
+    }
 
     // puts new input from the outside of the system into the system
     public function inputTerm(term:Term, tv:Tv, punctation:String) {
@@ -63,23 +71,31 @@ class Sq2 {
         stampIdCounter = haxe.Int64.add(stampIdCounter, haxe.Int64.make(0,1));
 
         if (punctation == ".") { // only add to memory for judgments
-            mem.updateConceptsForJudgment(sentence);
+            mem.updateConceptsForJudgement(sentence);
         }
 
-        var workingSetEntity:WorkingSetEntity = null;
+        var task:Task = null;
+
         if (punctation == ".") {
-            workingSetEntity = new WorkingSetEntity(new JudgementTask(sentence));
+            task = new JudgementTask(sentence);
         }
         else if (punctation == "?") {
             var q = new QuestionTask(sentence, QuestionLink.Null);
             q.questionTime = globalCycleCounter;
-            workingSetEntity = new WorkingSetEntity(q);
+            task = q;
         }
         else {
             throw "Invalid punctation!";
         }
 
-        workingSet.append(workingSetEntity);
+        // add it to importance sampled set if it is a question
+        if (punctation == "?") {
+            var workingSetEntity:WorkingSetEntity = new WorkingSetEntity(task);
+            workingSet.append(workingSetEntity);
+        }
+        else {
+            workingQueueByDepth[0].tasks.push(task);
+        }
     }
 
     // puts new narsese input from the outside into the system
@@ -130,29 +146,50 @@ class Sq2 {
             if (Config.debug_derivations)   trace("");
             if (Config.debug_derivations)   trace("");
 
-            if (workingSet.entities.length == 0) {
-                continue; // nothing to work on, continue
+            var primaryTask:Task = null;
+
+            if(Math.random() > 0.5) { // select from sampled workingSet?
+                if (workingSet.entities.length == 0) {
+                    continue; // nothing to work on, continue
+                }
+    
+                // select random element from working set
+                var chosenWorkingSetEntity;
+                { // select element from working set by probabilistic selection by mass
+                    var probabilityMass: Float = workingSet.entities[workingSet.entities.length-1].accuScore;
+                    var chosenMass: Float = Math.random() * probabilityMass;
+    
+                    var idx:Int = workingSet.calcIdxByScoreMass(chosenMass); ///////Std.random(workingSet.entities.length);
+                    chosenWorkingSetEntity = workingSet.entities[idx];
+                }
+    
+                primaryTask = chosenWorkingSetEntity.task;
+            }
+            else { // select from working set by derivationDepth
+                // select work queue index - give depth 0 more chance than depth 1
+                var workingQueueIdx = switch (globalCycleCounter % 3) {
+                    case 0 | 1: 0;
+                    case _: 1;
+                }
+
+                if (workingQueueByDepth[workingQueueIdx].tasks.length == 0) {
+                    continue; // nothing to work on, continue
+                }
+
+                primaryTask = workingQueueByDepth[workingQueueIdx].tasks[0];
+                workingQueueByDepth[workingQueueIdx].tasks = workingQueueByDepth[workingQueueIdx].tasks.slice(1); // take away
             }
 
-            // select random element from working set
-            var chosenWorkingSetEntity;
-            { // select element from working set by probabilistic selection by mass
-                var probabilityMass: Float = workingSet.entities[workingSet.entities.length-1].accuScore;
-                var chosenMass: Float = Math.random() * probabilityMass;
-
-                var idx:Int = workingSet.calcIdxByScoreMass(chosenMass); ///////Std.random(workingSet.entities.length);
-                chosenWorkingSetEntity = workingSet.entities[idx];
-            }
-
-            var premiseSentence = chosenWorkingSetEntity.task.sentence;
+            
+            var primarySentence = primaryTask.sentence;
 
             // Q&A
-            if (premiseSentence.punctation == "?") {
-                var questionTask = cast(chosenWorkingSetEntity.task, QuestionTask);
+            if (primarySentence.punctation == "?") {
+                var questionTask = cast(primaryTask, QuestionTask);
 
                 // enumerate subterms
                 // checked terms for enumeration of subterms of question
-                var checkedTerms = TermUtils.enumTerms(premiseSentence.term);
+                var checkedTerms = TermUtils.enumTerms(primarySentence.term);
 
                 for (iTermName in checkedTerms) {
                     // try to retrieve concept
@@ -166,9 +203,9 @@ class Sq2 {
                     // try to find better answer
                     for (iBelief in nodeOfTerm.judgments) {
                         //trace('Q&A check answer ${TermUtils.convToStr(iBelief.term)}');
-                        //trace('unifies = ${Unifier.checkUnify(premiseSentence.term, iBelief.term)}');
+                        //trace('unifies = ${Unifier.checkUnify(primarySentence.term, iBelief.term)}');
 
-                        var unifies:Bool = Unifier.checkUnify(premiseSentence.term, iBelief.term);
+                        var unifies:Bool = Unifier.checkUnify(primarySentence.term, iBelief.term);
 
                         // check for same exp() because partial answers may have roughtly the same exp(), we still want to boost them
                         if (Math.abs(iBelief.tv.exp() - questionTask.retBestAnswerExp()) < 0.001 && unifies) {
@@ -228,12 +265,12 @@ class Sq2 {
                 }
             }
 
-            var premiseTerm = chosenWorkingSetEntity.task.sentence.term;
-            var premiseTermStructuralOrigins = chosenWorkingSetEntity.task.sentence.stamp.structuralOrigins.arr;
-            var premiseTv = chosenWorkingSetEntity.task.sentence.tv;
-            var premisePunctation = chosenWorkingSetEntity.task.sentence.punctation;
-            var premiseStamp = chosenWorkingSetEntity.task.sentence.stamp;
-            var conclusionsSinglePremise:Array<Task> = deriveSinglePremise(chosenWorkingSetEntity.task);
+            var premiseTerm = primaryTask.sentence.term;
+            var premiseTermStructuralOrigins = primaryTask.sentence.stamp.structuralOrigins.arr;
+            var premiseTv = primaryTask.sentence.tv;
+            var premisePunctation = primaryTask.sentence.punctation;
+            var premiseStamp = primaryTask.sentence.stamp;
+            var conclusionsSinglePremise:Array<Task> = deriveSinglePremise(primaryTask);
 
             var conclusionsTwoPremises = [];
             { // two premise derivation
@@ -266,11 +303,14 @@ class Sq2 {
 
                         if (Config.debug_derivations)   trace("inf   " +  TermUtils.convToStr(premiseTerm) +     "   ++++    "+TermUtils.convToStr(secondaryTerm));
 
+                        var conclDDepth: Int = Utils.min(primarySentence.derivationDepth, secondarySentence.derivationDepth) + 1;
+
                         if (!Stamp.checkOverlap(premiseStamp, secondaryStamp)) {
                             if (premisePunctation == "." && secondaryPunctation == "." && TermUtils.equal(premiseTerm, secondaryTerm)) { // can do revision
                                 var tv = Tv.revision(premiseTv, secondaryTv);
                                 var mergedStamp = Stamp.merge(premiseStamp, secondaryStamp);
                                 var revisedSentence = new Sentence(premiseTerm, tv, mergedStamp, ".");
+                                revisedSentence.derivationDepth = conclDDepth;
                                 primaryConcept.judgments[secondaryIdx] = revisedSentence;
 
                                 { // print and add for debugging
@@ -283,7 +323,7 @@ class Sq2 {
                                 }
                             }
                             else { // can't do revision, try normal inference
-                                conclusionsTwoPremises = deriveTwoPremise(premiseTerm, premiseTv, premisePunctation, premiseStamp,   secondaryTerm, secondaryTv, secondaryPunctation, secondaryStamp); //[].concat(conclusionsTwoPremisesAB).concat(conclusionsTwoPremisesBA);
+                                conclusionsTwoPremises = deriveTwoPremise(premiseTerm, premiseTv, premisePunctation, premiseStamp,   secondaryTerm, secondaryTv, secondaryPunctation, secondaryStamp, conclDDepth);
                             }
                         }
                         else {
@@ -291,8 +331,6 @@ class Sq2 {
                         }
                     }
                 }
-
-                
             }
 
             var conclusionTasks:Array<Task> = conclusionsSinglePremise;
@@ -300,6 +338,7 @@ class Sq2 {
             // adapter to create tasks for conclusions with two premises
             for (iConclusion in conclusionsTwoPremises) {
                 var sentence = new Sentence(iConclusion.term, iConclusion.tv, iConclusion.stamp, iConclusion.punctation);
+                sentence.derivationDepth = iConclusion.depth;
 
                 var workingSetEntity = null;
                 if (sentence.punctation == ".") {
@@ -340,33 +379,59 @@ class Sq2 {
             if (Config.debug_derivations)   trace("");
 
 
-            // put conclusions back into working set
+            
+
+            
             for (iConclusionTask in conclusionTasks) {
-                var workingSetEntity = new WorkingSetEntity(iConclusionTask);
-                
-                // try to find conclusion in working set and add only if it doesn't yet exist
-                var existsSentenceInWorkingSet = false;
-                for (iWorkingSetEntity in workingSet.entities) {
-                    if (Sentence.equal(iWorkingSetEntity.task.sentence, iConclusionTask.sentence)) {
-                        existsSentenceInWorkingSet = true;
-                        break;
+                // put conclusions back into working set
+                for (iConclusionTask in conclusionTasks) {
+                    var workingSetEntity = new WorkingSetEntity(iConclusionTask);
+                    
+                    // try to find conclusion in working set and add only if it doesn't yet exist
+                    var existsSentenceInWorkingSet = false;
+                    for (iWorkingSetEntity in workingSet.entities) {
+                        if (Sentence.equal(iWorkingSetEntity.task.sentence, iConclusionTask.sentence)) {
+                            existsSentenceInWorkingSet = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!existsSentenceInWorkingSet) {
+                        workingSet.append(workingSetEntity);
                     }
                 }
-                
-                if (!existsSentenceInWorkingSet) {
-                    workingSet.append(workingSetEntity);
+
+
+                var dDepth:Int = iConclusionTask.sentence.derivationDepth;
+
+                // if question then add to probabilistic sampled workingset
+                if (iConclusionTask.retPunctation() == "?" || dDepth >= workingQueueByDepth.length) {
+                }
+                else {
+                    // put it into the more deterministic queue instead
+
+                    var selDDepth:Int = Utils.min(dDepth, workingQueueByDepth.length - 1);
+
+                    workingQueueByDepth[selDDepth].tasks.push(iConclusionTask);    
                 }
             }
 
-            // store conclusions
+            // store conclusion judgement
             for (iConclusionTask in conclusionTasks) {
                 var iConclusionSentence = iConclusionTask.sentence;
                 if (iConclusionSentence.punctation == ".") {
-                    mem.updateConceptsForJudgment(iConclusionSentence);
+                    mem.updateConceptsForJudgement(iConclusionSentence);
                 }
             }
         }
 
+
+        if (Config.debug_derivations) {
+            debugSummary();
+        }
+    }
+
+    public function debugSummary() {
         var numberOfConcepts = 0;
         {
             for (iConceptName in mem.conceptsByName.keys()) {
@@ -374,11 +439,13 @@ class Sq2 {
             }
         }
 
-        if (Config.debug_derivations)   trace("Summary: ");
-        if (Config.debug_derivations)   trace('   #concepts= $numberOfConcepts');
-        if (Config.debug_derivations)   trace('   #workingset.entities= ${workingSet.entities.length}');
-
-
+        Sys.println("Summary: ");
+        Sys.println('   #concepts= $numberOfConcepts');
+        Sys.println('   #workingset.entities= ${workingSet.entities.length}');
+        
+        for (idx in 0...workingQueueByDepth.length) {
+            Sys.println('   #workingqueueByDepth[${idx}]= ${workingQueueByDepth[idx].tasks.length}');
+        }        
     }
 
     // Q&A - propagates a (partial) answer down the hierachy/tree of partial question tasks
@@ -480,6 +547,9 @@ class Sq2 {
                             trace('   ${linkedQuestionTasksByIndex[1].bestAnswerSentence.convToStr()}');
                         }
 
+                        
+                        var conclDDepth: Int = Utils.min(linkedQuestionTasksByIndex[0].bestAnswerSentence.derivationDepth, linkedQuestionTasksByIndex[1].bestAnswerSentence.derivationDepth) + 1;
+
                         var potentialConclusions = deriveTwoPremise(
                             linkedQuestionTasksByIndex[0].bestAnswerSentence.term,
                             linkedQuestionTasksByIndex[0].bestAnswerSentence.tv,
@@ -489,7 +559,9 @@ class Sq2 {
                             linkedQuestionTasksByIndex[1].bestAnswerSentence.term,
                             linkedQuestionTasksByIndex[1].bestAnswerSentence.tv,
                             linkedQuestionTasksByIndex[1].bestAnswerSentence.punctation,
-                            linkedQuestionTasksByIndex[1].bestAnswerSentence.stamp
+                            linkedQuestionTasksByIndex[1].bestAnswerSentence.stamp,
+
+                            conclDDepth
                         );
 
                         if (Config.debug_derivations_qacomposition) {
@@ -535,15 +607,16 @@ class Sq2 {
         }
     }
     
-    public static function deriveTwoPremise(premiseATerm:Term,premiseATv:Tv,premiseAPunctation:String,premiseAStamp:Stamp,  premiseBTerm:Term,premiseBTv:Tv,premiseBPunctation:String,premiseBStamp:Stamp) {
-        var conclusionsTwoPremisesAB = deriveTwoPremiseInternal(premiseATerm, premiseATv, premiseAPunctation, premiseAStamp,   premiseBTerm, premiseBTv, premiseBPunctation, premiseBStamp);
-        var conclusionsTwoPremisesBA = deriveTwoPremiseInternal(premiseBTerm, premiseBTv, premiseBPunctation, premiseBStamp,   premiseATerm, premiseATv, premiseAPunctation, premiseAStamp);
+    // /param conclDepth derivation depth of the conclusion
+    public static function deriveTwoPremise(premiseATerm:Term,premiseATv:Tv,premiseAPunctation:String,premiseAStamp:Stamp,  premiseBTerm:Term,premiseBTv:Tv,premiseBPunctation:String,premiseBStamp:Stamp, conclDepth:Int) {
+        var conclusionsTwoPremisesAB = deriveTwoPremiseInternal(premiseATerm, premiseATv, premiseAPunctation, premiseAStamp,   premiseBTerm, premiseBTv, premiseBPunctation, premiseBStamp, conclDepth);
+        var conclusionsTwoPremisesBA = deriveTwoPremiseInternal(premiseBTerm, premiseBTv, premiseBPunctation, premiseBStamp,   premiseATerm, premiseATv, premiseAPunctation, premiseAStamp, conclDepth);
         return [].concat(conclusionsTwoPremisesAB).concat(conclusionsTwoPremisesBA);
     }
 
 
     // internal helper function which processes only one combination of premises (sides are not switched)
-    public static function deriveTwoPremiseInternal(premiseATerm:Term,premiseATv:Tv,premiseAPunctation:String,premiseAStamp:Stamp,  premiseBTerm:Term,premiseBTv:Tv,premiseBPunctation:String,premiseBStamp:Stamp) {
+    public static function deriveTwoPremiseInternal(premiseATerm:Term,premiseATv:Tv,premiseAPunctation:String,premiseAStamp:Stamp,  premiseBTerm:Term,premiseBTv:Tv,premiseBPunctation:String,premiseBStamp:Stamp, conclDepth:Int) {
         
         // checks if term is a set
         function checkSet(t:Term):Bool {
@@ -557,10 +630,10 @@ class Sq2 {
 
         var mergedStamp = Stamp.merge(premiseAStamp, premiseBStamp);
 
-        var conclusions:Array<{term:Term, tv:Tv, punctation:String, stamp:Stamp, ruleName:String}> = [];
+        var conclusions:Array<{term:Term, tv:Tv, punctation:String, stamp:Stamp, ruleName:String, depth:Int}> = [];
 
         // call to generated code for deriver
-        Deriver.inferenceCode(premiseATerm, premiseAPunctation, premiseATv, premiseBTerm, premiseBPunctation, premiseBTv, mergedStamp, conclusions);
+        Deriver.inferenceCode(premiseATerm, premiseAPunctation, premiseATv, premiseBTerm, premiseBPunctation, premiseBTv, mergedStamp, conclusions, conclDepth);
 
 
         // tries to unify a with b and return the unified term, returns null if it can't get unified
@@ -682,7 +755,7 @@ class Sq2 {
                 // <c --> x> ==> <X --> Y>.
                 if (TermUtils.equal(compoundA0, premiseBTerm)) {
                     var conclusion = Term.Cop("==>", compoundA1, implPred);
-                    conclusions.push({term: conclusion, tv:Tv.deduction(premiseATv, premiseBTv)/*TODO check*/, punctation:".", stamp:mergedStamp, ruleName:"NAL6-two impl ==> detach conj[0]"});
+                    conclusions.push({term: conclusion, tv:Tv.deduction(premiseATv, premiseBTv)/*TODO check*/, punctation:".", stamp:mergedStamp, ruleName:"NAL6-two impl ==> detach conj[0]", depth:conclDepth});
                 }
 
                 // TODO< var unification >
@@ -693,7 +766,7 @@ class Sq2 {
                 // <a --> x> ==> <X --> Y>.
                 if (TermUtils.equal(compoundA1, premiseBTerm)) {
                     var conclusion = Term.Cop("==>", compoundA0, implPred);
-                    conclusions.push({term: conclusion, tv:Tv.deduction(premiseATv, premiseBTv)/*TODO check*/, punctation:".", stamp:mergedStamp, ruleName:"NAL6-two impl ==> detach conj[1]"});
+                    conclusions.push({term: conclusion, tv:Tv.deduction(premiseATv, premiseBTv)/*TODO check*/, punctation:".", stamp:mergedStamp, ruleName:"NAL6-two impl ==> detach conj[1]", depth:conclDepth});
                 }
                 
                 
@@ -722,7 +795,7 @@ class Sq2 {
                 var unifiedMap = new Map<String, Term>();
                 if (Unifier.unify(subj, premiseBTerm, unifiedMap)) { // try to unify the subj of the impl or equiv w/ the other premise                    
                     var conclTerm = Unifier.substitute(pred, unifiedMap, "$");
-                    conclusions.push({term: conclTerm, tv:Tv.deduction(premiseATv, premiseBTv)/*TODO check*/, punctation:".", stamp:premiseBStamp, ruleName:"NAL6-two impl structural transformation with two premises"});
+                    conclusions.push({term: conclTerm, tv:Tv.deduction(premiseATv, premiseBTv)/*TODO check*/, punctation:".", stamp:premiseBStamp, ruleName:"NAL6-two impl structural transformation with two premises", depth:conclDepth});
                 }
 
                 case _: null;
@@ -753,7 +826,7 @@ class Sq2 {
                 var unifiedMap = new Map<String, Term>();
                 if (Unifier.unify(pred, premiseBTerm, unifiedMap)) { // try to unify the subj of the impl or equiv w/ the other premise                    
                     var conclTerm = Unifier.substitute(subj, unifiedMap, "$");
-                    conclusions.push({term: conclTerm, tv:null, punctation:"?", stamp:premiseBStamp, ruleName:"NAL6-two impl/equiv Q&A 1"});
+                    conclusions.push({term: conclTerm, tv:null, punctation:"?", stamp:premiseBStamp, ruleName:"NAL6-two impl/equiv Q&A 1", depth:conclDepth});
                 }
 
                 case _: null;
@@ -774,16 +847,10 @@ class Sq2 {
 
         var conclusionTasks: Array<Task> = [];
 
-        var conclusions:Array<{term:Term, tv:Tv, punctation:String, stamp:Stamp, ruleName:String}> = [];
-
-        
-
         // NAL-2 conversion
         if (premisePunctation == ".") switch (premiseTerm) {
             case Cop(copula, subj, pred) if (copula == "-->"):
 
-            // TODO< bump derivation depth >
-            
             var conclusionTerm = Term.Cop(copula, pred,subj);
             
             if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
@@ -791,6 +858,7 @@ class Sq2 {
 
                 // ruleName:"NAL-2.single contraposition"
                 var conclusionSentence = new Sentence(conclusionTerm, Tv.conversion(premiseTv), new Stamp(premiseStamp.ids, structuralOrigins), ".");
+                conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
                 conclusionTasks.push(new JudgementTask(conclusionSentence));
             }
 
@@ -801,8 +869,6 @@ class Sq2 {
         if (premisePunctation == ".") switch (premiseTerm) {
             case Cop(copula, subj, pred) if (copula == "<->" || copula == "<=>"):
 
-            // TODO< bump derivation depth >
-            
             var conclusionTerm = Term.Cop(copula, pred,subj);
             
             if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
@@ -810,6 +876,7 @@ class Sq2 {
                 
                 // ruleName:(copula == "<->" ? "NAL-2" : "NAL-6") + ".single structural"
                 var conclusionSentence = new Sentence(conclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), ".");
+                conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
                 conclusionTasks.push(new JudgementTask(conclusionSentence));
             }
 
@@ -822,8 +889,6 @@ class Sq2 {
         if (premisePunctation == ".") switch (premiseTerm) {
             case Cop(copula, subj, pred) if (copula == "<->" || copula == "<=>"):
 
-            // TODO< bump derivation depth >
-            
             var conclusionTerm = Term.Cop(copula == "<->" ? "-->" : "==>", subj,pred);
             
             if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
@@ -831,6 +896,7 @@ class Sq2 {
                 
                 // ruleName:(copula == "<->" ? "NAL-2" : "NAL-6") + ".single structural ded"
                 var conclusionSentence = new Sentence(conclusionTerm, Tv.structDeduction(premiseTv), new Stamp(premiseStamp.ids, structuralOrigins), ".");
+                conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
                 conclusionTasks.push(new JudgementTask(conclusionSentence));
             }
 
@@ -842,8 +908,6 @@ class Sq2 {
         if (premisePunctation == ".") switch (premiseTerm) {
             case Cop(copula, subj, pred) if (copula == "-->"):
 
-            // TODO< bump derivation depth >
-            
             var conclusionTerm = Term.Cop("<->", subj,pred);
             
             if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
@@ -851,6 +915,7 @@ class Sq2 {
                 
                 //  ruleName:"NAL-2" + ".single structural abd"
                 var conclusionSentence = new Sentence(conclusionTerm, Tv.structAbduction(premiseTv), new Stamp(premiseStamp.ids, structuralOrigins), ".");
+                conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
                 conclusionTasks.push(new JudgementTask(conclusionSentence));
             }
 
@@ -873,8 +938,7 @@ class Sq2 {
 
                 var componentIdx = 0; // used for linkage
                 for(iCompContent in compContent) {
-                    // TODO< bump derivation depth >
-                    
+
                     var conclusionTerm = Term.Cop(cop, iCompContent, pred);
     
                     // we don't need to check structural stamp, because it is not necessary
@@ -882,6 +946,7 @@ class Sq2 {
     
                     // ruleName:"NAL-3" + '.single structural decompose $compType'
                     var conclusionSentence = new Sentence(conclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), premisePunctation);
+                    conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
                     if (premisePunctation == "?") {
                         var link:QuestionLink = QuestionLink.ComposeSingle(componentIdx, premiseQuestionTask); // we need to link them
                         var derivedQuestionTask = new QuestionTask(conclusionSentence, link);
@@ -906,8 +971,6 @@ class Sq2 {
         if (premisePunctation == "." || premisePunctation == "?") switch (premiseTerm) {
             case Cop("-->", Prod([prod0, prod1]), inhPred):
 
-            // TODO< bump derivation depth >
-
             var conclusionTerm = Term.Cop("-->", prod0, Img(inhPred, [ImgWild, prod1]));
             
             if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
@@ -916,6 +979,7 @@ class Sq2 {
                 
                 // ruleName:"NAL-6.single prod->img"
                 var conclusionSentence = new Sentence(conclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), premisePunctation);
+                conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
                 if (premisePunctation == "?") {
                     var link:QuestionLink = QuestionLink.StructuralSingle(cast(premiseTask, QuestionTask)); // we need to link them
                     conclusionTasks.push(new QuestionTask(conclusionSentence, link));
@@ -934,6 +998,7 @@ class Sq2 {
 
                 // ruleName:"NAL-6.single prod->img"
                 var conclusionSentence = new Sentence(conclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), premisePunctation);
+                conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
                 if (premisePunctation == "?") {
                     var link:QuestionLink = QuestionLink.StructuralSingle(cast(premiseTask, QuestionTask)); // we need to link them
                     conclusionTasks.push(new QuestionTask(conclusionSentence, link));
@@ -950,8 +1015,6 @@ class Sq2 {
         if (premisePunctation == "." || premisePunctation == "?") switch (premiseTerm) {
             case Cop("-->", inhSubj, Img(inhPred, [ImgWild, prod1])):
 
-            // TODO< bump derivation depth >
-
             var conclusionTerm = Term.Cop("-->", Prod([inhSubj, prod1]), inhPred);
             
             if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
@@ -960,6 +1023,7 @@ class Sq2 {
                 
                 // ruleName:"NAL-6.single img->prod"
                 var conclusionSentence = new Sentence(conclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), premisePunctation);
+                conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
                 if (premisePunctation == "?") {
                     var link:QuestionLink = QuestionLink.StructuralSingle(cast(premiseTask, QuestionTask)); // we need to link them
                     conclusionTasks.push(new QuestionTask(conclusionSentence, link));
@@ -972,8 +1036,6 @@ class Sq2 {
 
             case Cop("-->", inhSubj, Img(inhPred, [prod0, ImgWild])):
 
-            // TODO< bump derivation depth >
-
             var conclusionTerm = Term.Cop("-->", Prod([prod0, inhSubj]), inhPred);
             
             if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
@@ -982,6 +1044,7 @@ class Sq2 {
 
                 // ruleName:"NAL-6.single img->prod"
                 var conclusionSentence = new Sentence(conclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), premisePunctation);
+                conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
                 if (premisePunctation == "?") {
                     var link:QuestionLink = QuestionLink.StructuralSingle(cast(premiseTask, QuestionTask)); // we need to link them
                     conclusionTasks.push(new QuestionTask(conclusionSentence, link));
@@ -1007,8 +1070,6 @@ class Sq2 {
         if (premisePunctation == ".") switch (premiseTerm) {
             case Cop(cop, Prod([subj0, subj1]),Prod([pred0, pred1])) if (cop == "-->" || cop == "<->"):
 
-            // TODO< bump derivation depth >
-
             var conclusionTerms = [Term.Cop(cop, subj0, pred0), Term.Cop(cop, subj1, pred1)];
             
             for (iConclusionTerm in conclusionTerms) {
@@ -1017,6 +1078,7 @@ class Sq2 {
                     
                     // ruleName:"NAL-6.single struct decomposition"
                     var conclusionSentence = new Sentence(iConclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), premisePunctation);
+                    conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
                     conclusionTasks.push(new JudgementTask(conclusionSentence));
                 }
             }
@@ -1566,8 +1628,8 @@ class Memory {
         conceptsByName.set( TermUtils.convToStr(concept.name) , concept);
     }
 
-    // puts judgment into corresponding concepts
-    public function updateConceptsForJudgment(sentence:Sentence) {
+    // puts judgement into corresponding concepts
+    public function updateConceptsForJudgement(sentence:Sentence) {
         for (iTermName in TermUtils.enumTerms(sentence.term)) {
             var nodeOfTerm;
             
@@ -1611,6 +1673,8 @@ class Sentence {
     public var stamp:Stamp;
 
     public var punctation:String;
+
+    public var derivationDepth:Int = 0;
 
     public function new(term, tv, stamp, punctation) {
         this.term = term;
@@ -1933,6 +1997,13 @@ class WorkingSet {
     }
     */
 }
+
+class WorkingArr {
+    public var tasks:Array<Task> = [];
+
+    public function new() {}
+}
+
 
 class Config {
     public static var beliefsPerNode:Int = 30;
