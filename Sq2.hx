@@ -450,6 +450,22 @@ class Sq2 {
         }        
     }
 
+    // tries to search and return a QuestionTask by the id of the task
+    // /return value can be null if the referenced task is not anymore in memory (because of AIKR)
+    private function retQuestionTaskById(taskId:Int): QuestionTask {
+        // TODO< implement >
+        trace('warning: retQuestionTaskById is not implemented!');
+        return null;
+    }
+
+    // tries to search and return a Task by the id of the task
+    // /return value can be null if the referenced task is not anymore in memory (because of AIKR)
+    //private function retTaskById(taskId:Int): Task {
+    //    // TODO< implement >
+    //    trace('warning: retTaskById is not implemented!');
+    //    return null;
+    //}
+
     // Q&A - propagates a (partial) answer down the hierachy/tree of partial question tasks
     //
     // combines partial structural answers to more complete answers
@@ -465,146 +481,162 @@ class Sq2 {
         switch(questionTask.questionLink) {
             case Null: // has no link - nothing to do!
             case StructuralSingle(parent): // has structural parent - we only need to derive structural transformations and try to answer the parent
+            
+            var parentTask:QuestionTask = retQuestionTaskById(parent);
+            if (parentTask != null) { // can be null if no more in memory (AIKR)
 
-            // task id is -1 because it is dummy
-            var premiseTask = new JudgementTask(answer, -1);
-            var conclusionTasks:Array<Task> = deriveSinglePremise(premiseTask);
+                // task id is -1 because it is dummy
+                var premiseTask = new JudgementTask(answer, -1);
+                var conclusionTasks:Array<Task> = deriveSinglePremise(premiseTask);
 
-            // only terms which unify with the question can be answers!
-            for(iPotentialConclusionTask in conclusionTasks) {
-                var iPotentialConclusion = iPotentialConclusionTask.sentence;
+                // only terms which unify with the question can be answers!
+                for(iPotentialConclusionTask in conclusionTasks) {
+                    var iPotentialConclusion = iPotentialConclusionTask.sentence;
 
-                var unifies:Bool = Unifier.checkUnify(parent.sentence.term, iPotentialConclusion.term);
-                if (unifies) {
-                    if (Config.debug_derivations_qacomposition) { // debug potential conclusion
-                        trace('|- ${TermUtils.convToStr(iPotentialConclusion.term)}');
-                    }
+                    
 
-                    // and we need to report the potential answer
-                    // (with a recursive call, only when exp is above best reported one)
+                    var unifies:Bool = Unifier.checkUnify(parentTask.sentence.term, iPotentialConclusion.term);
+                    if (unifies) {
+                        if (Config.debug_derivations_qacomposition) { // debug potential conclusion
+                            trace('|- ${TermUtils.convToStr(iPotentialConclusion.term)}');
+                        }
 
-                    var sentence = new Sentence(iPotentialConclusion.term, iPotentialConclusion.tv, iPotentialConclusion.stamp, iPotentialConclusion.punctation);
+                        // and we need to report the potential answer
+                        // (with a recursive call, only when exp is above best reported one)
 
-                    if (iPotentialConclusion.tv.exp() > parent.retBestAnswerExp() && unifies ) {
-                        // found a better answer
-                        parent.bestAnswerSentence = sentence;
-                        reportAnswer(parent, sentence);
+                        var sentence = new Sentence(iPotentialConclusion.term, iPotentialConclusion.tv, iPotentialConclusion.stamp, iPotentialConclusion.punctation);
 
-                        // propagate
-                        propagatePartialAnswer(parent, sentence);
+                        if (iPotentialConclusion.tv.exp() > parentTask.retBestAnswerExp() && unifies ) {
+                            // found a better answer
+                            parentTask.bestAnswerSentence = sentence;
+                            reportAnswer(parentTask, sentence);
+
+                            // propagate
+                            propagatePartialAnswer(parentTask, sentence);
+                        }
                     }
                 }
+
             }
 
             case ComposeSingle(index, parent): // has compositional parent - we need to try to compose partial answers and answer parent
             {
-                if (parent.questionCompositionChildrenLinks.length == 2) {
-                    var linkedQuestionTasksByIndex:Array<QuestionTask> = [null, null];
-                    
-                    // enumerate linked question tasks - necessary because AIKR and because linked tasks can get forgotten
-                    for(iLinkedTask in parent.questionCompositionChildrenLinks) {
-                        switch(iLinkedTask.questionLink) {
-                            case ComposeSingle(index2, _):
-                            linkedQuestionTasksByIndex[index2] = iLinkedTask;
-                            case _: // ignore
-                        }
-                    }
+                var parentTask:QuestionTask = retQuestionTaskById(parent);
+                if (parentTask != null) { // can be null if no more in memory (AIKR)
 
-                    // we have the linked question tasks for the composition
-                    // now we have to make sure that they are valid
-                    for(iLinkedTask in linkedQuestionTasksByIndex) {
-                        if (iLinkedTask == null) {
-                            return; // break propagation up because composition wasn't completely answered
-                        }
-                    }
-
-                    // we are here when all questions are valid
-                    // now we need to make sure that all partial questions were answered to compose the answer
-
-                    for(iLinkedTask in linkedQuestionTasksByIndex) {
-                        if (iLinkedTask.bestAnswerSentence == null) {
-                            return; // composition wasn't completely answered!
-                        }
-                    }
-
-                    //trace('debug structural compose');
-
-                    // now we can combine the partial answers to (hopefully) get a composed answer
-
-                    if (linkedQuestionTasksByIndex.length == 2) {
-                        // check overlap
-
-                        //trace('here, check stamp overlap');
-
-                        //trace('${linkedQuestionTasksByIndex[0].bestAnswerSentence.convToStr()}');
-                        //trace('${linkedQuestionTasksByIndex[1].bestAnswerSentence.convToStr()}');
-
-
-                        if (Stamp.checkOverlap(linkedQuestionTasksByIndex[0].bestAnswerSentence.stamp, linkedQuestionTasksByIndex[1].bestAnswerSentence.stamp)) {
-                            return;
-                        }
-
-                        if (Config.debug_derivations_qacomposition)   trace("inf : Q&A : try compose");
-                        if (Config.debug_derivations_qacomposition) {
-                            trace('   ${linkedQuestionTasksByIndex[0].bestAnswerSentence.convToStr()}');
-                            trace('   ${linkedQuestionTasksByIndex[1].bestAnswerSentence.convToStr()}');
-                        }
-
+                    if (parentTask.questionCompositionChildrenLinks.length == 2) {
+                        var linkedQuestionTasksByIndex:Array<QuestionTask> = [null, null];
                         
-                        var conclDDepth: Int = Utils.min(linkedQuestionTasksByIndex[0].bestAnswerSentence.derivationDepth, linkedQuestionTasksByIndex[1].bestAnswerSentence.derivationDepth) + 1;
+                        // enumerate linked question tasks - necessary because AIKR and because linked tasks can get forgotten
+                        for(iLinkedTaskId in parentTask.questionCompositionChildrenLinks) {
+                            var iLinkedTask:QuestionTask = retQuestionTaskById(iLinkedTaskId);
+                            
+                            if (iLinkedTask != null) { // can be null if it is not referenced anymore because of AIKR
+                                switch(iLinkedTask.questionLink) {
+                                    case ComposeSingle(index2, _):
+                                    linkedQuestionTasksByIndex[index2] = iLinkedTask;
+                                    case _: // ignore
+                                }
+                            }
 
-                        var potentialConclusions = deriveTwoPremise(
-                            linkedQuestionTasksByIndex[0].bestAnswerSentence.term,
-                            linkedQuestionTasksByIndex[0].bestAnswerSentence.tv,
-                            linkedQuestionTasksByIndex[0].bestAnswerSentence.punctation,
-                            linkedQuestionTasksByIndex[0].bestAnswerSentence.stamp,
+                        }
 
-                            linkedQuestionTasksByIndex[1].bestAnswerSentence.term,
-                            linkedQuestionTasksByIndex[1].bestAnswerSentence.tv,
-                            linkedQuestionTasksByIndex[1].bestAnswerSentence.punctation,
-                            linkedQuestionTasksByIndex[1].bestAnswerSentence.stamp,
+                        // we have the linked question tasks for the composition
+                        // now we have to make sure that they are valid
+                        for(iLinkedTask in linkedQuestionTasksByIndex) {
+                            if (iLinkedTask == null) {
+                                return; // break propagation up because composition wasn't completely answered
+                            }
+                        }
 
-                            conclDDepth
-                        );
+                        // we are here when all questions are valid
+                        // now we need to make sure that all partial questions were answered to compose the answer
 
-                        if (Config.debug_derivations_qacomposition) {
-                            trace('|- (structural composition candidates)');
-                        
+                        for(iLinkedTask in linkedQuestionTasksByIndex) {
+                            if (iLinkedTask.bestAnswerSentence == null) {
+                                return; // composition wasn't completely answered!
+                            }
+                        }
+
+                        //trace('debug structural compose');
+
+                        // now we can combine the partial answers to (hopefully) get a composed answer
+
+                        if (linkedQuestionTasksByIndex.length == 2) {
+                            // check overlap
+
+                            //trace('here, check stamp overlap');
+
+                            //trace('${linkedQuestionTasksByIndex[0].bestAnswerSentence.convToStr()}');
+                            //trace('${linkedQuestionTasksByIndex[1].bestAnswerSentence.convToStr()}');
+
+
+                            if (Stamp.checkOverlap(linkedQuestionTasksByIndex[0].bestAnswerSentence.stamp, linkedQuestionTasksByIndex[1].bestAnswerSentence.stamp)) {
+                                return;
+                            }
+
+                            if (Config.debug_derivations_qacomposition)   trace("inf : Q&A : try compose");
+                            if (Config.debug_derivations_qacomposition) {
+                                trace('   ${linkedQuestionTasksByIndex[0].bestAnswerSentence.convToStr()}');
+                                trace('   ${linkedQuestionTasksByIndex[1].bestAnswerSentence.convToStr()}');
+                            }
+
+                            
+                            var conclDDepth: Int = Utils.min(linkedQuestionTasksByIndex[0].bestAnswerSentence.derivationDepth, linkedQuestionTasksByIndex[1].bestAnswerSentence.derivationDepth) + 1;
+
+                            var potentialConclusions = deriveTwoPremise(
+                                linkedQuestionTasksByIndex[0].bestAnswerSentence.term,
+                                linkedQuestionTasksByIndex[0].bestAnswerSentence.tv,
+                                linkedQuestionTasksByIndex[0].bestAnswerSentence.punctation,
+                                linkedQuestionTasksByIndex[0].bestAnswerSentence.stamp,
+
+                                linkedQuestionTasksByIndex[1].bestAnswerSentence.term,
+                                linkedQuestionTasksByIndex[1].bestAnswerSentence.tv,
+                                linkedQuestionTasksByIndex[1].bestAnswerSentence.punctation,
+                                linkedQuestionTasksByIndex[1].bestAnswerSentence.stamp,
+
+                                conclDDepth
+                            );
+
+                            if (Config.debug_derivations_qacomposition) {
+                                trace('|- (structural composition candidates)');
+                            
+                                for(iPotentialConclusion in potentialConclusions) {
+                                    trace('   ${TermUtils.convToStr(iPotentialConclusion.term)}');
+                                }
+                            }
+
+                            // only terms which unify with the question can be answers!
                             for(iPotentialConclusion in potentialConclusions) {
-                                trace('   ${TermUtils.convToStr(iPotentialConclusion.term)}');
-                            }
-                        }
+                                var unifies:Bool = Unifier.checkUnify(parentTask.sentence.term, iPotentialConclusion.term);
+                                if (unifies) {
+                                    if (Config.debug_derivations_qacomposition) { // debug potential conclusion
+                                        trace('|- ${TermUtils.convToStr(iPotentialConclusion.term)}');
+                                    }
 
-                        // only terms which unify with the question can be answers!
-                        for(iPotentialConclusion in potentialConclusions) {
-                            var unifies:Bool = Unifier.checkUnify(parent.sentence.term, iPotentialConclusion.term);
-                            if (unifies) {
-                                if (Config.debug_derivations_qacomposition) { // debug potential conclusion
-                                    trace('|- ${TermUtils.convToStr(iPotentialConclusion.term)}');
-                                }
+                                    // and we need to report the potential answer
+                                    // (with a recursive call, only when exp is above best reported one)
 
-                                // and we need to report the potential answer
-                                // (with a recursive call, only when exp is above best reported one)
+                                    var sentence = new Sentence(iPotentialConclusion.term, iPotentialConclusion.tv, iPotentialConclusion.stamp, iPotentialConclusion.punctation);
 
-                                var sentence = new Sentence(iPotentialConclusion.term, iPotentialConclusion.tv, iPotentialConclusion.stamp, iPotentialConclusion.punctation);
+                                    if (iPotentialConclusion.tv.exp() > parentTask.retBestAnswerExp() && unifies ) {
+                                        // found a better answer
+                                        parentTask.bestAnswerSentence = sentence;
+                                        reportAnswer(parentTask, sentence);
 
-                                if (iPotentialConclusion.tv.exp() > parent.retBestAnswerExp() && unifies ) {
-                                    // found a better answer
-                                    parent.bestAnswerSentence = sentence;
-                                    reportAnswer(parent, sentence);
-
-                                    // propagate
-                                    propagatePartialAnswer(parent, sentence);
+                                        // propagate
+                                        propagatePartialAnswer(parentTask, sentence);
+                                    }
                                 }
                             }
                         }
+                        else {
+                            trace('warning - structural composition of partial answers is not implemented for this case!');
+                        }
                     }
-                    else {
-                        trace('warning - structural composition of partial answers is not implemented for this case!');
+                    else { // we don't support this yet!
+                        trace('warning - structural composition for compositions of more than two elements is not supported: ${questionTask.sentence.convToStr()}');
                     }
-                }
-                else { // we don't support this yet!
-                    trace('warning - structural composition for compositions of more than two elements is not supported: ${questionTask.sentence.convToStr()}');
                 }
             }
         }
@@ -951,12 +983,12 @@ class Sq2 {
                     var conclusionSentence = new Sentence(conclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), premisePunctation);
                     conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
                     if (premisePunctation == "?") {
-                        var link:QuestionLink = QuestionLink.ComposeSingle(componentIdx, premiseQuestionTask); // we need to link them
+                        var link:QuestionLink = QuestionLink.ComposeSingle(componentIdx, premiseQuestionTask.id); // we need to link them
                         var derivedQuestionTask = new QuestionTask(conclusionSentence, link, taskIdCounter++);
                         conclusionTasks.push(derivedQuestionTask);
 
                         // link from parent to children
-                        premiseQuestionTask.questionCompositionChildrenLinks.push(derivedQuestionTask);
+                        premiseQuestionTask.questionCompositionChildrenLinks.push(derivedQuestionTask.id);
                     }
                     else {
                         trace('internal inconsistency!'); // path is not implemented/valid!
@@ -984,7 +1016,7 @@ class Sq2 {
                 var conclusionSentence = new Sentence(conclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), premisePunctation);
                 conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
                 if (premisePunctation == "?") {
-                    var link:QuestionLink = QuestionLink.StructuralSingle(cast(premiseTask, QuestionTask)); // we need to link them
+                    var link:QuestionLink = QuestionLink.StructuralSingle(premiseTask.id); // we need to link them
                     conclusionTasks.push(new QuestionTask(conclusionSentence, link, taskIdCounter++));
                 }
                 else {
@@ -1003,7 +1035,7 @@ class Sq2 {
                 var conclusionSentence = new Sentence(conclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), premisePunctation);
                 conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
                 if (premisePunctation == "?") {
-                    var link:QuestionLink = QuestionLink.StructuralSingle(cast(premiseTask, QuestionTask)); // we need to link them
+                    var link:QuestionLink = QuestionLink.StructuralSingle(premiseTask.id); // we need to link them
                     conclusionTasks.push(new QuestionTask(conclusionSentence, link, taskIdCounter++));
                 }
                 else {
@@ -1028,7 +1060,7 @@ class Sq2 {
                 var conclusionSentence = new Sentence(conclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), premisePunctation);
                 conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
                 if (premisePunctation == "?") {
-                    var link:QuestionLink = QuestionLink.StructuralSingle(cast(premiseTask, QuestionTask)); // we need to link them
+                    var link:QuestionLink = QuestionLink.StructuralSingle(premiseTask.id); // we need to link them
                     conclusionTasks.push(new QuestionTask(conclusionSentence, link, taskIdCounter++));
                 }
                 else {
@@ -1049,7 +1081,7 @@ class Sq2 {
                 var conclusionSentence = new Sentence(conclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), premisePunctation);
                 conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
                 if (premisePunctation == "?") {
-                    var link:QuestionLink = QuestionLink.StructuralSingle(cast(premiseTask, QuestionTask)); // we need to link them
+                    var link:QuestionLink = QuestionLink.StructuralSingle(premiseTask.id); // we need to link them
                     conclusionTasks.push(new QuestionTask(conclusionSentence, link, taskIdCounter++));
                 }
                 else {
@@ -1229,7 +1261,7 @@ class Task {
 class QuestionTask extends Task {
     // TODO< link it with a weak link by a global id because AIKR >
     public var questionLink:QuestionLink; // links the question to a parent question
-    public var questionCompositionChildrenLinks:Array<QuestionTask> = []; // links to compositional children (for one single composition)
+    public var questionCompositionChildrenLinks:Array<Int> = []; // links to compositional children (for one single composition), task id's are referenced
 
     public var bestAnswerSentence:Sentence = null;
 
@@ -1248,10 +1280,11 @@ class QuestionTask extends Task {
     }
 }
 
+// parent are id of tasks
 enum QuestionLink {
     Null; // isn't linked
-    StructuralSingle(parent:QuestionTask); // question was derived by structural derivation with single premise
-    ComposeSingle(index:Int, parent:QuestionTask); // question was derived by structural decomposition of compound, ex: (a & b)? |- a? |- b?
+    StructuralSingle(parent:Int); // question was derived by structural derivation with single premise
+    ComposeSingle(index:Int, parent:Int); // question was derived by structural decomposition of compound, ex: (a & b)? |- a? |- b?
                                                    // index is the index in the composition
 }
 
