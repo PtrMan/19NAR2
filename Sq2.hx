@@ -824,82 +824,6 @@ class Sq2 {
         }
         */
 
-        
-
-
-        /* commented because BS
-        if (premiseAPunctation == "?" && premiseBPunctation == ".") {
-            switch (premiseATerm) {
-                // rule for helping with backward inference of implication
-                // (&&, A, B)?
-                // Z.
-                // |-  if unifies(A,Z,AZ, "indep")
-                // (&&, AZ, B).
-                // (&&, AZ, B)?
-                case Compound("&&", [a, b]) if (unifiesWithReplace(a, premiseBTerm, "indep") != null):
-                var az:Term = unifiesWithReplace(a, premiseBTerm, "indep");
-                conclusions.push({term:az, tv:null, punctation:"?", structuralOrigins:[], ruleName:"NAL-6.two conj q&a 1"});
-                conclusions.push({term:az, tv:premiseBTv, punctation:".", structuralOrigins:[], ruleName:"NAL-6.two conj q&a 1"});
-            
-
-                // rule for helping with backward inference of implication
-                // (&&, A, B)?
-                // Z.
-                // |-  if unifies(B,Z,BZ, "indep")
-                // (&&, A, BZ).
-                // (&&, A, BZ)?
-                case Compound("&&", [a, b]) if (unifiesWithReplace(b, premiseBTerm, "indep") != null):
-                var bz:Term = unifiesWithReplace(b, premiseBTerm, "indep");
-                conclusions.push({term:bz, tv:null, punctation:"?", structuralOrigins:[], ruleName:"NAL-6.two conj q&a 2"});
-                conclusions.push({term:bz, tv:premiseBTv, punctation:".", structuralOrigins:[], ruleName:"NAL-6.two conj q&a 2"});
-
-                case _: null;
-            }
-        }
-        */
-
-        /* commented because it is BS because the conjuction has to talk about common sub-terms
-        if (premiseAPunctation == "." && premiseBPunctation == ".") {
-            // rule for forward inference of implication (detachment)
-            //ex:
-            // (&&, <({0} * $0) --> x>, <({1} * $1) --> y>) ==> <($0 * $1) --> c>.
-            // (&&, <({0} * X) --> x>, <({1} * Y) --> y>).
-            // |-
-            // <(X * Y) --> c>.
-            switch (premiseATerm) {
-                case Cop("==>", Compound("&&", [compoundA0, compoundA1]), implPred):
-                switch (premiseBTerm) {
-                    case Compound("&&", [compoundB0, compoundB1]):
-
-                    // TODO< handle variable assignment correctly >
-                    var unified0:Term = unifiesWithReplace(compoundA0, compoundB0, "dep");
-                    var unified1:Term = unifiesWithReplace(compoundA1, compoundB1, "dep");
-                    
-                    if (unified0 != null && unified1 != null) { // check if unification results are valid
-
-
-                        // TODO< apply variable substition from unification >
-                        var unifiedImplPred = implPred; // the predicate with the unified variables
-
-                        trace("---");
-                        trace('DEBUG   NAL6-two impl  ${TermUtils.convToStr(unified0)}');
-                        trace('DEBUG   NAL6-two impl  ${TermUtils.convToStr(unified1)}');
-                        trace('DEBUG   NAL6-two impl  |- ${TermUtils.convToStr(unifiedImplPred)}');
-
-                        conclusions.push({term: unifiedImplPred, tv:Tv.deduction(premiseATv, premiseBTv), punctation:".", structuralOrigins:[], ruleName:"NAL6-two impl detach"});
-                    }
-
-
-                    case _: null;
-                }
-
-                case _: null;
-            }
-        }
-         */
-        
-
-
         if (premiseAPunctation == "." && premiseBPunctation == ".") {
             switch (premiseATerm) {
                 case Cop("==>", Compound("&&", [compoundA0, compoundA1]), implPred):
@@ -1512,19 +1436,6 @@ class WorkingSet {
         }
     }
 
-    // commented because not used
-    //public function sort() {
-    //    entities.sort(function (a, b) {
-    //        if (a.calcUtility() > b.calcUtility()) {
-    //            return 1;
-    //        }
-    //        else if (a.calcUtility() == b.calcUtility()) {
-    //            return 0;
-    //        }
-    //        return -1;
-    //    });
-    //}
-
     // computes the index of the entity by chosen "score mass"
     // necessary for fair probabilistic selection of tasks
     public function calcIdxByScoreMass(mass:Float, depth=0, minIdx=0, maxIdx=null): Int {
@@ -1572,94 +1483,6 @@ class WorkingSet {
             return calcIdxByScoreMass(mass, depth+1, midIdx, maxIdx);
         }
     }
-
-    /* commented because not used
-    // inserts a Task back into the entities list
-    // it assumes that entities is sorted!
-    public function insertSorted(entity:WorkingSetEntity, depth=0, minIdx=0, maxIdx=null) {
-        if (entities.length == 0) {
-            entities = [entity];
-            return;
-        }
-        
-        if (maxIdx == null) {
-            maxIdx = entities.length-1;
-        }
-
-        var insertedUtility = entity.calcUtility();
-
-        var minUtility = entities[minIdx].calcUtility();
-        var maxUtility = entities[maxIdx].calcUtility();
-
-
-        //if (depth > 5) {
-        //    throw "DEBUG ERROR";
-        //}
-        //
-        trace('l=${entities.length}');
-        trace('insertSorted minIdx=$minIdx maxIdx=$maxIdx');
-
-        if (minIdx == maxIdx - 1 || minIdx == maxIdx) {
-                trace("BEFORE");
-
-                for (iEntity in entities) {
-                    trace('   ${TermUtils.convToStr(iEntity.sentence.term)}${iEntity.sentence.punctation}  score=${iEntity.calcUtility()}');
-                }
-
-            
-            // we need to insert here
-            //if (entities[minIdx].calcUtility())
-            
-            if (insertedUtility < maxUtility) {
-                entities.insert(maxIdx+1, entity);
-            }
-            else if (insertedUtility < minUtility) {
-                entities.insert(maxIdx, entity);
-            }
-            else {
-                entities.insert(minIdx, entity);
-            }
-            
-            
-
-            trace("AFTER");
-
-                for (iEntity in entities) {
-                    trace('   ${TermUtils.convToStr(iEntity.sentence.term)}${iEntity.sentence.punctation}  score=${iEntity.calcUtility()}');
-                }
-
-
-            // check if order is correct
-            {
-                var idx = 0;
-                while (idx < entities.length-1) {
-                    if (entities[idx].calcUtility() < entities[idx+1].calcUtility()) {
-                        throw "Validation failed!";
-                    }
-                    idx+=1;
-                }
-            }
-            
-        
-            
-
-            return;
-        }
-
-
-        // we use binary sort
-
-        var midIdx = Std.int((maxIdx+minIdx) / 2);
-        var utilityOfMid = entities[midIdx].calcUtility();
-
-        if (insertedUtility > utilityOfMid) {
-            insertSorted(entity, depth+1, minIdx, midIdx);
-        }
-        else {
-            insertSorted(entity, depth+1, midIdx, maxIdx);
-        }
-    }
-    */
 }
 
 class WorkingArr {
