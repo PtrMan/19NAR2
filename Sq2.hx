@@ -27,10 +27,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 //     TODO OUTDATED< attention mechanism : sort after epoch and limit size for next epoch >
 //     TODO   < lazy update of propability mass after processing task >
 
-// TODO< test attention mechanism with other examples from ALANN >
-
-// TODO< attention mechanism : stresstest attention >
-
 // TODO< keep concepts(nodes) under AIKR (by calculating the max exp() and throwing the concepts out with lowest max exp() >
 
 // TODO< keep tasks under AIKR (by sorting by score(utility) and slicing)
@@ -64,7 +60,7 @@ class Sq2 {
         // init for different derivation depths
         workingQueueByDepth.push(new WorkingArr());
         workingQueueByDepth.push(new WorkingArr());
-        workingQueueByDepth.push(new WorkingArr());
+        //workingQueueByDepth.push(new WorkingArr());
     }
 
     // puts new input from the outside of the system into the system
@@ -72,9 +68,11 @@ class Sq2 {
         var sentence = new Sentence(term, tv, new Stamp([stampIdCounter.copy()], new StructuralOriginsStamp([])), punctation);
         stampIdCounter = haxe.Int64.add(stampIdCounter, haxe.Int64.make(0,1));
 
+        /* old code
         if (punctation == ".") { // only add to memory for judgments
             mem.updateConceptsForJudgement(sentence);
         }
+        */
 
         var task:Task = null;
 
@@ -90,6 +88,10 @@ class Sq2 {
             throw "Invalid punctation!";
         }
 
+        storeTasks([task], {putIntoWorkingSet:true});
+
+        /* old code
+
         // add it to importance sampled set if it is a question
         if (punctation == "?") {
             var workingSetEntity:WorkingSetEntity = new WorkingSetEntity(task);
@@ -97,7 +99,7 @@ class Sq2 {
         }
         else {
             workingQueueByDepth[0].tasks.push(task);
-        }
+        } */
     }
 
     // puts new narsese input from the outside into the system
@@ -122,6 +124,9 @@ class Sq2 {
         //var str = 'Answer:[  ?ms  ?cycl]${sentence.convToStr()}'; // report with time and cycles  // commented because we don't know the time it took
         var str = 'Answer:${cycleStr}${sentence.convToStr()}'; // report with time and cycles
         Sys.println(str);
+
+        Sys.println('  from Q:${question.sentence.convToStr()}');
+
 
         if (conclusionStrArr != null) { // used for debugging and unittesting
             conclusionStrArr.push(str);
@@ -268,13 +273,15 @@ class Sq2 {
             }
 
             var premiseTerm = primaryTask.sentence.term;
-            var premiseTermStructuralOrigins = primaryTask.sentence.stamp.structuralOrigins.arr;
             var premiseTv = primaryTask.sentence.tv;
             var premisePunctation = primaryTask.sentence.punctation;
             var premiseStamp = primaryTask.sentence.stamp;
             var conclusionsSinglePremise:Array<Task> = deriveSinglePremise(primaryTask);
 
             var conclusionsTwoPremises = [];
+
+            var conclusionTasks:Array<Task> = conclusionsSinglePremise;
+
             { // two premise derivation
 
                 /* old code to select a random 2nd premise
@@ -325,7 +332,7 @@ class Sq2 {
                                 }
                             }
                             else { // can't do revision, try normal inference
-                                conclusionsTwoPremises = deriveTwoPremise(premiseTerm, premiseTv, premisePunctation, premiseStamp,   secondaryTerm, secondaryTv, secondaryPunctation, secondaryStamp, conclDDepth);
+                                conclusionsTwoPremises = deriveTwoPremise(primaryTask.sentence, primaryTask, secondarySentence, null, conclDDepth,  conclusionTasks);
                             }
                         }
                         else {
@@ -335,7 +342,7 @@ class Sq2 {
                 }
             }
 
-            var conclusionTasks:Array<Task> = conclusionsSinglePremise;
+            
 
             // adapter to create tasks for conclusions with two premises
             for (iConclusion in conclusionsTwoPremises) {
@@ -354,36 +361,55 @@ class Sq2 {
                 }
             }
 
-            // filter out invalid statments like a-->a and a<->a
-            conclusionTasks = conclusionTasks.filter(iConclusionTask -> {
-                return switch (iConclusionTask.sentence.term) {
-                    case Cop(copula,a,b) if((copula == "-->" || copula == "<->" || copula == "==>" || copula == "<=>") && TermUtils.equal(a,b)):
-                    false;
-                    case _: true;
-                };
-            });
+            storeDerivations(conclusionTasks, {putIntoWorkingSet:true});
+        }
 
-            if (Config.debug_derivations)   trace("|-");
-            for (iConclusionTask in conclusionTasks) {
-                var iConclusion = iConclusionTask.sentence;
-                var conclusionAsStr = TermUtils.convToStr(iConclusion.term) +  iConclusion.punctation+(iConclusion.tv != null ? " " + iConclusion.tv.convToStr() : ""); // tv can be null
-                if (Config.debug_derivations)   trace(conclusionAsStr);
 
-                if (conclusionStrArr != null) { // used for debugging and unittesting
-                    conclusionStrArr.push(conclusionAsStr);
-                }
+        if (Config.debug_derivations) {
+            debugSummary();
+        }
+    }
+
+    // called when ever derivations were done which need to get stored
+    public function storeDerivations(conclusionTasks:Array<Task>, flags:{putIntoWorkingSet:Bool}) {
+        // filter out invalid statments like a-->a and a<->a
+        // we are doing it here because these shouldn't get derived in the first place!
+        conclusionTasks = conclusionTasks.filter(iConclusionTask -> {
+            return switch (iConclusionTask.sentence.term) {
+                case Cop(copula,a,b) if((copula == "-->" || copula == "<->" || copula == "==>" || copula == "<=>") && TermUtils.equal(a,b)):
+                // trace('warning: derived nonsense ${iConclusionTask.sentence.convToStr()}');
+                false;
+                case _: true;
+            };
+        });
+
+        if (Config.debug_derivations)   trace("|-");
+        for (iConclusionTask in conclusionTasks) {
+            var iConclusion = iConclusionTask.sentence;
+            var conclusionAsStr = TermUtils.convToStr(iConclusion.term) +  iConclusion.punctation+(iConclusion.tv != null ? " " + iConclusion.tv.convToStr() : ""); // tv can be null
+            if (Config.debug_derivations)   trace(conclusionAsStr);
+
+            if (conclusionStrArr != null) { // used for debugging and unittesting
+                conclusionStrArr.push(conclusionAsStr);
+            }
+        }
+
+
+
+        if (Config.debug_derivations)   trace("");
+        if (Config.debug_derivations)   trace("");
+        if (Config.debug_derivations)   trace("");
+
+        storeTasks(conclusionTasks, flags);
+    }
+
+    public function storeTasks(conclusionTasks:Array<Task>, flags:{putIntoWorkingSet:Bool}) {
+        if (flags.putIntoWorkingSet) {
+            // store question-task lookup
+            for (iConclusionTask in conclusionTasks.filter(it -> it.retPunctation() == "?")) {
+                questionsByTaskId.set(iConclusionTask.id, cast(iConclusionTask, QuestionTask));
             }
 
-
-
-            if (Config.debug_derivations)   trace("");
-            if (Config.debug_derivations)   trace("");
-            if (Config.debug_derivations)   trace("");
-
-
-            
-
-            
             for (iConclusionTask in conclusionTasks) {
                 // put conclusions back into working set
                 for (iConclusionTask in conclusionTasks) {
@@ -399,37 +425,31 @@ class Sq2 {
                     }
                     
                     if (!existsSentenceInWorkingSet) {
-                        workingSet.append(workingSetEntity);
+                        if (iConclusionTask.retPunctation() == "?") { // only add questions to the working-set
+                            workingSet.append(workingSetEntity);
+                        }
                     }
                 }
-
-
+    
+    
                 var dDepth:Int = iConclusionTask.sentence.derivationDepth;
-
+    
                 // if question then add to probabilistic sampled workingset
                 if (iConclusionTask.retPunctation() == "?" || dDepth >= workingQueueByDepth.length) {
                 }
                 else {
                     // put it into the more deterministic queue instead
-
+    
                     var selDDepth:Int = Utils.min(dDepth, workingQueueByDepth.length - 1);
-
+    
                     workingQueueByDepth[selDDepth].tasks.push(iConclusionTask);    
-                }
-            }
-
-            // store conclusion judgement
-            for (iConclusionTask in conclusionTasks) {
-                var iConclusionSentence = iConclusionTask.sentence;
-                if (iConclusionSentence.punctation == ".") {
-                    mem.updateConceptsForJudgement(iConclusionSentence);
                 }
             }
         }
 
-
-        if (Config.debug_derivations) {
-            debugSummary();
+        // store conclusion judgement
+        for (iConclusionTask in conclusionTasks.filter(it -> it.retPunctation() == ".")) {
+            mem.updateConceptsForJudgement(iConclusionTask.sentence);
         }
     }
 
@@ -450,12 +470,15 @@ class Sq2 {
         }        
     }
 
+    private var questionsByTaskId:Map<Int,QuestionTask> = new Map<Int,QuestionTask>();
+
     // tries to search and return a QuestionTask by the id of the task
     // /return value can be null if the referenced task is not anymore in memory (because of AIKR)
     private function retQuestionTaskById(taskId:Int): QuestionTask {
-        // TODO< implement >
-        trace('warning: retQuestionTaskById is not implemented!');
-        return null;
+        if (!questionsByTaskId.exists(taskId)) {
+            return null;
+        }
+        return questionsByTaskId.get(taskId);
     }
 
     // tries to search and return a Task by the id of the task
@@ -477,7 +500,37 @@ class Sq2 {
     // (a & b) --> c
     //
     // calls itself recursivly!
-    private function propagatePartialAnswer(questionTask:QuestionTask, answer:Sentence) {        
+    private function propagatePartialAnswer(questionTask:QuestionTask, answer:Sentence) {
+        // helper function to propagate answer which answers the parent
+        function propagatePossibleParentAnswer(conclusionTasks:Array<Task>, parentTask:QuestionTask){
+            // only terms which unify with the question can be answers!
+            for(iPotentialConclusionTask in conclusionTasks.filter(it -> it.retPunctation() == ".")) {
+                var iPotentialConclusion = iPotentialConclusionTask.sentence;
+
+                var unifies:Bool = Unifier.checkUnify(parentTask.sentence.term, iPotentialConclusion.term);
+                if (unifies) {
+                    if (Config.debug_derivations_qacomposition) { // debug potential conclusion
+                        trace('|- ${TermUtils.convToStr(iPotentialConclusion.term)}');
+                    }
+
+                    // and we need to report the potential answer
+                    // (with a recursive call, only when exp is above best reported one)
+
+                    var sentence = new Sentence(iPotentialConclusion.term, iPotentialConclusion.tv, iPotentialConclusion.stamp, iPotentialConclusion.punctation);
+
+                    if (iPotentialConclusion.tv.exp() > parentTask.retBestAnswerExp() && unifies ) {
+                        // found a better answer
+                        parentTask.bestAnswerSentence = sentence;
+                        reportAnswer(parentTask, sentence);
+
+                        // propagate
+                        propagatePartialAnswer(parentTask, sentence);
+                    }
+                }
+            }
+        }
+
+
         switch(questionTask.questionLink) {
             case Null: // has no link - nothing to do!
             case StructuralSingle(parent): // has structural parent - we only need to derive structural transformations and try to answer the parent
@@ -489,34 +542,7 @@ class Sq2 {
                 var premiseTask = new JudgementTask(answer, -1);
                 var conclusionTasks:Array<Task> = deriveSinglePremise(premiseTask);
 
-                // only terms which unify with the question can be answers!
-                for(iPotentialConclusionTask in conclusionTasks) {
-                    var iPotentialConclusion = iPotentialConclusionTask.sentence;
-
-                    
-
-                    var unifies:Bool = Unifier.checkUnify(parentTask.sentence.term, iPotentialConclusion.term);
-                    if (unifies) {
-                        if (Config.debug_derivations_qacomposition) { // debug potential conclusion
-                            trace('|- ${TermUtils.convToStr(iPotentialConclusion.term)}');
-                        }
-
-                        // and we need to report the potential answer
-                        // (with a recursive call, only when exp is above best reported one)
-
-                        var sentence = new Sentence(iPotentialConclusion.term, iPotentialConclusion.tv, iPotentialConclusion.stamp, iPotentialConclusion.punctation);
-
-                        if (iPotentialConclusion.tv.exp() > parentTask.retBestAnswerExp() && unifies ) {
-                            // found a better answer
-                            parentTask.bestAnswerSentence = sentence;
-                            reportAnswer(parentTask, sentence);
-
-                            // propagate
-                            propagatePartialAnswer(parentTask, sentence);
-                        }
-                    }
-                }
-
+                propagatePossibleParentAnswer(conclusionTasks, parentTask);
             }
 
             case ComposeSingle(index, parent): // has compositional parent - we need to try to compose partial answers and answer parent
@@ -584,18 +610,15 @@ class Sq2 {
                             
                             var conclDDepth: Int = Utils.min(linkedQuestionTasksByIndex[0].bestAnswerSentence.derivationDepth, linkedQuestionTasksByIndex[1].bestAnswerSentence.derivationDepth) + 1;
 
+                            var conclusionTasks:Array<Task> = [];
                             var potentialConclusions = deriveTwoPremise(
-                                linkedQuestionTasksByIndex[0].bestAnswerSentence.term,
-                                linkedQuestionTasksByIndex[0].bestAnswerSentence.tv,
-                                linkedQuestionTasksByIndex[0].bestAnswerSentence.punctation,
-                                linkedQuestionTasksByIndex[0].bestAnswerSentence.stamp,
+                                linkedQuestionTasksByIndex[0].bestAnswerSentence,
+                                null,
+                                linkedQuestionTasksByIndex[1].bestAnswerSentence,
+                                null,
 
-                                linkedQuestionTasksByIndex[1].bestAnswerSentence.term,
-                                linkedQuestionTasksByIndex[1].bestAnswerSentence.tv,
-                                linkedQuestionTasksByIndex[1].bestAnswerSentence.punctation,
-                                linkedQuestionTasksByIndex[1].bestAnswerSentence.stamp,
-
-                                conclDDepth
+                                conclDDepth,
+                                conclusionTasks
                             );
 
                             if (Config.debug_derivations_qacomposition) {
@@ -606,29 +629,25 @@ class Sq2 {
                                 }
                             }
 
-                            // only terms which unify with the question can be answers!
-                            for(iPotentialConclusion in potentialConclusions) {
-                                var unifies:Bool = Unifier.checkUnify(parentTask.sentence.term, iPotentialConclusion.term);
-                                if (unifies) {
-                                    if (Config.debug_derivations_qacomposition) { // debug potential conclusion
-                                        trace('|- ${TermUtils.convToStr(iPotentialConclusion.term)}');
-                                    }
+                            
+                            // adapter to create tasks for conclusions with two premises
+                            for (iConclusion in potentialConclusions) {
+                                var sentence = new Sentence(iConclusion.term, iConclusion.tv, iConclusion.stamp, iConclusion.punctation);
+                                sentence.derivationDepth = iConclusion.depth;
 
-                                    // and we need to report the potential answer
-                                    // (with a recursive call, only when exp is above best reported one)
-
-                                    var sentence = new Sentence(iPotentialConclusion.term, iPotentialConclusion.tv, iPotentialConclusion.stamp, iPotentialConclusion.punctation);
-
-                                    if (iPotentialConclusion.tv.exp() > parentTask.retBestAnswerExp() && unifies ) {
-                                        // found a better answer
-                                        parentTask.bestAnswerSentence = sentence;
-                                        reportAnswer(parentTask, sentence);
-
-                                        // propagate
-                                        propagatePartialAnswer(parentTask, sentence);
-                                    }
+                                var workingSetEntity = null;
+                                if (sentence.punctation == ".") {
+                                    conclusionTasks.push(new JudgementTask(sentence, taskIdCounter++));
+                                }
+                                else if (sentence.punctation == "?") {
+                                    conclusionTasks.push(new QuestionTask(sentence, QuestionLink.Null, taskIdCounter++));
+                                }
+                                else {
+                                    throw "Internal error";
                                 }
                             }
+
+                            propagatePossibleParentAnswer(conclusionTasks, parentTask);
                         }
                         else {
                             trace('warning - structural composition of partial answers is not implemented for this case!');
@@ -639,20 +658,103 @@ class Sq2 {
                     }
                 }
             }
+
+            case HypotheticalRef2(parent):
+            {
+                var parentTask:QuestionTask = retQuestionTaskById(parent);
+                if (parentTask != null) { // can be null if no more in memory (AIKR)
+                    var ref2:Sentence = questionTask.ref2; // second premise
+                    if (ref2 == null) {
+                        throw "ref2 is null!";
+                    }
+                    else {
+                        // * build all conclusions from answer and ref2
+                        if (Stamp.checkOverlap(ref2.stamp, answer.stamp)) {
+                            return;
+                        }
+
+                        if (Config.debug_derivations_qj)   trace("inf : Q&A : ?.");
+                        if (Config.debug_derivations_qj) {
+                            trace('   ${ref2.convToStr()}');
+                            trace('   ${answer.convToStr()}');
+                        }
+
+                        
+                        var conclDDepth: Int = Utils.min(ref2.derivationDepth, answer.derivationDepth) + 1;
+
+                        
+                        var conclusionTasks:Array<Task> = [];
+                        var potentialConclusions = deriveTwoPremise(
+                            ref2,
+                            null,
+                            answer,
+                            null,
+
+                            conclDDepth,
+                            conclusionTasks
+                        );
+
+                        if (Config.debug_derivations_qj) {
+                            trace('|- (QJ candidates)');
+                        
+                            for(iPotentialConclusion in potentialConclusions) {
+                                trace('   ${TermUtils.convToStr(iPotentialConclusion.term)}');
+                            }
+                        }
+
+                        
+                        
+                        // adapter to create tasks for conclusions with two premises
+                        for (iConclusion in potentialConclusions) {
+                            var sentence = new Sentence(iConclusion.term, iConclusion.tv, iConclusion.stamp, iConclusion.punctation);
+                            sentence.derivationDepth = iConclusion.depth;
+
+                            var workingSetEntity = null;
+                            if (sentence.punctation == ".") {
+                                conclusionTasks.push(new JudgementTask(sentence, taskIdCounter++));
+                            }
+                            else if (sentence.punctation == "?") {
+                                conclusionTasks.push(new QuestionTask(sentence, QuestionLink.Null, taskIdCounter++));
+                            }
+                            else {
+                                throw "Internal error";
+                            }
+                        }
+
+                        // * feed conclusions into NAR
+                        storeDerivations(conclusionTasks, {putIntoWorkingSet:false});
+                        
+                        // * try to answer parent question (and propagate if it answers)
+                        propagatePossibleParentAnswer(conclusionTasks, parentTask);
+                    }
+                    
+                }
+            } // question was derived by creating a hypothesis for a possible answer  from a question and a judgement
         }
     }
     
     // /param conclDepth derivation depth of the conclusion
-    public static function deriveTwoPremise(premiseATerm:Term,premiseATv:Tv,premiseAPunctation:String,premiseAStamp:Stamp,  premiseBTerm:Term,premiseBTv:Tv,premiseBPunctation:String,premiseBStamp:Stamp, conclDepth:Int) {
-        var conclusionsTwoPremisesAB = deriveTwoPremiseInternal(premiseATerm, premiseATv, premiseAPunctation, premiseAStamp,   premiseBTerm, premiseBTv, premiseBPunctation, premiseBStamp, conclDepth);
-        var conclusionsTwoPremisesBA = deriveTwoPremiseInternal(premiseBTerm, premiseBTv, premiseBPunctation, premiseBStamp,   premiseATerm, premiseATv, premiseAPunctation, premiseAStamp, conclDepth);
+    public function deriveTwoPremise(premiseASentence:Sentence, premiseATask:Task, premiseBSentence:Sentence, premiseBTask:Task, conclDepth:Int,  conclTasks:Array<Task>) {
+        var conclusionsTwoPremisesAB = deriveTwoPremiseInternal(premiseASentence, premiseATask, premiseBSentence, premiseBTask, conclDepth,  conclTasks);
+        var conclusionsTwoPremisesBA = deriveTwoPremiseInternal(premiseBSentence, premiseBTask, premiseASentence, premiseATask, conclDepth,  conclTasks);
         return [].concat(conclusionsTwoPremisesAB).concat(conclusionsTwoPremisesBA);
     }
 
 
     // internal helper function which processes only one combination of premises (sides are not switched)
-    public static function deriveTwoPremiseInternal(premiseATerm:Term,premiseATv:Tv,premiseAPunctation:String,premiseAStamp:Stamp,  premiseBTerm:Term,premiseBTv:Tv,premiseBPunctation:String,premiseBStamp:Stamp, conclDepth:Int) {
-        
+    // /param premiseATask can be null if premise is not associated with a task
+    // /param premiseBTask can be null if premise is not associated with a task
+    public function deriveTwoPremiseInternal(premiseASentence:Sentence, premiseATask:Task, premiseBSentence:Sentence, premiseBTask:Task, conclDepth:Int,  conclTasks:Array<Task>) {
+        var premiseATerm:Term = premiseASentence.term;
+        var premiseATv:Tv = premiseASentence.tv;
+        var premiseAPunctation:String = premiseASentence.punctation;
+        var premiseAStamp:Stamp = premiseASentence.stamp;
+
+        var premiseBTerm:Term = premiseBSentence.term;
+        var premiseBTv:Tv = premiseBSentence.tv;
+        var premiseBPunctation:String = premiseBSentence.punctation;
+        var premiseBStamp:Stamp = premiseBSentence.stamp;
+
         // checks if term is a set
         function checkSet(t:Term):Bool {
             return false; // TODO< implement >
@@ -685,6 +787,51 @@ class Sq2 {
             // apply variables and return substitution result
             return Unifier.substitute(a, unifiedMap, varTypes);
         }
+
+
+        // "hypothetical" question derivation to guide backward inference
+        // C --> (/ REL _ D)?
+        // A --> (/ REL _ B).
+        // |- (if unifies D B)
+        // C <-> A?
+        //
+        // example:
+        // ([filled] & rectangle) --> (/ leftOf _ {?1})?
+        // {shape1}               --> (/ leftOf _ {shape2}).
+        // |- ({?1} unifies with {shape2})
+        // ([filled] & rectangle) <-> {shape1}?
+        //    (question hints at possible solution path)
+
+        // judgement will be linked as "ref2" variable for the use of the answer
+        if (premiseAPunctation == "?" && premiseBPunctation == ".") {
+            switch (premiseATerm) {
+                case Cop("-->", c, Img(rel1, [ImgWild, d])):
+                switch (premiseBTerm) {
+                    case Cop("-->", a, Img(rel2, [ImgWild, b])) if (TermUtils.equal(rel1, rel2) && Unifier.checkUnify(d, b)):
+                    {
+                        var stamp = premiseAStamp; // TODO< add unique stampid to stamp >
+                        var conclSentence = new Sentence(Cop("<->", c, a), null, stamp, "?");
+                        
+                        var link:QuestionLink = HypotheticalRef2(premiseATask.id);
+                        var qTask:QuestionTask = new QuestionTask(conclSentence, link, taskIdCounter++);
+
+                        trace('debug: ?. derived');
+                        trace('debug:    ${premiseASentence.convToStr()}');
+                        trace('debug:    |- ${conclSentence.convToStr()}');
+
+                        if (premiseBSentence == null) {
+                            trace('warning: ref2 is null!');
+                        }
+                        qTask.ref2 = premiseBSentence;
+
+                        conclTasks.push(qTask);
+                    }
+                    case _: null;
+                }
+                case _: null;
+            }
+        }
+
 
         // handling of implications for backward inference with detachment
         // ex:
@@ -1267,6 +1414,8 @@ class QuestionTask extends Task {
 
     public var questionTime:Int = -1; // global cycle time of the question, -1 if it is not tracked
 
+    public var ref2:Sentence = null; // reference to 2nd premise of this question - used for hypothetical question derivation to guide search process
+
     public function new(sentence, questionLink, id) {
         super(sentence, id);
         this.questionLink = questionLink;
@@ -1286,6 +1435,7 @@ enum QuestionLink {
     StructuralSingle(parent:Int); // question was derived by structural derivation with single premise
     ComposeSingle(index:Int, parent:Int); // question was derived by structural decomposition of compound, ex: (a & b)? |- a? |- b?
                                                    // index is the index in the composition
+    HypotheticalRef2(parent:Int); // question was derived by creating a hypothesis for a possible answer  from a question and a judgement
 }
 
 class JudgementTask extends Task {
@@ -1549,6 +1699,7 @@ class Config {
     public static var beliefsPerNode:Int = 30;
     public static var debug_derivations:Bool = false; // debug derivations to console
     public static var debug_derivations_qacomposition:Bool = true; // debug composition for Q&A to console?
+    public static var debug_derivations_qj = true; // debug question-judgement processes?
     
     public static var debug_qaBoost:Bool = false; // debug boosted answers for questions to console?
 }
