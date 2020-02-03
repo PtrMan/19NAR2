@@ -11,32 +11,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 // run with
 //    haxe --interp -main Sq2.hx
 
-
-// TODO< remove comments with "//" before lexing >
-
-// TODO< parse TV >
-// TODO< test parsing of TV >
-
-
-
-// TODO BUG< do revision on input processing time too >
-
-// TODO< implement Unifier.containsVar() and unittest >
-
-// basic attention
-//     TODO OUTDATED< attention mechanism : sort after epoch and limit size for next epoch >
-//     TODO   < lazy update of propability mass after processing task >
-
-// TODO< keep concepts(nodes) under AIKR (by calculating the max exp() and throwing the concepts out with lowest max exp() >
-
-// TODO< keep tasks under AIKR (by sorting by score(utility) and slicing)
-
-
-// TODO COMPLICATED< Q&A - do structural transformations on question side without adding the question to the memory or the tasks, sample all possible structural transformations and remember which transformations were done, etc >
-
-
-// TODO< safe structuralOrigins correctly by appending >
-
 class Sq2 {
     public var mem:Memory = new Memory();
 
