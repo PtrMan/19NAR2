@@ -1666,33 +1666,6 @@ class Unifier {
     }
 }
 
-// commented because not used but it is in here because it may be useful someday
-/*
-class Utils {
-    @:generic public static function arrRemoveAt<T>(arr:Array<T>, idx:Int):Array<T> {
-        var before = arr.slice(0, idx);
-        var after = arr.slice(idx+1, arr.length);
-        return before.concat(after);
-    }
-    /+
-    public static function main() {
-        trace(arrRemoveAt([0], 0));
-        trace("---");
-        trace(arrRemoveAt([0, 1], 0));
-        trace(arrRemoveAt([0, 1], 1));
-        trace("---");
-        trace(arrRemoveAt([0, 1, 2], 0));
-        trace(arrRemoveAt([0, 1, 2], 1));
-        trace(arrRemoveAt([0, 1, 2], 2));
-    }
-    +/
-}
-*/
-
-
-
-
-
 
 
 
