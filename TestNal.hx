@@ -4,7 +4,15 @@ import sys.FileSystem;
 // automatic test which iterates and checks all *.nal files
 class TestNal {
     public static function main() {
-        var nalTestFileNames :Array<String> = FileSystem.readDirectory(".").filter(iname -> iname.substr(0, 4) == "Test" && iname.substr(iname.length-4) == ".nal");
+        var nalTestFileNames :Array<String>;
+        
+        if (Sys.args().length != 0) { // were the files given as parameters?
+            nalTestFileNames = Sys.args();
+        }
+        else {
+            nalTestFileNames = FileSystem.readDirectory(".").filter(iname -> iname.substr(0, 4) == "Test" && iname.substr(iname.length-4) == ".nal");
+        }
+
         for (iNalFileName in nalTestFileNames) {
             var expectedWithTvNarsese:Map<String, Bool> = new Map<String, Bool>(); // expected narsese with TV, flag tells if it occurred
 
