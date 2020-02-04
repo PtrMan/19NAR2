@@ -444,6 +444,21 @@ class Sq2 {
         }        
     }
 
+    public function debugJudgements() {
+        var allJudgements:Map<String, Bool> = new Map<String, Bool>();
+
+        for (iConceptName in mem.conceptsByName.keys()) {
+            var c = mem.conceptsByName.get(iConceptName);
+            for (iJ in c.judgments) {
+                allJudgements.set(iJ.convToStr(), true);
+            }
+        }
+
+        for (iJudgementStr in allJudgements.keys()) {
+            Sys.println(iJudgementStr);
+        }
+    }
+
     private var questionsByTaskId:Map<Int,QuestionTask> = new Map<Int,QuestionTask>();
 
     // tries to search and return a QuestionTask by the id of the task
