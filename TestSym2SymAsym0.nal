@@ -1,0 +1,25 @@
+// test to make sure simple Q&A works for sym/asm
+
+<a <-> b>.
+<b <-> a>?
+<b --> a>?
+<a --> b>?
+<a <-> b>?
+
+//EXPECT < b <-> a >. {1 0.9}
+//EXPECT < b --> a >. {1 0.9} 
+//EXPECT < a --> b >. {1 0.9}
+//EXPECT < a <-> b >. {1 0.9}
+
+<a <=> b>.
+<b <=> a>?
+<b ==> a>?
+<a ==> b>?
+<a <=> b>?
+
+//EXPECT < b <=> a >. {1 0.9}
+//EXPECT < b ==> a >. {1 0.9}
+//EXPECT < a ==> b >. {1 0.9}
+//EXPECT < a <=> b >. {1 0.9}
+
+!s150
