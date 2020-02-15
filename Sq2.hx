@@ -17,9 +17,6 @@ class Sq2 {
     // working set of tasks
     public var workingSet:WorkingSet = new WorkingSet();
 
-    // working set by derivation depth
-    public var workingQueueByDepth: Array<WorkingArr> = [];
-
     // used for debugging and unittesting
     // set to null to disable adding conclusions to this array
     public var conclusionStrArr:Array<String> = null;
@@ -31,10 +28,6 @@ class Sq2 {
     public var taskIdCounter = 100000; // used to uniquly identify task globably
 
     public function new() {
-        // init for different derivation depths
-        workingQueueByDepth.push(new WorkingArr());
-        workingQueueByDepth.push(new WorkingArr());
-        //workingQueueByDepth.push(new WorkingArr());
     }
 
     // puts new input from the outside of the system into the system
@@ -129,38 +122,14 @@ class Sq2 {
 
             var primaryTask:Task = null;
 
-            if(Math.random() > 0.5) { // select from sampled workingSet?
+            {
                 if (workingSet.entities.length == 0) {
                     continue; // nothing to work on, continue
                 }
-    
-                // select random element from working set
-                var chosenWorkingSetEntity;
-                { // select element from working set by probabilistic selection by mass
-                    var probabilityMass: Float = workingSet.entities[workingSet.entities.length-1].accuScore;
-                    var chosenMass: Float = Math.random() * probabilityMass;
-    
-                    var idx:Int = workingSet.calcIdxByScoreMass(chosenMass); ///////Std.random(workingSet.entities.length);
-                    chosenWorkingSetEntity = workingSet.entities[idx];
-                }
-    
-                primaryTask = chosenWorkingSetEntity.task;
+
+                primaryTask = workingSet.entities[0].task; // select best item
+                workingSet.entities = workingSet.entities.slice(1); // remove first item
             }
-            else { // select from working set by derivationDepth
-                // select work queue index - give depth 0 more chance than depth 1
-                var workingQueueIdx = switch (globalCycleCounter % 3) {
-                    case 0 | 1: 0;
-                    case _: 1;
-                }
-
-                if (workingQueueByDepth[workingQueueIdx].tasks.length == 0) {
-                    continue; // nothing to work on, continue
-                }
-
-                primaryTask = workingQueueByDepth[workingQueueIdx].tasks[0];
-                workingQueueByDepth[workingQueueIdx].tasks = workingQueueByDepth[workingQueueIdx].tasks.slice(1); // take away
-            }
-
             
             var primarySentence = primaryTask.sentence;
 
@@ -241,7 +210,7 @@ class Sq2 {
                     }
 
                     if (needToRecompute) {
-                        workingSet.recompute(); // recompute priority distribution
+                        //workingSet.recompute(); // recompute priority distribution
                     }
                 }
             }
@@ -324,15 +293,19 @@ class Sq2 {
                 sentence.derivationDepth = iConclusion.depth;
 
                 var workingSetEntity = null;
+
+                var task:Task = null;
                 if (sentence.punctation == ".") {
-                    conclusionTasks.push(new JudgementTask(sentence, taskIdCounter++));
+                    task = new JudgementTask(sentence, taskIdCounter++);
                 }
                 else if (sentence.punctation == "?") {
-                    conclusionTasks.push(new QuestionTask(sentence, QuestionLink.Null, taskIdCounter++));
+                    task = new QuestionTask(sentence, QuestionLink.Null, taskIdCounter++);
                 }
                 else {
                     throw "Internal error";
                 }
+
+                conclusionTasks.push(task);
             }
 
             storeDerivations(conclusionTasks, {putIntoWorkingSet:true});
@@ -378,45 +351,29 @@ class Sq2 {
     }
 
     public function storeTasks(conclusionTasks:Array<Task>, flags:{putIntoWorkingSet:Bool}) {
-        if (flags.putIntoWorkingSet) {
+        //if (flags.putIntoWorkingSet)
+        {
             // store question-task lookup
             for (iConclusionTask in conclusionTasks.filter(it -> it.retPunctation() == "?")) {
                 questionsByTaskId.set(iConclusionTask.id, cast(iConclusionTask, QuestionTask));
             }
 
+            
+            // put conclusions back into working set
             for (iConclusionTask in conclusionTasks) {
-                // put conclusions back into working set
-                for (iConclusionTask in conclusionTasks) {
-                    var workingSetEntity = new WorkingSetEntity(iConclusionTask);
-                    
-                    // try to find conclusion in working set and add only if it doesn't yet exist
-                    var existsSentenceInWorkingSet = false;
-                    for (iWorkingSetEntity in workingSet.entities) {
-                        if (Sentence.equal(iWorkingSetEntity.task.sentence, iConclusionTask.sentence)) {
-                            existsSentenceInWorkingSet = true;
-                            break;
-                        }
-                    }
-                    
-                    if (!existsSentenceInWorkingSet) {
-                        if (iConclusionTask.retPunctation() == "?") { // only add questions to the working-set
-                            workingSet.append(workingSetEntity);
-                        }
+                var workingSetEntity = new WorkingSetEntity(iConclusionTask);
+                
+                // try to find conclusion in working set and add only if it doesn't yet exist
+                var existsSentenceInWorkingSet = false;
+                for (iWorkingSetEntity in workingSet.entities) {
+                    if (Sentence.equal(iWorkingSetEntity.task.sentence, iConclusionTask.sentence)) {
+                        existsSentenceInWorkingSet = true;
+                        break;
                     }
                 }
-    
-    
-                var dDepth:Int = iConclusionTask.sentence.derivationDepth;
-    
-                // if question then add to probabilistic sampled workingset
-                if (iConclusionTask.retPunctation() == "?" || dDepth >= workingQueueByDepth.length) {
-                }
-                else {
-                    // put it into the more deterministic queue instead
-    
-                    var selDDepth:Int = Utils.min(dDepth, workingQueueByDepth.length - 1);
-    
-                    workingQueueByDepth[selDDepth].tasks.push(iConclusionTask);    
+                
+                if (!existsSentenceInWorkingSet) {
+                    workingSet.insert(workingSetEntity);
                 }
             }
         }
@@ -438,10 +395,6 @@ class Sq2 {
         Sys.println("Summary: ");
         Sys.println('   #concepts= $numberOfConcepts');
         Sys.println('   #workingset.entities= ${workingSet.entities.length}');
-        
-        for (idx in 0...workingQueueByDepth.length) {
-            Sys.println('   #workingqueueByDepth[${idx}]= ${workingQueueByDepth[idx].tasks.length}');
-        }        
     }
 
     public function debugJudgements() {
@@ -1387,6 +1340,9 @@ class WorkingSetEntity {
         else {
             utility = task.sentence.tv.conf;
         }
+
+        // more deeper sentences get less attention
+        utility = utility * Math.pow(0.8, -task.sentence.derivationDepth);
         
         utility = task.sentence.tv.conf;
 
@@ -1403,8 +1359,19 @@ class WorkingSet {
 
     public function new() {}
 
+    // insert sorted by total score
+    public function insert(entity:WorkingSetEntity) {
+        // TODO< do real insertition with binary search/insert! >
+
+        entities.push(entity);
+        entities.sort((a, b) -> (a.calcUtility(scoreSumOfUnboosted) == b.calcUtility(scoreSumOfUnboosted) ? 0 : (a.calcUtility(scoreSumOfUnboosted) < b.calcUtility(scoreSumOfUnboosted) ? 1 : -1)));
+    }
+
+    /*
     // append, maintains invariants
     public function append(entity:WorkingSetEntity) {
+        throw "SHOULDNT GET CALLED BECAUSE WE USE TOTAL SCORE BASED SORTED ITEM LIST!";
+        
         entities.push(entity);
 
         if (entities.length >= 2) {
@@ -1416,7 +1383,7 @@ class WorkingSet {
         }
 
         entities[entities.length-1].accuScore += entity.calcUtility(scoreSumOfUnboosted);
-    }
+    }*/
 
     public function debug(): String {
         var labelBoosted = true; // do we label boosted entries?
@@ -1430,8 +1397,11 @@ class WorkingSet {
         return res;
     }
 
+    /*
     // forces a recomputation of the entire distribution
     public function recompute() {
+        throw "SHOULDNT GET CALLED BECAUSE WE USE TOTAL SCORE BASED SORTED ITEM LIST!";
+
         if (entities.length == 0) {
             return;
         }
@@ -1450,10 +1420,14 @@ class WorkingSet {
             entities[idx].accuScore = entities[idx-1].accuScore + entities[idx].calcUtility(scoreSumOfUnboosted);
         }
     }
+    */
 
+    /*
     // computes the index of the entity by chosen "score mass"
     // necessary for fair probabilistic selection of tasks
     public function calcIdxByScoreMass(mass:Float, depth=0, minIdx=0, maxIdx=null): Int {
+        throw "SHOULDNT GET CALLED BECAUSE WE USE TOTAL SCORE BASED SORTED ITEM LIST!";
+
         if (maxIdx == null) {
             maxIdx = entities.length-1;
         }
@@ -1498,6 +1472,7 @@ class WorkingSet {
             return calcIdxByScoreMass(mass, depth+1, midIdx, maxIdx);
         }
     }
+     */
 }
 
 class WorkingArr {
