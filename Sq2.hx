@@ -390,31 +390,39 @@ class Sq2 {
                     }
                 }
                 else {
-                    // try to find conclusion in working set and add only if it doesn't yet exist
-                    // old code which was iterating
-                    var timeBefore = Sys.time();
-                    
-                    /*
-                    var existsSentenceInWorkingSet = false;
-                    for (iWorkingSetEntity in workingSet.entities) {
-                        if (Sentence.equal(iWorkingSetEntity.task.sentence, iConclusionTask.sentence)) {
-                            existsSentenceInWorkingSet = true;
-                            break;
-                        }
-                    }//*/
-                    var existsSentenceInWorkingSet = workingSet.entitiesByTermExists(workingSetEntity);
-                    
-                    //trace('check time = ${Sys.time() - timeBefore}');
-
-                    if (!existsSentenceInWorkingSet) {
-                        workingSet.insert(workingSetEntity);
+                    var allow:Bool = true;
+                    if (iConclusionTask.retPunctation() == ".") {
+                        allow = iConclusionTask.sentence.tv.conf > 0.00000001; // allow only TV with conf above zero
                     }
+
+                    if (allow) {
+                        // try to find conclusion in working set and add only if it doesn't yet exist
+                        // old code which was iterating
+                        var timeBefore = Sys.time();
+                        
+                        /*
+                        var existsSentenceInWorkingSet = false;
+                        for (iWorkingSetEntity in workingSet.entities) {
+                            if (Sentence.equal(iWorkingSetEntity.task.sentence, iConclusionTask.sentence)) {
+                                existsSentenceInWorkingSet = true;
+                                break;
+                            }
+                        }//*/
+                        var existsSentenceInWorkingSet = workingSet.entitiesByTermExists(workingSetEntity);
+                        
+                        //trace('check time = ${Sys.time() - timeBefore}');
+
+                        if (!existsSentenceInWorkingSet) {
+                            workingSet.insert(workingSetEntity);
+                        }
+                    }
+
                 }
             }
         }
 
         // store conclusion judgement
-        for (iConclusionTask in conclusionTasks.filter(it -> it.retPunctation() == ".")) {
+        for (iConclusionTask in conclusionTasks.filter(it -> it.retPunctation() == "." && it.sentence.tv.conf > 0.0000001)) {
             mem.updateConceptsForJudgement(iConclusionTask.sentence);
         }
     }
