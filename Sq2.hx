@@ -140,7 +140,7 @@ class Sq2 {
                 }
 
                 primaryTask = workingSet.entities[0].task; // select best item
-                workingSet.entities = workingSet.entities.slice(1); // remove first item
+                workingSet.removeFirstItem();
             }
             
             var primarySentence = primaryTask.sentence;
@@ -391,14 +391,21 @@ class Sq2 {
                 }
                 else {
                     // try to find conclusion in working set and add only if it doesn't yet exist
+                    // old code which was iterating
+                    var timeBefore = Sys.time();
+                    
+                    /*
                     var existsSentenceInWorkingSet = false;
                     for (iWorkingSetEntity in workingSet.entities) {
                         if (Sentence.equal(iWorkingSetEntity.task.sentence, iConclusionTask.sentence)) {
                             existsSentenceInWorkingSet = true;
                             break;
                         }
-                    }
+                    }//*/
+                    var existsSentenceInWorkingSet = workingSet.entitiesByTermExists(workingSetEntity);
                     
+                    //trace('check time = ${Sys.time() - timeBefore}');
+
                     if (!existsSentenceInWorkingSet) {
                         workingSet.insert(workingSetEntity);
                     }
@@ -423,6 +430,7 @@ class Sq2 {
         Sys.println("Summary: ");
         Sys.println('   #concepts= $numberOfConcepts');
         Sys.println('   #workingset.entities= ${workingSet.entities.length}');
+        Sys.println('   #questionWorkingset.entities= ${questionWorkingSet.entities.length}');
     }
 
     public function debugJudgements() {
@@ -1385,6 +1393,42 @@ class BaseWorkingSet {
 
     public var scoreSumOfUnboosted:Float = 0.0; // sum of all scores of unboosted entities
 
+    // used to quickly look up if task exist by sentence
+    private var entitiesByTerm:Map<String, Array<WorkingSetEntity>> = new Map<String, Array<WorkingSetEntity>>();
+
+    public function entitiesByTermExists(e:WorkingSetEntity):Bool {
+        var key:String = TermUtils.convToStr(e.task.sentence.term);
+        if (!entitiesByTerm.exists(key)) {
+            return false; // doesn't know key -> sentence doesn't exist
+        }
+
+        var candidates:Array<WorkingSetEntity> = entitiesByTerm.get(key);
+        for(iCandidate in candidates) {
+            if (Sentence.equal(iCandidate.task.sentence, e.task.sentence)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private function entitiesByTermInsertIfNotExistBySentence(e:WorkingSetEntity) {
+        if (entitiesByTermExists(e)) {
+            return; // exist already, skip
+        }
+
+        var key:String = TermUtils.convToStr(e.task.sentence.term);
+        var candidates:Array<WorkingSetEntity> = null;
+        if (entitiesByTerm.exists(key)) {
+            candidates = entitiesByTerm.get(key);
+        }
+        else {
+            candidates = [];
+        }
+        candidates.push(e);
+        entitiesByTerm.set(key, candidates);
+    }
+
+
     public function new() {}
 
     public function debug(): String {
@@ -1400,6 +1444,8 @@ class BaseWorkingSet {
     }
 }
 
+// working set which is (totally) ordered by some utility
+// IMPL DETAIL< is using a hash-lookup to accelerate lookup by sentence >
 class WorkingSet extends BaseWorkingSet {
     public function new() {
         super();
@@ -1407,14 +1453,55 @@ class WorkingSet extends BaseWorkingSet {
 
     // insert sorted by total score
     public function insert(entity:WorkingSetEntity) {
+        entitiesByTermInsertIfNotExistBySentence(entity);
+
         // TODO< do real insertition with binary search/insert! >
+
+        var timeBefore = Sys.time();
 
         entities.push(entity);
         entities.sort((a, b) -> (a.calcUtility(scoreSumOfUnboosted) == b.calcUtility(scoreSumOfUnboosted) ? 0 : (a.calcUtility(scoreSumOfUnboosted) < b.calcUtility(scoreSumOfUnboosted) ? 1 : -1)));
+
+        var time = Sys.time() - timeBefore;
+        if(false) trace('insert t=${time}');
+    }
+
+    // called when first item has to get removed
+    public function removeFirstItem() {
+        var firstItem:WorkingSetEntity = entities[0];
+        entities = entities.slice(1);
+
+        // remove it from the hash
+        var key:String = TermUtils.convToStr(firstItem.task.sentence.term);
+        if (!entitiesByTerm.exists(key)) {
+            // TODO< figure out why this bug happens! >
+            // trace('w key doesn\'t exist but should: ${key}');
+        }
+        if (entitiesByTerm.exists(key)) { // check to make sure, shouldn't fail
+            var candidates:Array<WorkingSetEntity> = entitiesByTerm.get(key);
+            { // remove candidate
+                var idx:Int = 0;
+                var found=false;
+                while(idx < candidates.length) {
+                    if (Sentence.equal(candidates[idx].task.sentence, firstItem.task.sentence)) {
+                        found = true;
+                        break;
+                    }
+                    idx++;
+                }
+
+                if (found) { // not defined if not found
+                    candidates = ArrUtils.removeAt(candidates, idx);
+                }
+            }
+
+            entitiesByTerm.set(key, candidates);
+
+        }
     }
 }
 
-
+// working set which is sampled with importance sampling
 class ImportanceSampledWorkingSet extends BaseWorkingSet {
     public function new() {
         super();
@@ -1502,6 +1589,25 @@ class ImportanceSampledWorkingSet extends BaseWorkingSet {
         else {
             return calcIdxByScoreMass(mass, depth+1, midIdx, maxIdx);
         }
+    }
+}
+
+class ArrUtils {
+    @:generic public static function removeAt<T>(arr:Array<T>, idx:Int):Array<T> {
+        var before = arr.slice(0, idx);
+        var after = arr.slice(idx+1, arr.length);
+        return before.concat(after);
+    }
+
+    public static function main() {
+        trace(removeAt([0], 0));
+        trace("---");
+        trace(removeAt([0, 1], 0));
+        trace(removeAt([0, 1], 1));
+        trace("---");
+        trace(removeAt([0, 1, 2], 0));
+        trace(removeAt([0, 1, 2], 1));
+        trace(removeAt([0, 1, 2], 2));
     }
 }
 
