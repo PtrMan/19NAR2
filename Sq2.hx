@@ -17,6 +17,9 @@ class Sq2 {
     // working set of tasks
     public var workingSet:WorkingSet = new WorkingSet();
 
+    // working set of questions - which are importance sampled
+    public var questionWorkingSet:ImportanceSampledWorkingSet = new ImportanceSampledWorkingSet();
+
     // used for debugging and unittesting
     // set to null to disable adding conclusions to this array
     public var conclusionStrArr:Array<String> = null;
@@ -122,7 +125,16 @@ class Sq2 {
 
             var primaryTask:Task = null;
 
-            {
+            if (Math.random() < 0.3) {
+                if (questionWorkingSet.entities.length == 0) {
+                   continue;
+                }
+
+                var pickedMass:Float = Math.random()*questionWorkingSet.scoreSumOfUnboosted;
+                var primaryTaskIdx = questionWorkingSet.calcIdxByScoreMass(pickedMass);
+                primaryTask = questionWorkingSet.entities[primaryTaskIdx].task;
+            }
+            else {
                 if (workingSet.entities.length == 0) {
                     continue; // nothing to work on, continue
                 }
@@ -363,17 +375,33 @@ class Sq2 {
             for (iConclusionTask in conclusionTasks) {
                 var workingSetEntity = new WorkingSetEntity(iConclusionTask);
                 
-                // try to find conclusion in working set and add only if it doesn't yet exist
-                var existsSentenceInWorkingSet = false;
-                for (iWorkingSetEntity in workingSet.entities) {
-                    if (Sentence.equal(iWorkingSetEntity.task.sentence, iConclusionTask.sentence)) {
-                        existsSentenceInWorkingSet = true;
-                        break;
+                if (iConclusionTask.retPunctation() == "?") {
+                    // try to find conclusion in working set and add only if it doesn't yet exist
+                    var existsSentenceInWorkingSet = false;
+                    for (iWorkingSetEntity in questionWorkingSet.entities) {
+                        if (Sentence.equal(iWorkingSetEntity.task.sentence, iConclusionTask.sentence)) {
+                            existsSentenceInWorkingSet = true;
+                            break;
+                        }
+                    }
+
+                    if (!existsSentenceInWorkingSet) {
+                        questionWorkingSet.append(workingSetEntity);
                     }
                 }
-                
-                if (!existsSentenceInWorkingSet) {
-                    workingSet.insert(workingSetEntity);
+                else {
+                    // try to find conclusion in working set and add only if it doesn't yet exist
+                    var existsSentenceInWorkingSet = false;
+                    for (iWorkingSetEntity in workingSet.entities) {
+                        if (Sentence.equal(iWorkingSetEntity.task.sentence, iConclusionTask.sentence)) {
+                            existsSentenceInWorkingSet = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!existsSentenceInWorkingSet) {
+                        workingSet.insert(workingSetEntity);
+                    }
                 }
             }
         }
@@ -1352,38 +1380,12 @@ class WorkingSetEntity {
 }
 
 
-class WorkingSet {
+class BaseWorkingSet {
     public var entities:Array<WorkingSetEntity> = [];
 
     public var scoreSumOfUnboosted:Float = 0.0; // sum of all scores of unboosted entities
 
     public function new() {}
-
-    // insert sorted by total score
-    public function insert(entity:WorkingSetEntity) {
-        // TODO< do real insertition with binary search/insert! >
-
-        entities.push(entity);
-        entities.sort((a, b) -> (a.calcUtility(scoreSumOfUnboosted) == b.calcUtility(scoreSumOfUnboosted) ? 0 : (a.calcUtility(scoreSumOfUnboosted) < b.calcUtility(scoreSumOfUnboosted) ? 1 : -1)));
-    }
-
-    /*
-    // append, maintains invariants
-    public function append(entity:WorkingSetEntity) {
-        throw "SHOULDNT GET CALLED BECAUSE WE USE TOTAL SCORE BASED SORTED ITEM LIST!";
-        
-        entities.push(entity);
-
-        if (entities.length >= 2) {
-            entities[entities.length-1].accuScore = entities[entities.length-2].accuScore;
-        }
-
-        if (!(entity.task.retPunctation() == "." && cast(entity.task, JudgementTask).isAnswerToQuestion)) {
-            scoreSumOfUnboosted += entity.calcUtility(0.0);
-        }
-
-        entities[entities.length-1].accuScore += entity.calcUtility(scoreSumOfUnboosted);
-    }*/
 
     public function debug(): String {
         var labelBoosted = true; // do we label boosted entries?
@@ -1396,12 +1398,45 @@ class WorkingSet {
         }
         return res;
     }
+}
 
-    /*
+class WorkingSet extends BaseWorkingSet {
+    public function new() {
+        super();
+    }
+
+    // insert sorted by total score
+    public function insert(entity:WorkingSetEntity) {
+        // TODO< do real insertition with binary search/insert! >
+
+        entities.push(entity);
+        entities.sort((a, b) -> (a.calcUtility(scoreSumOfUnboosted) == b.calcUtility(scoreSumOfUnboosted) ? 0 : (a.calcUtility(scoreSumOfUnboosted) < b.calcUtility(scoreSumOfUnboosted) ? 1 : -1)));
+    }
+}
+
+
+class ImportanceSampledWorkingSet extends BaseWorkingSet {
+    public function new() {
+        super();
+    }
+
+    // append, maintains invariants
+    public function append(entity:WorkingSetEntity) {
+        entities.push(entity);
+
+        if (entities.length >= 2) {
+            entities[entities.length-1].accuScore = entities[entities.length-2].accuScore;
+        }
+
+        if (!(entity.task.retPunctation() == "." && cast(entity.task, JudgementTask).isAnswerToQuestion)) {
+            scoreSumOfUnboosted += entity.calcUtility(0.0);
+        }
+
+        entities[entities.length-1].accuScore += entity.calcUtility(scoreSumOfUnboosted);
+    }
+
     // forces a recomputation of the entire distribution
     public function recompute() {
-        throw "SHOULDNT GET CALLED BECAUSE WE USE TOTAL SCORE BASED SORTED ITEM LIST!";
-
         if (entities.length == 0) {
             return;
         }
@@ -1420,14 +1455,10 @@ class WorkingSet {
             entities[idx].accuScore = entities[idx-1].accuScore + entities[idx].calcUtility(scoreSumOfUnboosted);
         }
     }
-    */
 
-    /*
     // computes the index of the entity by chosen "score mass"
     // necessary for fair probabilistic selection of tasks
     public function calcIdxByScoreMass(mass:Float, depth=0, minIdx=0, maxIdx=null): Int {
-        throw "SHOULDNT GET CALLED BECAUSE WE USE TOTAL SCORE BASED SORTED ITEM LIST!";
-
         if (maxIdx == null) {
             maxIdx = entities.length-1;
         }
@@ -1472,7 +1503,6 @@ class WorkingSet {
             return calcIdxByScoreMass(mass, depth+1, midIdx, maxIdx);
         }
     }
-     */
 }
 
 class WorkingArr {
