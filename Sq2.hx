@@ -139,11 +139,19 @@ class Sq2 {
                     continue; // nothing to work on, continue
                 }
 
+                //trace('utility:${workingSet.entities[0].calcUtility(0.0)}');
+
                 primaryTask = workingSet.entities[0].task; // select best item
                 workingSet.removeFirstItem();
             }
             
             var primarySentence = primaryTask.sentence;
+
+            if (true) {
+                Sys.println('');
+                Sys.println('');
+                Sys.println('sel task:${primarySentence.convToStr()}');
+            }
 
             // Q&A
             if (primarySentence.punctation == "?") {
@@ -365,7 +373,7 @@ class Sq2 {
     public function storeTasks(conclusionTasks:Array<Task>, flags:{putIntoWorkingSet:Bool}) {
         if (Config.debug_derived) {
             for (iConclTask in conclusionTasks) {
-                Sys.println('Derived:${iConclTask.sentence.convToStr()}');
+                Sys.println('Derived:${iConclTask.sentence.convToStr()}    depth=${iConclTask.sentence.derivationDepth}');
             }
         }
         
@@ -945,6 +953,7 @@ class Sq2 {
 
         var conclusionTasks: Array<Task> = [];
 
+        /* commented because conversion not necessary
         // NAL-2 conversion
         if (premisePunctation == ".") switch (premiseTerm) {
             case Cop(copula, subj, pred) if (copula == "-->"):
@@ -962,6 +971,7 @@ class Sq2 {
 
             case _: null;
         }
+         */
 
         // NAL-2 <-> / NAL-6 <=> structural transformation
         if (premisePunctation == ".") switch (premiseTerm) {
@@ -1392,11 +1402,8 @@ class WorkingSetEntity {
         }
 
         // more deeper sentences get less attention
-        utility = utility * Math.pow(0.8, -task.sentence.derivationDepth);
+        utility = utility * Math.pow(0.8, task.sentence.derivationDepth);
         
-        utility = task.sentence.tv.conf;
-
-
         return utility;
     }
 }
@@ -1474,8 +1481,21 @@ class WorkingSet extends BaseWorkingSet {
         var timeBefore = Sys.time();
 
         entities.push(entity);
-        entities.sort((a, b) -> (a.calcUtility(scoreSumOfUnboosted) == b.calcUtility(scoreSumOfUnboosted) ? 0 : (a.calcUtility(scoreSumOfUnboosted) < b.calcUtility(scoreSumOfUnboosted) ? 1 : -1)));
+        entities.sort((a, b) -> {
+            if (a.calcUtility(scoreSumOfUnboosted) == b.calcUtility(scoreSumOfUnboosted)) {
+                // ASSUMPTION< higher id is older task >
+                if (a.task.id == b.task.id) {
+                    return 0;
+                }
+                if (a.task.id > b.task.id) {
+                    return -1;
+                }
+                return 1;
+            }
 
+            return (a.calcUtility(scoreSumOfUnboosted) < b.calcUtility(scoreSumOfUnboosted) ? 1 : -1);
+        });
+        
         var time = Sys.time() - timeBefore;
         if(false) trace('insert t=${time}');
     }
@@ -1808,6 +1828,15 @@ class Unifier {
 }
 
 
+
+
+class Assert {
+    public static function assert(v:Bool, msg:String) {
+        if(!v) {
+            Sys.println(msg);
+        }
+    }
+}
 
 
 
