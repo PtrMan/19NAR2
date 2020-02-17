@@ -363,6 +363,12 @@ class Sq2 {
     }
 
     public function storeTasks(conclusionTasks:Array<Task>, flags:{putIntoWorkingSet:Bool}) {
+        if (Config.debug_derived) {
+            for (iConclTask in conclusionTasks) {
+                Sys.println('Derived:${iConclTask.sentence.convToStr()}');
+            }
+        }
+        
         //if (flags.putIntoWorkingSet)
         {
             // store question-task lookup
@@ -1628,9 +1634,10 @@ class WorkingArr {
 
 class Config {
     public static var beliefsPerNode:Int = 30;
-    public static var debug_derivations:Bool = false; // debug derivations to console
-    public static var debug_derivations_qacomposition:Bool = true; // debug composition for Q&A to console?
-    public static var debug_derivations_qj = true; // debug question-judgement processes?
+    public static var debug_derived:Bool = true; // debug derivations
+    public static var debug_derivations:Bool = false; // debug derivation process to console
+    public static var debug_derivations_qacomposition:Bool = false; // debug composition for Q&A to console?
+    public static var debug_derivations_qj:Bool = true; // debug question-judgement processes?
     
     public static var debug_qaBoost:Bool = false; // debug boosted answers for questions to console?
 }
