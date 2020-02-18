@@ -147,7 +147,7 @@ class Sq2 {
             
             var primarySentence = primaryTask.sentence;
 
-            if (true) {
+            if (false) {
                 Sys.println('');
                 Sys.println('');
                 Sys.println('sel task:${primarySentence.convToStr()}');
@@ -265,41 +265,43 @@ class Sq2 {
                     if (primaryConcept != null && primaryConcept.judgments.length > 0) {
                         if (Config.debug_derivations)   trace("two premise derivation !");
 
-                        var secondaryIdx = Std.random(primaryConcept.judgments.length);
-                        var secondarySentence = primaryConcept.judgments[secondaryIdx];
-
-                        var secondaryTerm = secondarySentence.term;
-                        var secondaryTv = secondarySentence.tv;
-                        var secondaryPunctation = secondarySentence.punctation;
-                        var secondaryStamp = secondarySentence.stamp;
-
-                        if (Config.debug_derivations)   trace("inf   " +  TermUtils.convToStr(premiseTerm) +     "   ++++    "+TermUtils.convToStr(secondaryTerm));
-
-                        var conclDDepth: Int = Utils.min(primarySentence.derivationDepth, secondarySentence.derivationDepth) + 1;
-
-                        if (!Stamp.checkOverlap(premiseStamp, secondaryStamp)) {
-                            if (premisePunctation == "." && secondaryPunctation == "." && TermUtils.equal(premiseTerm, secondaryTerm)) { // can do revision
-                                var tv = Tv.revision(premiseTv, secondaryTv);
-                                var mergedStamp = Stamp.merge(premiseStamp, secondaryStamp);
-                                var revisedSentence = new Sentence(premiseTerm, tv, mergedStamp, ".");
-                                revisedSentence.derivationDepth = conclDDepth;
-                                primaryConcept.judgments[secondaryIdx] = revisedSentence;
-
-                                { // print and add for debugging
-                                    var conclusionAsStr = TermUtils.convToStr(premiseTerm) +  premisePunctation+" " + tv.convToStr();
-                                    if (Config.debug_derivations)   trace(conclusionAsStr);
-
-                                    if (conclusionStrArr != null) { // used for debugging and unittesting
-                                        conclusionStrArr.push(conclusionAsStr);
+                        for(secondarySentenceIdx in 0...primaryConcept.judgments.length) { // iterate over all for deterministic processing
+                            var secondarySentence = primaryConcept.judgments[secondarySentenceIdx];
+                            
+                            var secondaryTerm = secondarySentence.term;
+                            var secondaryTv = secondarySentence.tv;
+                            var secondaryPunctation = secondarySentence.punctation;
+                            var secondaryStamp = secondarySentence.stamp;
+    
+                            if (Config.debug_derivations)   trace("inf   " +  TermUtils.convToStr(premiseTerm) +     "   ++++    "+TermUtils.convToStr(secondaryTerm));
+    
+                            var conclDDepth: Int = Utils.min(primarySentence.derivationDepth, secondarySentence.derivationDepth) + 1;
+    
+                            if (!Stamp.checkOverlap(premiseStamp, secondaryStamp)) {
+                                if (premisePunctation == "." && secondaryPunctation == "." && TermUtils.equal(premiseTerm, secondaryTerm)) { // can do revision
+                                    var tv = Tv.revision(premiseTv, secondaryTv);
+                                    var mergedStamp = Stamp.merge(premiseStamp, secondaryStamp);
+                                    var revisedSentence = new Sentence(premiseTerm, tv, mergedStamp, ".");
+                                    revisedSentence.derivationDepth = conclDDepth;
+                                    primaryConcept.judgments[secondarySentenceIdx] = revisedSentence;
+    
+                                    { // print and add for debugging
+                                        var conclusionAsStr = TermUtils.convToStr(premiseTerm) +  premisePunctation+" " + tv.convToStr();
+                                        if (Config.debug_derivations)   trace(conclusionAsStr);
+    
+                                        if (conclusionStrArr != null) { // used for debugging and unittesting
+                                            conclusionStrArr.push(conclusionAsStr);
+                                        }
                                     }
                                 }
+                                else { // can't do revision, try normal inference
+                                    var conclusionsTwoPremises2 = deriveTwoPremise(primaryTask.sentence, primaryTask, secondarySentence, null, conclDDepth,  conclusionTasks);
+                                    conclusionsTwoPremises = conclusionsTwoPremises.concat(conclusionsTwoPremises2);
+                                }
                             }
-                            else { // can't do revision, try normal inference
-                                conclusionsTwoPremises = deriveTwoPremise(primaryTask.sentence, primaryTask, secondarySentence, null, conclDDepth,  conclusionTasks);
+                            else {
+                                if (Config.debug_derivations)   trace('   stampOverlap a=${premiseStamp.ids.map(v -> haxe.Int64.toStr(v))}  b=${secondaryStamp.ids.map(v -> haxe.Int64.toStr(v))}');
                             }
-                        }
-                        else {
-                            if (Config.debug_derivations)   trace('   stampOverlap a=${premiseStamp.ids.map(v -> haxe.Int64.toStr(v))}  b=${secondaryStamp.ids.map(v -> haxe.Int64.toStr(v))}');
                         }
                     }
                 }
@@ -1654,7 +1656,7 @@ class WorkingArr {
 
 class Config {
     public static var beliefsPerNode:Int = 30;
-    public static var debug_derived:Bool = true; // debug derivations
+    public static var debug_derived:Bool = false; // debug derivations
     public static var debug_derivations:Bool = false; // debug derivation process to console
     public static var debug_derivations_qacomposition:Bool = false; // debug composition for Q&A to console?
     public static var debug_derivations_qj:Bool = true; // debug question-judgement processes?
