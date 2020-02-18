@@ -12,66 +12,75 @@ import sys.io.File;
 
 // interactive shell, is used like gdb
 class Interactive {
-    public static function main() {
-        var reasoner = new Sq2();
-        reasoner.conclusionStrArr = []; // enable output logging
+    public var reasoner:Sq2 = new Sq2();
 
-        // loads narsese from file
-        function loadFromFile(pathToLoad:String) {
-            var nalFileContent = File.getContent(pathToLoad);
+    public function new() {}
 
-            var nalLines = nalFileContent.split("\r\n");
-            for (iNalLine in nalLines) {
-                Sys.println('//input: $iNalLine'); // debug read line
-
-                if (iNalLine.length == 0) {} // ignore empty lines
-                else if(iNalLine.substring(0, 2) == "//") {} // ignore commented lines
-                else {
-                    reasoner.input(iNalLine);
-                }
-            }
+    // process a inputLine
+    public function processLine(inputLine:String) {
+        if (inputLine.length == 0) {} // ignore empty lines
+        else if (inputLine.charAt(0) == "!" && inputLine.charAt(1) == "s") { // step
+            var steps = Std.parseInt(inputLine.substring(2, inputLine.length));
+            reasoner.process(steps);
         }
+        else if (inputLine == "!d 1") { // enable debug conclusions
+            Sq2.Config.debug_derivations = true;
+        }
+        else if (inputLine == "!d 0") { // disable debug conclusions
+            Sq2.Config.debug_derivations = false;
+        }
+        else if (inputLine == "!ds 1") { // enable debug stored
+            Sq2.Config.debug_derived = true;
+        }
+        else if (inputLine == "!ds 0") { // disable debug stored
+            Sq2.Config.debug_derived = false;
+        }
+        else if (inputLine == "!dw") { // debug working set
+            // print working set
+            Sys.println(reasoner.workingSet.debug());
+        }
+        else if (inputLine == "!ds") { // debug summary
+            reasoner.debugSummary();
+        }
+        else if (inputLine == "!dj") { // debug all judgements
+            reasoner.debugJudgements();
+        }
+        else if (inputLine.substr(0, 3) == "!l ") {
+            var path:String = inputLine.substring(3);
+            loadFromFile(path);
+        }
+        else if (inputLine.length > 0 && inputLine.charAt(0) == "!") {
+            Sys.println('unknown command "$inputLine"');
+        }
+        else {
+            reasoner.input(inputLine);
+        }
+    }
+
+    // loads narsese from file
+    public function loadFromFile(pathToLoad:String) {
+        var nalFileContent = File.getContent(pathToLoad);
+
+        var nalLines = nalFileContent.split("\r\n");
+        for (iNalLine in nalLines) {
+            Sys.println('//input: $iNalLine'); // debug read line
+            processLine(iNalLine);
+        }
+    }
+
+    public static function main() {
+        var interactive = new Interactive();
+        interactive.reasoner.conclusionStrArr = []; // enable output logging
 
         // load zero or any number of *.nal files
         for (iArg in Sys.args()) {
             var pathToLoad = iArg;
-            loadFromFile(pathToLoad);
+            interactive.loadFromFile(pathToLoad);
         }
 
         while(true) {
             var inputLine: String = Sys.stdin().readLine();
-
-            if (inputLine.length == 0) {} // ignore empty lines
-            else if (inputLine.charAt(0) == "!" && inputLine.charAt(1) == "s") { // step
-                var steps = Std.parseInt(inputLine.substring(2, inputLine.length));
-                reasoner.process(steps);
-            }
-            else if (inputLine == "!d 1") { // enable debug conclusions
-                Sq2.Config.debug_derivations = true;
-            }
-            else if (inputLine == "!d 0") { // disable debug conclusions
-                Sq2.Config.debug_derivations = false;
-            }
-            else if (inputLine == "!dw") { // debug working set
-                // print working set
-                Sys.println(reasoner.workingSet.debug());
-            }
-            else if (inputLine == "!ds") { // debug summary
-                reasoner.debugSummary();
-            }
-            else if (inputLine == "!dj") { // debug all judgements
-                reasoner.debugJudgements();
-            }
-            else if (inputLine.substr(0, 3) == "!l ") {
-                var path:String = inputLine.substring(3);
-                loadFromFile(path);
-            }
-            else if (inputLine.length > 0 && inputLine.charAt(0) == "!") {
-                Sys.println('unknown command "$inputLine"');
-            }
-            else {
-                reasoner.input(inputLine);
-            }
+            interactive.processLine(inputLine);
         }
     }
 }
