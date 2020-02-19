@@ -9,6 +9,16 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 */
 
 class TermUtils {
+    // rewrites <-> to <-> and both versions of --> which are "views"
+    public static function rewriteSimToSimInhView(term:Term): Array<Term> {
+        switch term {
+            case Cop("<->", subj,pred):
+            return [term, Cop("<->",pred,subj), Cop("-->",subj,pred), Cop("-->",pred,subj)];
+            case _:
+            return [term];
+        }
+    }
+
     // clones only the first "level" of a term, used to "break" references to stay under AIKR
     public static function cloneShallow(term:Term):Term {
         return switch (term) {
