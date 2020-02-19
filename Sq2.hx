@@ -790,7 +790,7 @@ class Sq2 {
             return Unifier.substitute(a, unifiedMap, varTypes);
         }
 
-
+        /* commented hypothetical question derivation because it doesn't add anything
         // "hypothetical" question derivation to guide backward inference
         // C --> (/ REL _ D)?
         // A --> (/ REL _ B).
@@ -833,6 +833,7 @@ class Sq2 {
                 case _: null;
             }
         }
+        */
 
 
         // handling of implications for backward inference with detachment
