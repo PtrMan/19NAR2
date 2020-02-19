@@ -19,6 +19,8 @@ class Interactive {
     // process a inputLine
     public function processLine(inputLine:String) {
         if (inputLine.length == 0) {} // ignore empty lines
+        else if (inputLine.substr(0, 2) == "//") { // ignore comments
+        }
         else if (inputLine.charAt(0) == "!" && inputLine.charAt(1) == "s") { // step
             var steps = Std.parseInt(inputLine.substring(2, inputLine.length));
             reasoner.process(steps);
