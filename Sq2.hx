@@ -252,6 +252,8 @@ class Sq2 {
 
             { // two premise derivation
 
+                var timeBeforeTwoPremiseDeriv:Float = Sys.time();
+
                 /* old code to select a random 2nd premise
                 var selectedSecondaryPremiseTerm;
                 { // select random subterm of premiseTerm
@@ -310,6 +312,9 @@ class Sq2 {
                         }
                     }
                 }
+
+                var timeAfterTwoPremiseDeriv:Float = Sys.time();
+                if(false) trace('t two premise derivation=${timeAfterTwoPremiseDeriv-timeBeforeTwoPremiseDeriv}');
             }
 
             
@@ -378,6 +383,8 @@ class Sq2 {
     }
 
     public function storeTasks(conclusionTasks:Array<Task>, flags:{putIntoWorkingSet:Bool}) {
+        var tBefore:Float = Sys.time();
+
         if (Config.debug_derived) {
             for (iConclTask in conclusionTasks) {
                 Sys.println('Derived:${iConclTask.sentence.convToStr()}    depth=${iConclTask.sentence.derivationDepth}');
@@ -446,6 +453,9 @@ class Sq2 {
         for (iConclusionTask in conclusionTasks.filter(it -> it.retPunctation() == "." && it.sentence.tv.conf > 0.0000001)) {
             mem.updateConceptsForJudgement(iConclusionTask.sentence);
         }
+
+        var tAfter:Float = Sys.time();
+        if(true)  trace('t store=${tAfter-tBefore}');
     }
 
     public function debugSummary() {
@@ -1529,7 +1539,7 @@ class WorkingSet extends BaseWorkingSet {
         entities = entities.slice(0, Config.mem_TasksMax); // keep under AIKR
         
         var time = Sys.time() - timeBefore;
-        if(false) trace('insert t=${time}');
+        if(true) trace('insert t=${time}');
     }
 
     // called when first item has to get removed
