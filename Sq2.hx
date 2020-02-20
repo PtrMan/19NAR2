@@ -175,57 +175,62 @@ class Sq2 {
                         //trace('Q&A check answer ${TermUtils.convToStr(iBelief.term)}');
                         //trace('unifies = ${Unifier.checkUnify(primarySentence.term, iBelief.term)}');
 
-                        var unifies:Bool = Unifier.checkUnify(primarySentence.term, iBelief.term);
+                        for(iBeliefTermView in TermUtils.rewriteSimToSimInhView(iBelief.term)) {
+                            var iRewrittenBelief = new Sentence(iBeliefTermView, iBelief.tv, iBelief.stamp, iBelief.punctation);
+                            iRewrittenBelief.derivationDepth = iBelief.derivationDepth;
 
-                        // check for same exp() because partial answers may have roughtly the same exp(), we still want to boost them
-                        if (Math.abs(iBelief.tv.exp() - questionTask.retBestAnswerExp()) < 0.001 && unifies) {
-                            // we found an (potential) answer to a question
-                            // now we can "boost" the answer (if it exists as a task, so we search the matching task and boost it)
-                            for (iWorkingSetEntity in workingSet.entities) {
-                                if (iWorkingSetEntity.task.retPunctation() != ".") {
-                                    continue;
-                                }
-                                
-                                var judgmentTask = cast(iWorkingSetEntity.task, JudgementTask);
-                                
-                                if (Sentence.equal(iWorkingSetEntity.task.sentence, iBelief)) {
-                                    judgmentTask.isAnswerToQuestion = true;
-                                    needToRecompute = true;
+                            var unifies:Bool = Unifier.checkUnify(primarySentence.term, iRewrittenBelief.term);
 
-                                    if(Config.debug_qaBoost)   trace('Q&A boost (potential) answer ${iWorkingSetEntity.task.sentence.convToStr()}');
-
-                                    break;
-                                }
-                            }
-                        }
-
-                        // check if we can propagate answer and propagate it down the question task chain/tree
-                        // we can afford to do so because we assume that the depth of the tree is not to high
-                        if (iBelief.tv.exp() - questionTask.retBestAnswerExp() > -0.001 && unifies) {
-                            // try to store candidate if it is not overlapping
-                            /* commented because not useful {
-                                var noOverlap:Bool = [for (iCandidate in questionTask.bestAnswerSentenceCandidates) Stamp.checkOverlap(iCandidate.stamp, iBelief.stamp)].length == 0;
-                                if (noOverlap) {
-                                    questionTask.bestAnswerSentenceCandidates.push(iBelief);
-
-                                    // limit size to keep under AIKR
-                                    questionTask.bestAnswerSentenceCandidates = questionTask.bestAnswerSentenceCandidates.slice(0, 4);
+                            // check for same exp() because partial answers may have roughtly the same exp(), we still want to boost them
+                            if (Math.abs(iRewrittenBelief.tv.exp() - questionTask.retBestAnswerExp()) < 0.001 && unifies) {
+                                // we found an (potential) answer to a question
+                                // now we can "boost" the answer (if it exists as a task, so we search the matching task and boost it)
+                                for (iWorkingSetEntity in workingSet.entities) {
+                                    if (iWorkingSetEntity.task.retPunctation() != ".") {
+                                        continue;
+                                    }
                                     
-                                    if (questionTask.bestAnswerSentenceCandidates.length > 1) {
-                                        trace('${questionTask.bestAnswerSentenceCandidates[0].convToStr()}');
-                                        trace('${questionTask.bestAnswerSentenceCandidates[1].convToStr()}');
-                                        throw 'here';
+                                    var judgmentTask = cast(iWorkingSetEntity.task, JudgementTask);
+                                    
+                                    if (Sentence.equal(iWorkingSetEntity.task.sentence, iRewrittenBelief)) {
+                                        judgmentTask.isAnswerToQuestion = true;
+                                        needToRecompute = true;
+    
+                                        if(Config.debug_qaBoost)   trace('Q&A boost (potential) answer ${iWorkingSetEntity.task.sentence.convToStr()}');
+    
+                                        break;
                                     }
                                 }
-                            } */
-                            
-                            propagatePartialAnswer(questionTask, iBelief);
-                        }
-
-                        if (iBelief.tv.exp() > questionTask.retBestAnswerExp() && unifies ) {
-                            // found a better answer
-                            questionTask.bestAnswerSentence = iBelief;
-                            reportAnswer(questionTask, iBelief);
+                            }
+    
+                            // check if we can propagate answer and propagate it down the question task chain/tree
+                            // we can afford to do so because we assume that the depth of the tree is not to high
+                            if (iRewrittenBelief.tv.exp() - questionTask.retBestAnswerExp() > -0.001 && unifies) {
+                                // try to store candidate if it is not overlapping
+                                /* commented because not useful {
+                                    var noOverlap:Bool = [for (iCandidate in questionTask.bestAnswerSentenceCandidates) Stamp.checkOverlap(iCandidate.stamp, iBelief.stamp)].length == 0;
+                                    if (noOverlap) {
+                                        questionTask.bestAnswerSentenceCandidates.push(iRewrittenBelief);
+    
+                                        // limit size to keep under AIKR
+                                        questionTask.bestAnswerSentenceCandidates = questionTask.bestAnswerSentenceCandidates.slice(0, 4);
+                                        
+                                        if (questionTask.bestAnswerSentenceCandidates.length > 1) {
+                                            trace('${questionTask.bestAnswerSentenceCandidates[0].convToStr()}');
+                                            trace('${questionTask.bestAnswerSentenceCandidates[1].convToStr()}');
+                                            throw 'here';
+                                        }
+                                    }
+                                } */
+                                
+                                propagatePartialAnswer(questionTask, iRewrittenBelief);
+                            }
+    
+                            if (iRewrittenBelief.tv.exp() > questionTask.retBestAnswerExp() && unifies ) {
+                                // found a better answer
+                                questionTask.bestAnswerSentence = iRewrittenBelief;
+                                reportAnswer(questionTask, iRewrittenBelief);
+                            }
                         }
                     }
 
@@ -1406,7 +1411,26 @@ class WorkingSetEntity {
 
         // more deeper sentences get less attention
         utility = utility * Math.pow(0.8, task.sentence.derivationDepth);
-        
+
+        // TODO< reduce utility by complexity
+        //var complexity:Int = TermUtils.calcComplexity(task.sentence.term);
+        //utility *= Math.pow(complexity, -1.6);
+
+        { // HACK to reduce utility by appearance of Q&A terms
+            /* disabled because it is hardcoded for Shapeworld
+            var termAsStr:String = TermUtils.convToStr(task.sentence.term);
+            var foundA:Bool = termAsStr.indexOf("leftOf")!=-1;
+            var foundB:Bool = termAsStr.indexOf("filled")!=-1;
+            var foundC:Bool = termAsStr.indexOf("rectangle")!=-1;
+
+            var foundScore:Float = (foundA?1:0) + (foundB?1:0) + (foundC?1:0);
+            foundScore *= (1.0 / 3); // normalize
+            foundScore = Math.max(0.1, foundScore);
+
+            utility *= foundScore;
+            */
+        }
+
         return utility;
     }
 }
@@ -1464,6 +1488,9 @@ class BaseWorkingSet {
             //if(iEntity.isAnswerToQuestion)
             res += '   ${iEntity.task.sentence.convToStr()}:  ${labelBoosted && (iEntity.task.retPunctation() == "." && cast(iEntity.task, JudgementTask).isAnswerToQuestion) ? "BOOSTED" : ""}  score=${iEntity.calcUtility(scoreSumOfUnboosted)} accScore=${iEntity.accuScore}\n';
         }
+        
+        res += 'ws count=${entities.length}\n';
+
         return res;
     }
 }
@@ -1485,19 +1512,21 @@ class WorkingSet extends BaseWorkingSet {
 
         entities.push(entity);
         entities.sort((a, b) -> {
-            if (a.calcUtility(scoreSumOfUnboosted) == b.calcUtility(scoreSumOfUnboosted)) {
+            if (Math.abs(a.calcUtility(scoreSumOfUnboosted) - b.calcUtility(scoreSumOfUnboosted)) < 0.0000001) {
                 // ASSUMPTION< higher id is older task >
                 if (a.task.id == b.task.id) {
                     return 0;
                 }
                 if (a.task.id > b.task.id) {
-                    return -1;
+                    return 1;
                 }
-                return 1;
+                return -1;
             }
 
             return (a.calcUtility(scoreSumOfUnboosted) < b.calcUtility(scoreSumOfUnboosted) ? 1 : -1);
         });
+
+        entities = entities.slice(0, Config.mem_TasksMax); // keep under AIKR
         
         var time = Sys.time() - timeBefore;
         if(false) trace('insert t=${time}');
@@ -1656,6 +1685,8 @@ class WorkingArr {
 
 
 class Config {
+    public static var mem_TasksMax = 5000; // maximal number of tasks in winner takes all
+
     public static var beliefsPerNode:Int = 30;
     public static var debug_derived:Bool = false; // debug derivations
     public static var debug_derivations:Bool = false; // debug derivation process to console
