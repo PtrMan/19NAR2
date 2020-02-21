@@ -393,6 +393,8 @@ class Sq2 {
         
         //if (flags.putIntoWorkingSet)
         {
+            workingSet.timeInsertAccu = 0.0; // instrumentation: reset time accumulator
+
             // store question-task lookup
             for (iConclusionTask in conclusionTasks.filter(it -> it.retPunctation() == "?")) {
                 questionsByTaskId.set(iConclusionTask.id, cast(iConclusionTask, QuestionTask));
@@ -449,6 +451,8 @@ class Sq2 {
             }
         }
 
+        workingSet.sortBarrier(); // give it a chance to sort lazily
+
         // store conclusion judgement
         for (iConclusionTask in conclusionTasks.filter(it -> it.retPunctation() == "." && it.sentence.tv.conf > 0.0000001)) {
             mem.updateConceptsForJudgement(iConclusionTask.sentence);
@@ -456,6 +460,7 @@ class Sq2 {
 
         var tAfter:Float = Sys.time();
         if(true)  trace('t store=${tAfter-tBefore}');
+        if(true)  trace('  tsum insert=${workingSet.timeInsertAccu}');
     }
 
     public function debugSummary() {
@@ -1508,38 +1513,56 @@ class BaseWorkingSet {
 // working set which is (totally) ordered by some utility
 // IMPL DETAIL< is using a hash-lookup to accelerate lookup by sentence >
 class WorkingSet extends BaseWorkingSet {
+    public var timeInsertAccu:Float = 0; // instrumentation: time accumulator to measure time to insert
+    public var dirtyUnsorted:Bool = false; // optimization: sort only if necessary
+
     public function new() {
         super();
     }
 
+    // barrier to give it a chance to sort it
+    public function sortBarrier() {
+        if (dirtyUnsorted) {
+            var timeBefore = Sys.time();
+
+            entities.sort((a, b) -> {
+                if (Math.abs(a.calcUtility(scoreSumOfUnboosted) - b.calcUtility(scoreSumOfUnboosted)) < 0.0000001) {
+                    // ASSUMPTION< higher id is older task >
+                    if (a.task.id == b.task.id) {
+                        return 0;
+                    }
+                    if (a.task.id > b.task.id) {
+                        return 1;
+                    }
+                    return -1;
+                }
+    
+                return (a.calcUtility(scoreSumOfUnboosted) < b.calcUtility(scoreSumOfUnboosted) ? 1 : -1);
+            });
+            
+            var time = Sys.time() - timeBefore;
+            timeInsertAccu += time;
+
+            dirtyUnsorted = false;
+        }
+    }
+
     // insert sorted by total score
     public function insert(entity:WorkingSetEntity) {
+        var timeBefore = Sys.time();
+        
         entitiesByTermInsertIfNotExistBySentence(entity);
 
         // TODO< do real insertition with binary search/insert! >
 
-        var timeBefore = Sys.time();
-
         entities.push(entity);
-        entities.sort((a, b) -> {
-            if (Math.abs(a.calcUtility(scoreSumOfUnboosted) - b.calcUtility(scoreSumOfUnboosted)) < 0.0000001) {
-                // ASSUMPTION< higher id is older task >
-                if (a.task.id == b.task.id) {
-                    return 0;
-                }
-                if (a.task.id > b.task.id) {
-                    return 1;
-                }
-                return -1;
-            }
+        dirtyUnsorted = true; // defer sorting
 
-            return (a.calcUtility(scoreSumOfUnboosted) < b.calcUtility(scoreSumOfUnboosted) ? 1 : -1);
-        });
-
+        // TODO< maintain entitiesByTerm list: we need to remove entites which were kicked out >
         entities = entities.slice(0, Config.mem_TasksMax); // keep under AIKR
         
         var time = Sys.time() - timeBefore;
-        if(true) trace('insert t=${time}');
+        timeInsertAccu += time;
     }
 
     // called when first item has to get removed
