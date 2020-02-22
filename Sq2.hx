@@ -1,3 +1,5 @@
+import haxe.display.Display.StructExtensionCompletion;
+
 /*
 Copyright 2019 Robert Wünsche
 
@@ -135,13 +137,13 @@ class Sq2 {
                 primaryTask = questionWorkingSet.entities[primaryTaskIdx].task;
             }
             else {
-                if (workingSet.entities.length == 0) {
+                if (workingSet.sortedWorkingsetByPriority.length == 0) {
                     continue; // nothing to work on, continue
                 }
 
                 //trace('utility:${workingSet.entities[0].calcUtility(0.0)}');
 
-                primaryTask = workingSet.entities[0].task; // select best item
+                primaryTask = workingSet.retFirstItem().task; // select best item
                 workingSet.removeFirstItem();
             }
             
@@ -185,6 +187,7 @@ class Sq2 {
                             if (Math.abs(iRewrittenBelief.tv.exp() - questionTask.retBestAnswerExp()) < 0.001 && unifies) {
                                 // we found an (potential) answer to a question
                                 // now we can "boost" the answer (if it exists as a task, so we search the matching task and boost it)
+                                /* commented because we don't do boosting, but boosting may be a good idea later?
                                 for (iWorkingSetEntity in workingSet.entities) {
                                     if (iWorkingSetEntity.task.retPunctation() != ".") {
                                         continue;
@@ -200,7 +203,7 @@ class Sq2 {
     
                                         break;
                                     }
-                                }
+                                }*/
                             }
     
                             // check if we can propagate answer and propagate it down the question task chain/tree
@@ -473,7 +476,7 @@ class Sq2 {
 
         Sys.println("Summary: ");
         Sys.println('   #concepts= $numberOfConcepts');
-        Sys.println('   #workingset.entities= ${workingSet.entities.length}');
+        Sys.println('   #workingset.entities= ${workingSet.retCount()}');
         Sys.println('   #questionWorkingset.entities= ${questionWorkingSet.entities.length}');
     }
 
@@ -1452,8 +1455,6 @@ class WorkingSetEntity {
 
 
 class BaseWorkingSet {
-    public var entities:Array<WorkingSetEntity> = [];
-
     public var scoreSumOfUnboosted:Float = 0.0; // sum of all scores of unboosted entities
 
     // used to quickly look up if task exist by sentence
@@ -1491,24 +1492,24 @@ class BaseWorkingSet {
         entitiesByTerm.set(key, candidates);
     }
 
+    public function debug(): String {
+        throw "not implemented!";
+    }
 
     public function new() {}
+}
 
-    public function debug(): String {
-        var labelBoosted = true; // do we label boosted entries?
-
-        var res = "";
-
-        for(iEntity in entities) {
-            //if(iEntity.isAnswerToQuestion)
-            res += '   ${iEntity.task.sentence.convToStr()}:  ${labelBoosted && (iEntity.task.retPunctation() == "." && cast(iEntity.task, JudgementTask).isAnswerToQuestion) ? "BOOSTED" : ""}  score=${iEntity.calcUtility(scoreSumOfUnboosted)} accScore=${iEntity.accuScore}\n';
-        }
-        
-        res += 'ws count=${entities.length}\n';
-
-        return res;
+// working set entities grouped by same priority
+class PriorityWithWorkingsetEntities {
+    public var priority:Float;
+    public var entities:Array<WorkingSetEntity>;
+    public function new(priority,entities) {
+        this.priority=priority;
+        this.entities=entities;
     }
 }
+
+
 
 // working set which is (totally) ordered by some utility
 // IMPL DETAIL< is using a hash-lookup to accelerate lookup by sentence >
@@ -1516,12 +1517,40 @@ class WorkingSet extends BaseWorkingSet {
     public var timeInsertAccu:Float = 0; // instrumentation: time accumulator to measure time to insert
     public var dirtyUnsorted:Bool = false; // optimization: sort only if necessary
 
+    public var sortedWorkingsetByPriority:Array<PriorityWithWorkingsetEntities> = []; // sorted by priority
+
     public function new() {
         super();
     }
 
+    public function retCount():Int {
+        var cnt:Int = 0;
+        for(iPwwse in sortedWorkingsetByPriority) {
+            for(iEntity in iPwwse.entities) {
+                cnt++;
+            }
+        }
+        return cnt;
+    }
+    
+    public override function debug():String {
+        var labelBoosted = true; // do we label boosted entries?
+        var res = "";
+                
+        for(iPwwse in sortedWorkingsetByPriority) {
+            for(iEntity in iPwwse.entities) {
+                res += '   ${iEntity.task.sentence.convToStr()}:  ${labelBoosted && (iEntity.task.retPunctation() == "." && cast(iEntity.task, JudgementTask).isAnswerToQuestion) ? "BOOSTED" : ""}  score=${iEntity.calcUtility(scoreSumOfUnboosted)} accScore=${iEntity.accuScore}\n';
+            }
+        }
+
+        res += 'ws count=${retCount()}\n';
+        return res;
+    }
+    
+
     // barrier to give it a chance to sort it
     public function sortBarrier() {
+        /* commented because old code for not scalable explicit array
         if (dirtyUnsorted) {
             var timeBefore = Sys.time();
 
@@ -1544,8 +1573,50 @@ class WorkingSet extends BaseWorkingSet {
             timeInsertAccu += time;
 
             dirtyUnsorted = false;
-        }
+        }*/
     }
+
+
+    // insert into workingset and maintain ordering
+    private function insertIntoWorkingsetByPriority(e:WorkingSetEntity) {
+        // search for matching priority
+        var mfound:PriorityWithWorkingsetEntities = null; // found match by priority
+        for(iPwwse in sortedWorkingsetByPriority) {
+            if (Math.abs(iPwwse.priority - e.calcUtility(0.0)) < 0.0000001) {
+                mfound = iPwwse;// match found
+                break;
+            }
+        }
+
+        if (mfound != null) {
+            mfound.entities.push(e); // add to it
+
+            // sort it
+            mfound.entities.sort((a, b) -> {
+                // ASSUMPTION< higher id is older task >
+                if (a.task.id == b.task.id) {
+                    return 0;
+                }
+                if (a.task.id > b.task.id) {
+                    return 1;
+                }
+                return -1;
+            });
+        }
+        else { // create new
+            sortedWorkingsetByPriority.push(new PriorityWithWorkingsetEntities(e.calcUtility(0.0), [e]));
+        }
+
+        sortedWorkingsetByPriority.sort((a, b) -> {
+            return (a.priority < b.priority ? 1 : -1);
+        });
+    }
+
+    // TODO< method to put it under AIKR >
+
+
+
+
 
     // insert sorted by total score
     public function insert(entity:WorkingSetEntity) {
@@ -1553,22 +1624,128 @@ class WorkingSet extends BaseWorkingSet {
         
         entitiesByTermInsertIfNotExistBySentence(entity);
 
-        // TODO< do real insertition with binary search/insert! >
+        // insert into "real" queue grouped/ordered by priority
+        insertIntoWorkingsetByPriority(entity);
 
-        entities.push(entity);
-        dirtyUnsorted = true; // defer sorting
+        /*
+        if (entities.length == 0) { // is special case?
+            entities.push(entity);
+        }
+        else { // do real insertion with binary search/insert
+            var entityPriority:Float = entity.calcUtility(0.0);
+            var bestIdxSoFar:Int = calcIdxBySel(entityPriority, false, -1); // search best idx by binary search
+
+            // try to move down until priority is different
+            // we need to do this to later work on early added items with same priority first
+            while(true) {
+                if(
+                    bestIdxSoFar + 1 >= entities.length - 1 // is next item not present?, moving down if not present doesn't make sense
+                ) {
+                    //trace('bIdx=$bestIdxSoFar  len=${entities.length}');
+                    break;
+                }
+                
+                if(
+                    (bestIdxSoFar < entities.length && Math.abs(entities[bestIdxSoFar].calcUtility(0.0) - entityPriority) > 0.0000001) // same priority?
+                ) {
+                    trace("here2");
+                    break;
+                }
+                bestIdxSoFar++; // move down
+            }
+
+            // correct idx
+            var lastDir = 0; // last direction
+            while(true) {
+                //trace(bestIdxSoFar);
+
+                if (bestIdxSoFar < 0 || bestIdxSoFar >= entities.length) { // here to guard against "underflow" and "overflow"
+                    break;
+                }
+
+
+                if (bestIdxSoFar+1 < entities.length) {
+                    //trace('   this=${entity.calcUtility(scoreSumOfUnboosted)}');
+                    //trace('   []=${entities[bestIdxSoFar].calcUtility(scoreSumOfUnboosted)}');
+                    //trace('   []=${entities[bestIdxSoFar+1].calcUtility(scoreSumOfUnboosted)}');
+
+                    if( entities[bestIdxSoFar].calcUtility(0.0) > entity.calcUtility(0.0) && entity.calcUtility(0.0) > entities[bestIdxSoFar+1].calcUtility(0.0) ) { // it it "inside"?
+                        //trace('insert');
+                        bestIdxSoFar++; // correct it
+                        break;
+                    }
+                }
+
+                if (entity.calcUtility(0.0) < entities[bestIdxSoFar].calcUtility(0.0)) {
+                    if (lastDir == -1) {
+                        break;
+                    }
+                    bestIdxSoFar++;
+                    lastDir = 1;
+                }
+                else if (entity.calcUtility(0.0) > entities[bestIdxSoFar].calcUtility(0.0)) {
+                    if (lastDir == 1) {
+                        break;
+                    }
+                    bestIdxSoFar--;
+                    lastDir = -1;
+                }
+                else {
+                    break;
+                }
+            }
+
+
+            //trace("BEFORE INSERT ===");
+            //var debugBefore:String = debug();
+            
+            //Sys.println(debug());
+
+            // insert
+            entities.insert(bestIdxSoFar, entity);
+
+            //trace("AFTER INSERT ===");
+            //Sys.println(debug());
+
+            for(idx in 0...entities.length-1) {
+                if (entities[idx].calcUtility(0.0) < entities[idx+1].calcUtility(0.0) ) {
+                    //trace("BEFORE INSERT ===");
+                    //Sys.println(debugBefore);
+                    trace("AFTER INSERT ===");
+                    Sys.println(debug()); // current state is after insert
+                    
+                    throw "entities are not sorted correctly!"; // throw so programmer can inspect it
+                }
+            }
+        }
+        */
+
+        /*{ commented because old slow code with explicit sorting
+            entities.push(entity);
+            dirtyUnsorted = true; // defer sorting
+        }//*/
 
         // TODO< maintain entitiesByTerm list: we need to remove entites which were kicked out >
-        entities = entities.slice(0, Config.mem_TasksMax); // keep under AIKR
+        
+        //entities = entities.slice(0, Config.mem_TasksMax); // keep under AIKR
         
         var time = Sys.time() - timeBefore;
         timeInsertAccu += time;
     }
 
+    public function retFirstItem(): WorkingSetEntity {
+        return sortedWorkingsetByPriority[0].entities[0];
+    }
+
     // called when first item has to get removed
     public function removeFirstItem() {
-        var firstItem:WorkingSetEntity = entities[0];
-        entities = entities.slice(1);
+        // lookup winner
+        var firstItem:WorkingSetEntity = sortedWorkingsetByPriority[0].entities[0];
+        sortedWorkingsetByPriority[0].entities = sortedWorkingsetByPriority[0].entities.slice(1);
+        // ... maintain invariant
+        if (sortedWorkingsetByPriority[0].entities.length == 0) {
+            sortedWorkingsetByPriority = sortedWorkingsetByPriority.slice(1); // remove empty container
+        }
 
         // remove it from the hash
         var key:String = TermUtils.convToStr(firstItem.task.sentence.term);
@@ -1602,9 +1779,77 @@ class WorkingSet extends BaseWorkingSet {
 
 // working set which is sampled with importance sampling
 class ImportanceSampledWorkingSet extends BaseWorkingSet {
+    public var entities:Array<WorkingSetEntity> = [];
+
     public function new() {
         super();
     }
+
+    public override function debug(): String {
+        var labelBoosted = true; // do we label boosted entries?
+
+        var res = "";
+
+        for(iEntity in entities) {
+            //if(iEntity.isAnswerToQuestion)
+            res += '   ${iEntity.task.sentence.convToStr()}:  ${labelBoosted && (iEntity.task.retPunctation() == "." && cast(iEntity.task, JudgementTask).isAnswerToQuestion) ? "BOOSTED" : ""}  score=${iEntity.calcUtility(scoreSumOfUnboosted)} accScore=${iEntity.accuScore}\n';
+        }
+        
+        res += 'ws count=${entities.length}\n';
+
+        return res;
+    }
+
+    // computes the index of the entity with binary search by chosen either "score mass" or score itself
+    //
+    // used for selection by mass or for selection by priority
+    // /param byMass search by mass?, else by score itself
+    public function calcIdxBySel(sel:Float, byMass:Bool, order:Int, depth=0, minIdx=0, maxIdx=null): Int {
+        if (maxIdx == null) {
+            maxIdx = entities.length-1;
+        }
+
+        var selAtMin = byMass ? entities[minIdx].accuScore : entities[minIdx].calcUtility(0.0);
+        //var selAtMax = byMass ? entities[maxIdx].accuScore : entities[minIdx].calcUtility(0.0);
+
+
+        //if (depth > 5) {
+        //    throw "DEBUG ERROR";
+        //}
+        //
+        //trace('l=${entities.length}');
+        //trace('calcIdxBySel() d=$depth   sel=$sel minIdx=$minIdx maxIdx=$maxIdx');
+
+        if (minIdx == maxIdx - 1) {
+            //trace("BEFORE");
+
+            //for (iEntity in entities) {
+            //    trace('   ${TermUtils.convToStr(iEntity.sentence.term)}${iEntity.sentence.punctation}  score=${iEntity.calcUtility()}');
+            //}
+
+            if (order == 1 ? sel < selAtMin : sel > selAtMin) {
+                return minIdx;
+            }
+            return maxIdx;
+        }
+        if (minIdx == maxIdx) {
+            return minIdx;
+        }
+
+
+        // we use binary search
+
+        var midIdx = Std.int((maxIdx+minIdx) / 2);
+        var selAtMid = byMass ? entities[midIdx].accuScore : entities[midIdx].calcUtility(0.0);
+
+        if (order == 1 ? sel < selAtMid : sel > selAtMid) { // select split by order mode
+            return calcIdxBySel(sel, byMass, depth+1, minIdx, midIdx);
+        }
+        else {
+            return calcIdxBySel(sel, byMass, depth+1, midIdx, maxIdx);
+        }
+    }
+
 
     // append, maintains invariants
     public function append(entity:WorkingSetEntity) {
@@ -1644,50 +1889,8 @@ class ImportanceSampledWorkingSet extends BaseWorkingSet {
 
     // computes the index of the entity by chosen "score mass"
     // necessary for fair probabilistic selection of tasks
-    public function calcIdxByScoreMass(mass:Float, depth=0, minIdx=0, maxIdx=null): Int {
-        if (maxIdx == null) {
-            maxIdx = entities.length-1;
-        }
-
-        var accuScoreAtMin = entities[minIdx].accuScore;
-        var accuScoreAtMax = entities[maxIdx].accuScore;
-
-
-        //if (depth > 5) {
-        //    throw "DEBUG ERROR";
-        //}
-        //
-        //trace('l=${entities.length}');
-        //trace('calcIdxByScoreMass() minIdx=$minIdx maxIdx=$maxIdx');
-
-        if (minIdx == maxIdx - 1) {
-            //trace("BEFORE");
-
-            //for (iEntity in entities) {
-            //    trace('   ${TermUtils.convToStr(iEntity.sentence.term)}${iEntity.sentence.punctation}  score=${iEntity.calcUtility()}');
-            //}
-
-            if (mass < accuScoreAtMin) {
-                return minIdx;
-            }
-            return maxIdx;
-        }
-        if (minIdx == maxIdx) {
-            return minIdx;
-        }
-
-
-        // we use binary search
-
-        var midIdx = Std.int((maxIdx+minIdx) / 2);
-        var accuScoreAtMid = entities[midIdx].accuScore;
-
-        if (mass < accuScoreAtMid) {
-            return calcIdxByScoreMass(mass, depth+1, minIdx, midIdx);
-        }
-        else {
-            return calcIdxByScoreMass(mass, depth+1, midIdx, maxIdx);
-        }
+    public function calcIdxByScoreMass(mass:Float): Int {
+        return calcIdxBySel(mass, true, 1);
     }
 }
 
