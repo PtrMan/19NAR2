@@ -1058,7 +1058,8 @@ class Sq2 {
         }
 
         // NAL-3 structural decomposition for question for better Q&A
-        if (premisePunctation == "?") switch (premiseTerm) {
+        var derive_decompositionQuestions = false; // disable because not necessary, seems also to make system unreliable
+        if (derive_decompositionQuestions && premisePunctation == "?") switch (premiseTerm) {
             // <(a & b) --> c>?
             // |-
             // <a --> c>?
