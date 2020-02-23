@@ -419,6 +419,7 @@ class Sq2 {
                     }
 
                     if (!existsSentenceInWorkingSet) {
+                        //trace('store q = ${workingSetEntity.task.sentence.convToStr()}');
                         questionWorkingSet.append(workingSetEntity);
                     }
                 }
@@ -462,8 +463,8 @@ class Sq2 {
         }
 
         var tAfter:Float = Sys.time();
-        if(true)  trace('t store=${tAfter-tBefore}');
-        if(true)  trace('  tsum insert=${workingSet.timeInsertAccu}');
+        if(Config.debug_instrumentation)  trace('t store=${tAfter-tBefore}');
+        if(Config.debug_instrumentation)  trace('  tsum insert=${workingSet.timeInsertAccu}');
     }
 
     public function debugSummary() {
@@ -1921,6 +1922,8 @@ class WorkingArr {
 
 
 class Config {
+    public static var debug_instrumentation = false; // debug timing?
+
     public static var mem_TasksMax = 5000; // maximal number of tasks in winner takes all
 
     public static var beliefsPerNode:Int = 30;
