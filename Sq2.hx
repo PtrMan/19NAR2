@@ -344,6 +344,10 @@ class Sq2 {
             }
 
             storeDerivations(conclusionTasks, {putIntoWorkingSet:true});
+
+            if ((cycleCounter % 500) == 0) {
+                mem.limitMemoryConcepts(); // we need to limit memory of concepts to keep under AIKR
+            }
         }
 
 
@@ -1251,6 +1255,8 @@ class Memory {
     // name key is name as string
     public var conceptsByName:Map<String, Node> = new Map<String, Node>();
 
+    public var maxNodes:Int = 10000;
+
     public function new() {}
 
     public function hasConceptByName(name:String) {
@@ -1298,6 +1304,26 @@ class Memory {
             // sort judgments by metric and limit size
             nodeOfTerm.judgments.sort( (a, b) -> (a.tv.exp() < b.tv.exp() ? 1 : ((a.tv.exp() == b.tv.exp()) ? 0 : -1) ));
             nodeOfTerm.judgments = nodeOfTerm.judgments.slice(0, Config.beliefsPerNode);
+        }
+    }
+
+    
+    // limit memory of concepts to keep under AIKR
+    public function limitMemoryConcepts() {
+        var nodeByMaxExp: Array<{maxExp:Float, node:Node}> = [];
+
+        for(iConceptName in conceptsByName.keys()) {
+            var node: Node = conceptsByName.get(iConceptName);
+            var maxExpOfNode: Float = node.judgments[0].tv.exp(); // ASSUMPTION< judgements sorted by exp() >
+            nodeByMaxExp.push({maxExp:maxExpOfNode, node:node});
+        }
+
+        nodeByMaxExp.sort( (a, b) -> (a.maxExp < b.maxExp ? 1 : ((a.maxExp == b.maxExp) ? 0 : -1) )); // sort by max exp()
+        nodeByMaxExp = nodeByMaxExp.slice(0, maxNodes); // limit memory
+
+        conceptsByName = new Map<String, Node>();
+        for (iNodeByMaxExp in nodeByMaxExp) {
+            conceptsByName.set(TermUtils.convToStr(iNodeByMaxExp.node.name), iNodeByMaxExp.node);
         }
     }
 }
