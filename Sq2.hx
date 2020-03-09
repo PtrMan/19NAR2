@@ -257,61 +257,67 @@ class Sq2 {
 
                 var timeBeforeTwoPremiseDeriv:Float = Sys.time();
 
-                /* old code to select a random 2nd premise
-                var selectedSecondaryPremiseTerm;
-                { // select random subterm of premiseTerm
-                    var subterms:Array<Term> = TermUtils.enumTerms(premiseTerm);
-                    var idx = Std.random(subterms.length);
-                    selectedSecondaryPremiseTerm = subterms[idx];
-                }
-                */
-
-                // new code which iterates over all 2nd premises
-                // is less fine-grained than selecting a random one but maybe it has less control problems
-                for(selectedSecondaryPremiseTerm in TermUtils.enumTerms(premiseTerm)) {
+                // iterate over 2nd premises
+                // we need to select 2nd premise term to select concepts
+                // we only care about the n highest concepts (to save a lot of time)
+                
+                // ... sort by maxexp and slice
+                var highestRankedConceptsOf2ndPremise: Array<Node>;
+                {
+                    var conceptsOf2ndPremise: Array<Node> = [];
+                    // retrieve concepts
+                    for(selectedSecondaryPremiseTerm in TermUtils.enumTerms(premiseTerm)) {
+                        var primaryConcept = mem.retConceptByName(TermUtils.convToStr(selectedSecondaryPremiseTerm));
+                        if (primaryConcept != null && primaryConcept.judgments.length > 0) {
+                            conceptsOf2ndPremise.push(primaryConcept);
+                        }
+                    }
                     
-                    // select random secondary premise
-                    var primaryConcept = mem.retConceptByName(TermUtils.convToStr(selectedSecondaryPremiseTerm));
-                    if (primaryConcept != null && primaryConcept.judgments.length > 0) {
-                        if (Config.debug_derivations)   trace("two premise derivation !");
+                    highestRankedConceptsOf2ndPremise = conceptsOf2ndPremise;
+                    highestRankedConceptsOf2ndPremise.sort( (a, b) -> (a.retMaxExp() < b.retMaxExp() ? 1 : ((a.retMaxExp() == b.retMaxExp()) ? 0 : -1) )); // sort by max exp()
+                    highestRankedConceptsOf2ndPremise = highestRankedConceptsOf2ndPremise.slice(0, 2);
+                }
 
-                        for(secondarySentenceIdx in 0...primaryConcept.judgments.length) { // iterate over all for deterministic processing
-                            var secondarySentence = primaryConcept.judgments[secondarySentenceIdx];
-                            
-                            var secondaryTerm = secondarySentence.term;
-                            var secondaryTv = secondarySentence.tv;
-                            var secondaryPunctation = secondarySentence.punctation;
-                            var secondaryStamp = secondarySentence.stamp;
-    
-                            if (Config.debug_derivations)   trace("inf   " +  TermUtils.convToStr(premiseTerm) +     "   ++++    "+TermUtils.convToStr(secondaryTerm));
-    
-                            var conclDDepth: Int = Utils.min(primarySentence.derivationDepth, secondarySentence.derivationDepth) + 1;
-    
-                            if (!Stamp.checkOverlap(premiseStamp, secondaryStamp)) {
-                                if (premisePunctation == "." && secondaryPunctation == "." && TermUtils.equal(premiseTerm, secondaryTerm)) { // can do revision
-                                    var tv = Tv.revision(premiseTv, secondaryTv);
-                                    var mergedStamp = Stamp.merge(premiseStamp, secondaryStamp);
-                                    var revisedSentence = new Sentence(premiseTerm, tv, mergedStamp, ".");
-                                    revisedSentence.derivationDepth = conclDDepth;
-                                    primaryConcept.judgments[secondarySentenceIdx] = revisedSentence;
-    
-                                    { // print and add for debugging
-                                        var conclusionAsStr = TermUtils.convToStr(premiseTerm) +  premisePunctation+" " + tv.convToStr();
-                                        if (Config.debug_derivations)   trace(conclusionAsStr);
-    
-                                        if (conclusionStrArr != null) { // used for debugging and unittesting
-                                            conclusionStrArr.push(conclusionAsStr);
-                                        }
+                // ... iterate over concepts of 2nd premise
+                for(primaryConcept in highestRankedConceptsOf2ndPremise) {
+                    if (Config.debug_derivations)   trace("two premise derivation !");
+
+                    for(secondarySentenceIdx in 0...primaryConcept.judgments.length) { // iterate over all for deterministic processing
+                        var secondarySentence = primaryConcept.judgments[secondarySentenceIdx];
+                        
+                        var secondaryTerm = secondarySentence.term;
+                        var secondaryTv = secondarySentence.tv;
+                        var secondaryPunctation = secondarySentence.punctation;
+                        var secondaryStamp = secondarySentence.stamp;
+
+                        if (Config.debug_derivations)   trace("inf   " +  TermUtils.convToStr(premiseTerm) +     "   ++++    "+TermUtils.convToStr(secondaryTerm));
+
+                        var conclDDepth: Int = Utils.min(primarySentence.derivationDepth, secondarySentence.derivationDepth) + 1;
+
+                        if (!Stamp.checkOverlap(premiseStamp, secondaryStamp)) {
+                            if (premisePunctation == "." && secondaryPunctation == "." && TermUtils.equal(premiseTerm, secondaryTerm)) { // can do revision
+                                var tv = Tv.revision(premiseTv, secondaryTv);
+                                var mergedStamp = Stamp.merge(premiseStamp, secondaryStamp);
+                                var revisedSentence = new Sentence(premiseTerm, tv, mergedStamp, ".");
+                                revisedSentence.derivationDepth = conclDDepth;
+                                primaryConcept.judgments[secondarySentenceIdx] = revisedSentence;
+
+                                { // print and add for debugging
+                                    var conclusionAsStr = TermUtils.convToStr(premiseTerm) +  premisePunctation+" " + tv.convToStr();
+                                    if (Config.debug_derivations)   trace(conclusionAsStr);
+
+                                    if (conclusionStrArr != null) { // used for debugging and unittesting
+                                        conclusionStrArr.push(conclusionAsStr);
                                     }
                                 }
-                                else { // can't do revision, try normal inference
-                                    var conclusionsTwoPremises2 = deriveTwoPremise(primaryTask.sentence, primaryTask, secondarySentence, null, conclDDepth,  conclusionTasks);
-                                    conclusionsTwoPremises = conclusionsTwoPremises.concat(conclusionsTwoPremises2);
-                                }
                             }
-                            else {
-                                if (Config.debug_derivations)   trace('   stampOverlap a=${premiseStamp.ids.map(v -> haxe.Int64.toStr(v))}  b=${secondaryStamp.ids.map(v -> haxe.Int64.toStr(v))}');
+                            else { // can't do revision, try normal inference
+                                var conclusionsTwoPremises2 = deriveTwoPremise(primaryTask.sentence, primaryTask, secondarySentence, null, conclDDepth,  conclusionTasks);
+                                conclusionsTwoPremises = conclusionsTwoPremises.concat(conclusionsTwoPremises2);
                             }
+                        }
+                        else {
+                            if (Config.debug_derivations)   trace('   stampOverlap a=${premiseStamp.ids.map(v -> haxe.Int64.toStr(v))}  b=${secondaryStamp.ids.map(v -> haxe.Int64.toStr(v))}');
                         }
                     }
                 }
