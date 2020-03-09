@@ -12,7 +12,7 @@ import sys.io.File;
 
 // interactive shell, is used like gdb
 class Interactive {
-    public var reasoner:Sq2 = new Sq2();
+    public var reasoner:Nar = new Nar();
 
     public function new() {}
 
@@ -26,16 +26,16 @@ class Interactive {
             reasoner.process(steps);
         }
         else if (inputLine == "!d 1") { // enable debug conclusions
-            Sq2.Config.debug_derivations = true;
+            Nar.Config.debug_derivations = true;
         }
         else if (inputLine == "!d 0") { // disable debug conclusions
-            Sq2.Config.debug_derivations = false;
+            Nar.Config.debug_derivations = false;
         }
         else if (inputLine == "!ds 1") { // enable debug stored
-            Sq2.Config.debug_derived = true;
+            Nar.Config.debug_derived = true;
         }
         else if (inputLine == "!ds 0") { // disable debug stored
-            Sq2.Config.debug_derived = false;
+            Nar.Config.debug_derived = false;
         }
         else if (inputLine == "!dw") { // debug working set
             // print working set
