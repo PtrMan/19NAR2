@@ -1244,6 +1244,11 @@ class Node {
     public function new(name) {
         this.name = name;
     }
+
+    // return maximal exp() of all judgements
+    public function retMaxExp():Float {
+        return judgments[0].tv.exp(); // ASSUMPTION< judgements sorted by exp() >
+    }
 }
 
 // handler which is called when ever a new answer is derived
@@ -1314,7 +1319,7 @@ class Memory {
 
         for(iConceptName in conceptsByName.keys()) {
             var node: Node = conceptsByName.get(iConceptName);
-            var maxExpOfNode: Float = node.judgments[0].tv.exp(); // ASSUMPTION< judgements sorted by exp() >
+            var maxExpOfNode: Float = node.retMaxExp();
             nodeByMaxExp.push({maxExp:maxExpOfNode, node:node});
         }
 
