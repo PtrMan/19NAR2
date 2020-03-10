@@ -1,7 +1,5 @@
-import haxe.display.Display.StructExtensionCompletion;
-
 /*
-Copyright 2019 Robert Wünsche
+Copyright 2020 Robert Wünsche
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
@@ -11,9 +9,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 */
 
 // run with
-//    haxe --interp -main Sq2.hx
+//    haxe --run Nar
 
-class Sq2 {
+class Nar {
     public var mem:Memory = new Memory();
 
     // working set of tasks
@@ -124,6 +122,8 @@ class Sq2 {
             if (Config.debug_derivations)   trace("");
             if (Config.debug_derivations)   trace("");
             if (Config.debug_derivations)   trace("");
+
+            var timeBefore = Config.enProfiler ? (Sys.time()) : 0.0; // for profiling
 
             var primaryTask:Task = null;
 
@@ -353,6 +353,11 @@ class Sq2 {
 
             if ((cycleCounter % 500) == 0) {
                 mem.limitMemoryConcepts(); // we need to limit memory of concepts to keep under AIKR
+            }
+
+            if (Config.enProfiler) { // is profiler enabled?
+                var timeDiff = Sys.time() - timeBefore;
+                Sys.println('prof tcycle=$timeDiff');
             }
         }
 
@@ -1971,6 +1976,8 @@ class Config {
     public static var debug_derivations_qj:Bool = true; // debug question-judgement processes?
     
     public static var debug_qaBoost:Bool = false; // debug boosted answers for questions to console?
+
+    public static var enProfiler = false; // enable profiler?
 }
 
 
