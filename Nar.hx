@@ -91,7 +91,8 @@ class Nar {
     }
 
     private function reportAnswer(question:QuestionTask, sentence:Sentence) {
-        var cycleStr = question.questionTime != -1 ? ('[${globalCycleCounter-question.questionTime}cycles]'): "";
+        var cycles:Int = globalCycleCounter-question.questionTime; // how many cycles did the answer take?
+        var cycleStr = question.questionTime != -1 ? ('[${cycles}cycles]'): "";
         
         //var str = 'Answer:[  ?ms  ?cycl]${sentence.convToStr()}'; // report with time and cycles  // commented because we don't know the time it took
         var str = 'Answer:${cycleStr}${sentence.convToStr()}'; // report with time and cycles
@@ -105,7 +106,7 @@ class Nar {
         }
 
         if (answerHandler != null) {
-            answerHandler.report(sentence);
+            answerHandler.report(sentence, cycles);
         }
     }
 
@@ -796,7 +797,8 @@ class Node {
 
 // handler which is called when ever a new answer is derived
 interface AnswerHandler {
-    function report(sentence:Sentence):Void;
+    // /param cycles how long did the answer take?
+    function report(sentence:Sentence, cycles:Int):Void;
 }
 
 class Memory {
