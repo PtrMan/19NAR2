@@ -11,6 +11,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 // run with
 //    haxe --run Nar
 
+import Deriver;
+
 class Nar {
     public var mem:Memory = new Memory();
 
@@ -247,7 +249,7 @@ class Nar {
             var premiseTv = primaryTask.sentence.tv;
             var premisePunctation = primaryTask.sentence.punctation;
             var premiseStamp = primaryTask.sentence.stamp;
-            var conclusionsSinglePremise:Array<Task> = deriveSinglePremise(primaryTask);
+            var conclusionsSinglePremise:Array<Task> = Deriver.deriveSinglePremise(primaryTask, this);
 
             var conclusionsTwoPremises = [];
 
@@ -312,7 +314,7 @@ class Nar {
                                 }
                             }
                             else { // can't do revision, try normal inference
-                                var conclusionsTwoPremises2 = deriveTwoPremise(primaryTask.sentence, primaryTask, secondarySentence, null, conclDDepth,  conclusionTasks);
+                                var conclusionsTwoPremises2 = Deriver.deriveTwoPremise(primaryTask.sentence, primaryTask, secondarySentence, null, conclDDepth,  conclusionTasks);
                                 conclusionsTwoPremises = conclusionsTwoPremises.concat(conclusionsTwoPremises2);
                             }
                         }
@@ -581,7 +583,7 @@ class Nar {
 
                 // task id is -1 because it is dummy
                 var premiseTask = new JudgementTask(answer, -1);
-                var conclusionTasks:Array<Task> = deriveSinglePremise(premiseTask);
+                var conclusionTasks:Array<Task> = Deriver.deriveSinglePremise(premiseTask, this);
 
                 propagatePossibleParentAnswer(conclusionTasks, parentTask);
             }
@@ -652,7 +654,7 @@ class Nar {
                             var conclDDepth: Int = Utils.min(linkedQuestionTasksByIndex[0].bestAnswerSentence.derivationDepth, linkedQuestionTasksByIndex[1].bestAnswerSentence.derivationDepth) + 1;
 
                             var conclusionTasks:Array<Task> = [];
-                            var potentialConclusions = deriveTwoPremise(
+                            var potentialConclusions = Deriver.deriveTwoPremise(
                                 linkedQuestionTasksByIndex[0].bestAnswerSentence,
                                 null,
                                 linkedQuestionTasksByIndex[1].bestAnswerSentence,
@@ -725,7 +727,7 @@ class Nar {
 
                         
                         var conclusionTasks:Array<Task> = [];
-                        var potentialConclusions = deriveTwoPremise(
+                        var potentialConclusions = Deriver.deriveTwoPremise(
                             ref2,
                             null,
                             answer,
@@ -774,476 +776,6 @@ class Nar {
         }
     }
     
-    // /param conclDepth derivation depth of the conclusion
-    public function deriveTwoPremise(premiseASentence:Sentence, premiseATask:Task, premiseBSentence:Sentence, premiseBTask:Task, conclDepth:Int,  conclTasks:Array<Task>) {
-        var conclusionsTwoPremisesAB = deriveTwoPremiseInternal(premiseASentence, premiseATask, premiseBSentence, premiseBTask, conclDepth,  conclTasks);
-        var conclusionsTwoPremisesBA = deriveTwoPremiseInternal(premiseBSentence, premiseBTask, premiseASentence, premiseATask, conclDepth,  conclTasks);
-        return [].concat(conclusionsTwoPremisesAB).concat(conclusionsTwoPremisesBA);
-    }
-
-
-    // internal helper function which processes only one combination of premises (sides are not switched)
-    // /param premiseATask can be null if premise is not associated with a task
-    // /param premiseBTask can be null if premise is not associated with a task
-    public function deriveTwoPremiseInternal(premiseASentence:Sentence, premiseATask:Task, premiseBSentence:Sentence, premiseBTask:Task, conclDepth:Int,  conclTasks:Array<Task>) {
-        var premiseATerm:Term = premiseASentence.term;
-        var premiseATv:Tv = premiseASentence.tv;
-        var premiseAPunctation:String = premiseASentence.punctation;
-        var premiseAStamp:Stamp = premiseASentence.stamp;
-
-        var premiseBTerm:Term = premiseBSentence.term;
-        var premiseBTv:Tv = premiseBSentence.tv;
-        var premiseBPunctation:String = premiseBSentence.punctation;
-        var premiseBStamp:Stamp = premiseBSentence.stamp;
-
-        // checks if term is a set
-        function checkSet(t:Term):Bool {
-            return false; // TODO< implement >
-        }
-        
-        // see Narjurue
-        function checkNoCommonSubterm(a:Term, b:Term):Bool {
-            return true; // TODO< implement >
-        }
-
-        var mergedStamp = Stamp.merge(premiseAStamp, premiseBStamp);
-
-        var conclusions:Array<{term:Term, tv:Tv, punctation:String, stamp:Stamp, ruleName:String, depth:Int}> = [];
-
-        // call to generated code for deriver
-        Deriver.inferenceCode(premiseATerm, premiseAPunctation, premiseATv, premiseBTerm, premiseBPunctation, premiseBTv, mergedStamp, conclusions, conclDepth);
-
-
-        // tries to unify a with b and return the unified term, returns null if it can't get unified
-        // /param a contains variables
-        // /param b contains values for the variables
-        // /param varTypes
-        function unifiesWithReplace(a, b, varTypes:String): Null<Term> {
-            var unifiedMap = new Map<String, Term>();
-
-            if (!Unifier.unify(a, b, unifiedMap)) {
-                return null;
-            }
-
-            // apply variables and return substitution result
-            return Unifier.substitute(a, unifiedMap, varTypes);
-        }
-
-        /* commented hypothetical question derivation because it doesn't add anything
-        // "hypothetical" question derivation to guide backward inference
-        // C --> (/ REL _ D)?
-        // A --> (/ REL _ B).
-        // |- (if unifies D B)
-        // C <-> A?
-        //
-        // example:
-        // ([filled] & rectangle) --> (/ leftOf _ {?1})?
-        // {shape1}               --> (/ leftOf _ {shape2}).
-        // |- ({?1} unifies with {shape2})
-        // ([filled] & rectangle) <-> {shape1}?
-        //    (question hints at possible solution path)
-
-        // judgement will be linked as "ref2" variable for the use of the answer
-        if (premiseAPunctation == "?" && premiseBPunctation == ".") {
-            switch (premiseATerm) {
-                case Cop("-->", c, Img(rel1, [ImgWild, d])):
-                switch (premiseBTerm) {
-                    case Cop("-->", a, Img(rel2, [ImgWild, b])) if (TermUtils.equal(rel1, rel2) && Unifier.checkUnify(d, b)):
-                    {
-                        var stamp = premiseAStamp; // TODO< add unique stampid to stamp >
-                        var conclSentence = new Sentence(Cop("<->", c, a), null, stamp, "?");
-                        
-                        var link:QuestionLink = HypotheticalRef2(premiseATask.id);
-                        var qTask:QuestionTask = new QuestionTask(conclSentence, link, taskIdCounter++);
-
-                        trace('debug: ?. derived');
-                        trace('debug:    ${premiseASentence.convToStr()}');
-                        trace('debug:    |- ${conclSentence.convToStr()}');
-
-                        if (premiseBSentence == null) {
-                            trace('warning: ref2 is null!');
-                        }
-                        qTask.ref2 = premiseBSentence;
-
-                        conclTasks.push(qTask);
-                    }
-                    case _: null;
-                }
-                case _: null;
-            }
-        }
-        */
-
-
-        // handling of implications for backward inference with detachment
-        // ex:
-        // <($0 * $1) --> c>?
-        // (&&, <({0} * $0) --> x>, <({1} * $1) --> y>) ==> <($0 * $1) --> c>.
-        // |-
-        // (&&, <({0} * ?0) --> x>, <({1} * ?1) --> y>)?
-        /* commented because not necessary for now
-        if (premiseAPunctation == "?" && premiseBPunctation == ".") {
-            switch(premiseBTerm) {
-                case Cop("==>", implSubj, implPred) if (Unifier.checkUnify(premiseATerm, implPred)):
-                    conclusions.push({term:implSubj, tv:null, punctation:"?", stamp:mergedStamp, ruleName:"NAL-6.two impl detachment"});
-                
-                case _: null;
-            }
-        }
-        */
-
-        if (premiseAPunctation == "." && premiseBPunctation == ".") {
-            switch (premiseATerm) {
-                case Cop("==>", Compound("&&", [compoundA0, compoundA1]), implPred):
-                // TODO< var unification >
-                // ex:
-                // <(&&,<a --> x>,<c --> x>) ==> <X --> Y>>.
-                // <a-->x>.
-                // |-
-                // <c --> x> ==> <X --> Y>.
-                if (TermUtils.equal(compoundA0, premiseBTerm)) {
-                    var conclusion = Term.Cop("==>", compoundA1, implPred);
-                    conclusions.push({term: conclusion, tv:Tv.deduction(premiseATv, premiseBTv)/*TODO check*/, punctation:".", stamp:mergedStamp, ruleName:"NAL6-two impl ==> detach conj[0]", depth:conclDepth});
-                }
-
-                // TODO< var unification >
-                // ex:
-                // <(&&,<a --> x>,<c --> x>) ==> <X --> Y>>.
-                // <c-->x>.
-                // |-
-                // <a --> x> ==> <X --> Y>.
-                if (TermUtils.equal(compoundA1, premiseBTerm)) {
-                    var conclusion = Term.Cop("==>", compoundA0, implPred);
-                    conclusions.push({term: conclusion, tv:Tv.deduction(premiseATv, premiseBTv)/*TODO check*/, punctation:".", stamp:mergedStamp, ruleName:"NAL6-two impl ==> detach conj[1]", depth:conclDepth});
-                }
-                
-                
-                case _: null;
-            }
-        }
-
-
-        if (premiseAPunctation == "." && premiseBPunctation == ".") {
-            switch (premiseATerm) {
-                // impl structural transformation with two premises ded
-                case Cop(cop, subj, pred) if (cop == "<=>" || cop == "==>"):
-                                
-                //
-                // ex:
-                // <<$x-->d> <=> <$x-->e>>. [2]
-                // <c-->d>. [1]
-                // |-
-                // <c-->e>. [1]
-                //
-                // ex:
-                // <<$x-->d> ==> <$x-->e>>. [2]
-                // <c-->d>. [1]
-                // |-
-                // <c-->e>. [1]
-                var unifiedMap = new Map<String, Term>();
-                if (Unifier.unify(subj, premiseBTerm, unifiedMap)) { // try to unify the subj of the impl or equiv w/ the other premise                    
-                    var conclTerm = Unifier.substitute(pred, unifiedMap, "$");
-                    conclusions.push({term: conclTerm, tv:Tv.deduction(premiseATv, premiseBTv)/*TODO check*/, punctation:".", stamp:premiseBStamp, ruleName:"NAL6-two impl structural transformation with two premises", depth:conclDepth});
-                }
-
-                case _: null;
-            }
-        }
-
-        // NAL-6 impl/equiv backward inference
-        if (premiseAPunctation == "." && premiseBPunctation == "?") {
-            switch (premiseATerm) {
-                case Cop(cop, subj, pred) if (cop == "<=>" || cop == "==>"):
-
-                // TODO< write unittest for it >
-                
-                //
-                // ex:
-                // <<$x-->d> <=> <$x-->e>>.
-                // <y-->e>?
-                // |-
-                // <x-->d>? [1]
-                //
-                // ex:
-                // (OpenNARS does this one)
-                // <<$x-->d> ==> <$x-->e>>.
-                // <y-->e>?
-                // |-
-                // <x-->d>? [1]
-                //
-                var unifiedMap = new Map<String, Term>();
-                if (Unifier.unify(pred, premiseBTerm, unifiedMap)) { // try to unify the subj of the impl or equiv w/ the other premise                    
-                    var conclTerm = Unifier.substitute(subj, unifiedMap, "$");
-                    conclusions.push({term: conclTerm, tv:null, punctation:"?", stamp:premiseBStamp, ruleName:"NAL6-two impl/equiv Q&A 1", depth:conclDepth});
-                }
-
-                case _: null;
-            }
-        }
-
-
-        return conclusions;
-    }
-
-    // single premise derivation
-    public function deriveSinglePremise(premiseTask:Task): Array<Task> {
-        var premiseTerm = premiseTask.sentence.term;
-        var premiseTermStructuralOrigins = premiseTask.sentence.stamp.structuralOrigins.arr;
-        var premiseTv = premiseTask.sentence.tv;
-        var premisePunctation = premiseTask.sentence.punctation;
-        var premiseStamp = premiseTask.sentence.stamp;
-
-        var conclusionTasks: Array<Task> = [];
-
-        /* commented because conversion not necessary
-        // NAL-2 conversion
-        if (premisePunctation == ".") switch (premiseTerm) {
-            case Cop(copula, subj, pred) if (copula == "-->"):
-
-            var conclusionTerm = Term.Cop(copula, pred,subj);
-            
-            if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
-                var structuralOrigins = new StructuralOriginsStamp( premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]) );
-
-                // ruleName:"NAL-2.single contraposition"
-                var conclusionSentence = new Sentence(conclusionTerm, Tv.conversion(premiseTv), new Stamp(premiseStamp.ids, structuralOrigins), ".");
-                conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
-                conclusionTasks.push(new JudgementTask(conclusionSentence, taskIdCounter++));
-            }
-
-            case _: null;
-        }
-         */
-
-        // NAL-2 <-> / NAL-6 <=> structural transformation
-        if (premisePunctation == ".") switch (premiseTerm) {
-            case Cop(copula, subj, pred) if (copula == "<->" || copula == "<=>"):
-
-            var conclusionTerm = Term.Cop(copula, pred,subj);
-            
-            if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
-                var structuralOrigins = new StructuralOriginsStamp( premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]) );
-                
-                // ruleName:(copula == "<->" ? "NAL-2" : "NAL-6") + ".single structural"
-                var conclusionSentence = new Sentence(conclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), ".");
-                conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
-                conclusionTasks.push(new JudgementTask(conclusionSentence, taskIdCounter++));
-            }
-
-            case _: null;
-        }
-
-        // NAL-2 / NAL-6 structural deduction
-        // (S <-> P) |- (S --> P) Truth_StructuralDeduction
-        // (S <=> P) |- (S ==> P) Truth_StructuralDeduction
-        if (premisePunctation == ".") switch (premiseTerm) {
-            case Cop(copula, subj, pred) if (copula == "<->" || copula == "<=>"):
-
-            var conclusionTerm = Term.Cop(copula == "<->" ? "-->" : "==>", subj,pred);
-            
-            if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
-                var structuralOrigins = new StructuralOriginsStamp( premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]) );
-                
-                // ruleName:(copula == "<->" ? "NAL-2" : "NAL-6") + ".single structural ded"
-                var conclusionSentence = new Sentence(conclusionTerm, Tv.structDeduction(premiseTv), new Stamp(premiseStamp.ids, structuralOrigins), ".");
-                conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
-                conclusionTasks.push(new JudgementTask(conclusionSentence, taskIdCounter++));
-            }
-
-            case _: null;
-        }
-
-        // NAL-2 structural abduction
-        // (S --> P) |- (S <-> P) Truth_StructuralAbduction
-        if (premisePunctation == ".") switch (premiseTerm) {
-            case Cop(copula, subj, pred) if (copula == "-->"):
-
-            var conclusionTerm = Term.Cop("<->", subj,pred);
-            
-            if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
-                var structuralOrigins = new StructuralOriginsStamp( premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]) );
-                
-                //  ruleName:"NAL-2" + ".single structural abd"
-                var conclusionSentence = new Sentence(conclusionTerm, Tv.structAbduction(premiseTv), new Stamp(premiseStamp.ids, structuralOrigins), ".");
-                conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
-                conclusionTasks.push(new JudgementTask(conclusionSentence, taskIdCounter++));
-            }
-
-            case _: null;
-        }
-
-        // NAL-3 structural decomposition for question for better Q&A
-        var derive_decompositionQuestions = false; // disable because not necessary, seems also to make system unreliable
-        if (derive_decompositionQuestions && premisePunctation == "?") switch (premiseTerm) {
-            // <(a & b) --> c>?
-            // |-
-            // <a --> c>?
-            // <b --> c>?
-            case Cop(cop, Compound(compType, compContent), pred) if (compType == "&" || compType == "|"):
-            
-            var premiseQuestionTask:QuestionTask = cast(premiseTask, QuestionTask);
-
-            // were compositional questions ever derived?
-            if (premiseQuestionTask.questionCompositionChildrenLinks.length != compContent.length) {
-                premiseQuestionTask.questionCompositionChildrenLinks = []; // simplest solution is to flush 
-
-                var componentIdx = 0; // used for linkage
-                for(iCompContent in compContent) {
-
-                    var conclusionTerm = Term.Cop(cop, iCompContent, pred);
-    
-                    // we don't need to check structural stamp, because it is not necessary
-                    var structuralOrigins = new StructuralOriginsStamp([]);
-    
-                    // ruleName:"NAL-3" + '.single structural decompose $compType'
-                    var conclusionSentence = new Sentence(conclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), premisePunctation);
-                    conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
-                    if (premisePunctation == "?") {
-                        var link:QuestionLink = QuestionLink.ComposeSingle(componentIdx, premiseQuestionTask.id); // we need to link them
-                        var derivedQuestionTask = new QuestionTask(conclusionSentence, link, taskIdCounter++);
-                        conclusionTasks.push(derivedQuestionTask);
-
-                        // link from parent to children
-                        premiseQuestionTask.questionCompositionChildrenLinks.push(derivedQuestionTask.id);
-                    }
-                    else {
-                        trace('internal inconsistency!'); // path is not implemented/valid!
-                    }
-    
-                    componentIdx++;
-                }
-            }
-
-            case _: null;
-        }
-
-
-        // NAL-4  product to image transform
-        if (premisePunctation == "." || premisePunctation == "?") switch (premiseTerm) {
-            case Cop("-->", Prod([prod0, prod1]), inhPred):
-
-            var conclusionTerm = Term.Cop("-->", prod0, Img(inhPred, [ImgWild, prod1]));
-            
-            if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
-                // <prod0 --> (/,inhPred,_,prod1)>
-                var structuralOrigins = new StructuralOriginsStamp( premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]) );
-                
-                // ruleName:"NAL-6.single prod->img"
-                var conclusionSentence = new Sentence(conclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), premisePunctation);
-                conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
-                if (premisePunctation == "?") {
-                    var link:QuestionLink = QuestionLink.StructuralSingle(premiseTask.id); // we need to link them
-                    conclusionTasks.push(new QuestionTask(conclusionSentence, link, taskIdCounter++));
-                }
-                else {
-                    conclusionTasks.push(new JudgementTask(conclusionSentence, taskIdCounter++));
-                }
-            }
-
-            conclusionTerm = Term.Cop("-->", prod1, Img(inhPred, [prod0, ImgWild]));
-            
-            if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
-
-                // <prod1 --> (/,inhPred,prod0,_)>
-                var structuralOrigins = new StructuralOriginsStamp( premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]) );
-
-                // ruleName:"NAL-6.single prod->img"
-                var conclusionSentence = new Sentence(conclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), premisePunctation);
-                conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
-                if (premisePunctation == "?") {
-                    var link:QuestionLink = QuestionLink.StructuralSingle(premiseTask.id); // we need to link them
-                    conclusionTasks.push(new QuestionTask(conclusionSentence, link, taskIdCounter++));
-                }
-                else {
-                    conclusionTasks.push(new JudgementTask(conclusionSentence, taskIdCounter++));
-                }
-            }
-
-            case _: null;
-        }
-
-        // NAL-4  image to product transform
-        if (premisePunctation == "." || premisePunctation == "?") switch (premiseTerm) {
-            case Cop("-->", inhSubj, Img(inhPred, [ImgWild, prod1])):
-
-            var conclusionTerm = Term.Cop("-->", Prod([inhSubj, prod1]), inhPred);
-            
-            if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
-                // <(*, inhSubj, prod1) --> inhPred>
-                var structuralOrigins = new StructuralOriginsStamp( premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]) );
-                
-                // ruleName:"NAL-6.single img->prod"
-                var conclusionSentence = new Sentence(conclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), premisePunctation);
-                conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
-                if (premisePunctation == "?") {
-                    var link:QuestionLink = QuestionLink.StructuralSingle(premiseTask.id); // we need to link them
-                    conclusionTasks.push(new QuestionTask(conclusionSentence, link, taskIdCounter++));
-                }
-                else {
-                    conclusionTasks.push(new JudgementTask(conclusionSentence, taskIdCounter++));
-                }
-            }
-
-
-            case Cop("-->", inhSubj, Img(inhPred, [prod0, ImgWild])):
-
-            var conclusionTerm = Term.Cop("-->", Prod([prod0, inhSubj]), inhPred);
-            
-            if (!Utils.contains(premiseTermStructuralOrigins, conclusionTerm)) { // avoid deriving the same structural conclusions
-                // <(*, prod0, inhSubj) --> inhPred>
-                var structuralOrigins = new StructuralOriginsStamp( premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]) );
-
-                // ruleName:"NAL-6.single img->prod"
-                var conclusionSentence = new Sentence(conclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), premisePunctation);
-                conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
-                if (premisePunctation == "?") {
-                    var link:QuestionLink = QuestionLink.StructuralSingle(premiseTask.id); // we need to link them
-                    conclusionTasks.push(new QuestionTask(conclusionSentence, link, taskIdCounter++));
-                }
-                else {
-                    conclusionTasks.push(new JudgementTask(conclusionSentence, taskIdCounter++));
-                }
-            }
-
-            case _: null;
-        }
-
-        // NAL-4 structural decomposition
-        //<(*,a,b) --> (*,c,d)>.
-        //|-
-        //<a-->c>.
-        // (and other forms)
-        //
-        //<(*,a,b) <-> (*,c,d)>.
-        //|-
-        //<a<->c>.
-        // (and other forms)
-        if (premisePunctation == ".") switch (premiseTerm) {
-            case Cop(cop, Prod([subj0, subj1]),Prod([pred0, pred1])) if (cop == "-->" || cop == "<->"):
-
-            var conclusionTerms = [Term.Cop(cop, subj0, pred0), Term.Cop(cop, subj1, pred1)];
-            
-            for (iConclusionTerm in conclusionTerms) {
-                if (!Utils.contains(premiseTermStructuralOrigins, iConclusionTerm)) { // avoid deriving the same structural conclusions
-                    var structuralOrigins = new StructuralOriginsStamp( premiseTermStructuralOrigins.concat([TermUtils.cloneShallow(premiseTerm)]) );
-                    
-                    // ruleName:"NAL-6.single struct decomposition"
-                    var conclusionSentence = new Sentence(iConclusionTerm, premiseTv, new Stamp(premiseStamp.ids, structuralOrigins), premisePunctation);
-                    conclusionSentence.derivationDepth = premiseTask.sentence.derivationDepth+1;
-                    conclusionTasks.push(new JudgementTask(conclusionSentence, taskIdCounter++));
-                }
-            }
-
-            case _: null;
-        }
-
-
-        if (Config.debug_derivations)   trace(TermUtils.convToStr(premiseTerm)+premisePunctation);
-
-        return conclusionTasks;
-        
-    }
-
     public var answerHandler:AnswerHandler = null; // answer handler which is invoked when ever a new answer is derived
 }
 
