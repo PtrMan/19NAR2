@@ -13,6 +13,8 @@ class TestNal {
             nalTestFileNames = FileSystem.readDirectory(".").filter(iname -> iname.substr(0, 4) == "Test" && iname.substr(iname.length-4) == ".nal");
         }
 
+        var score:Float = 0.0; // sum of score over all NAL test files
+
         for (iNalFileName in nalTestFileNames) {
             // loads narsese from file
             var nalFileContent = File.getContent(iNalFileName);
@@ -23,18 +25,23 @@ class TestNal {
                 Sys.println('FAILED: failed because not all expects with TV were fullfilled');
                 return;
             }
+            Sys.println('SCORE=${res.score}'); // print score of this test
+            score += res.score; // add up all scores
         }
+
+        Sys.println('SCORESUM=${score}'); // print score of all tests
 
         Sys.println("SUCCESS!!!");
     }
 
     // run nar with the *.nal file and evaluate if it did pass and which score was archived
-    public static function runNarAndEvalutate(nalLines:Array<String>):{success:Bool} {
+    public static function runNarAndEvalutate(nalLines:Array<String>):{success:Bool,score:Float} {
 
         var expectedWithTvNarsese:Map<String, Bool> = new Map<String, Bool>(); // expected narsese with TV, flag tells if it occurred
+        var expectedWithLowestCyclesNarsese:Map<String, Int> = new Map<String, Int>();
 
         var reasoner = new Nar();
-        reasoner.answerHandler = new TestAnswerHandler(expectedWithTvNarsese); // install Q&A handler
+        reasoner.answerHandler = new TestAnswerHandler(expectedWithTvNarsese, expectedWithLowestCyclesNarsese); // install Q&A handler
 
         reasoner.conclusionStrArr = []; // enable output logging
 
@@ -49,6 +56,12 @@ class TestNal {
             else if(iNalLine.substring(0, 9)  == "//EXPECT ") {
                 var expected:String = iNalLine.substring(9);
                 expectedWithTvNarsese.set(expected, false); // false because it didn't occur yet
+                expectedWithLowestCyclesNarsese.set(expected, 100000000); // high time because it didn't occur yet
+            }
+            else if(iNalLine.substring(0, 13)  == "//EXPECTnotv ") {
+                var expected:String = iNalLine.substring(13);
+                trace('>>$expected<');
+                expectedWithLowestCyclesNarsese.set(expected, 100000000); // high time because it didn't occur yet
             }
             else if(iNalLine.substring(0, 2) == "//") {} // ignore commented lines
             else {
@@ -67,24 +80,47 @@ class TestNal {
             }
 
             if (!allFullfilled) {
-                return {success:false};
+                return {success:false,score:0.0};
             }
         }
 
-        return {success:true};
+
+        // compute score by a time-decaying function
+        var score:Float = 0.0;
+        for(iExpectNarsese in expectedWithLowestCyclesNarsese.keys()) {
+            var lowestTime:Int = expectedWithLowestCyclesNarsese.get(iExpectNarsese);
+            var decay = 0.01;
+            score += Math.exp(-lowestTime*decay); // TODO< incorperate TV conf >
+        }
+
+        return {success:true, score:score};
     }
 }
 
 class TestAnswerHandler implements Nar.AnswerHandler {
     public var expectedWithTvNarsese:Map<String, Bool>;
+    public var expectedWithLowestCyclesNarsese:Map<String, Int>;
 
-    public function new(expectedWithTvNarsese:Map<String, Bool>) {
+    public function new(expectedWithTvNarsese:Map<String, Bool>, expectedWithLowestCyclesNarsese:Map<String, Int>) {
         this.expectedWithTvNarsese = expectedWithTvNarsese;
+        this.expectedWithLowestCyclesNarsese = expectedWithLowestCyclesNarsese;
     }
 
-    public function report(sentence:Nar.Sentence) {
+    public function report(sentence:Nar.Sentence, cycles:Int) {
         if (expectedWithTvNarsese.exists(sentence.convToStr())) {
             expectedWithTvNarsese.set(sentence.convToStr(), true); // did occur
+        }
+
+        // (sentences with TV)
+        // TODO< set it to the time only if exp is higher! >
+        if (expectedWithLowestCyclesNarsese.exists(sentence.convToStr())) {
+            expectedWithLowestCyclesNarsese.set(sentence.convToStr(), cycles); // set time
+        }
+
+        // (sentences without TV)
+        // TODO< set it to the time only if exp is higher! >
+        if (expectedWithLowestCyclesNarsese.exists(TermUtils.convToStr(sentence.term)+".")) {
+            expectedWithLowestCyclesNarsese.set(TermUtils.convToStr(sentence.term)+".", cycles); // set time
         }
     }
 }
