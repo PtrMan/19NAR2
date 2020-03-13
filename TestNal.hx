@@ -16,7 +16,7 @@ class TestNal {
         for (iNalFileName in nalTestFileNames) {
             var expectedWithTvNarsese:Map<String, Bool> = new Map<String, Bool>(); // expected narsese with TV, flag tells if it occurred
 
-            var reasoner = new Sq2();
+            var reasoner = new Nar();
             reasoner.answerHandler = new TestAnswerHandler(expectedWithTvNarsese); // install Q&A handler
 
             reasoner.conclusionStrArr = []; // enable output logging
@@ -66,14 +66,14 @@ class TestNal {
     }
 }
 
-class TestAnswerHandler implements Sq2.AnswerHandler {
+class TestAnswerHandler implements Nar.AnswerHandler {
     public var expectedWithTvNarsese:Map<String, Bool>;
 
     public function new(expectedWithTvNarsese:Map<String, Bool>) {
         this.expectedWithTvNarsese = expectedWithTvNarsese;
     }
 
-    public function report(sentence:Sq2.Sentence) {
+    public function report(sentence:Nar.Sentence) {
         if (expectedWithTvNarsese.exists(sentence.convToStr())) {
             expectedWithTvNarsese.set(sentence.convToStr(), true); // did occur
         }
