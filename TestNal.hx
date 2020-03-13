@@ -14,55 +14,64 @@ class TestNal {
         }
 
         for (iNalFileName in nalTestFileNames) {
-            var expectedWithTvNarsese:Map<String, Bool> = new Map<String, Bool>(); // expected narsese with TV, flag tells if it occurred
-
-            var reasoner = new Nar();
-            reasoner.answerHandler = new TestAnswerHandler(expectedWithTvNarsese); // install Q&A handler
-
-            reasoner.conclusionStrArr = []; // enable output logging
-
             // loads narsese from file
-            {
-                var nalFileContent = File.getContent(iNalFileName);
+            var nalFileContent = File.getContent(iNalFileName);
+            var nalLines = nalFileContent.split("\r\n");
 
-                var nalLines = nalFileContent.split("\r\n");
-                for (iNalLine in nalLines) {
-                    Sys.println('//input: $iNalLine'); // debug read line
-
-                    if (iNalLine.length == 0) {} // ignore empty lines
-                    else if (iNalLine.charAt(0) == "!" && iNalLine.charAt(1) == "s") { // step
-                        var steps = Std.parseInt(iNalLine.substring(2, iNalLine.length));
-                        reasoner.process(steps);
-                    }
-                    else if(iNalLine.substring(0, 9)  == "//EXPECT ") {
-                        var expected:String = iNalLine.substring(9);
-                        expectedWithTvNarsese.set(expected, false); // false because it didn't occur yet
-                    }
-                    else if(iNalLine.substring(0, 2) == "//") {} // ignore commented lines
-                    else {
-                        reasoner.input(iNalLine);
-                    }
-                }
-            }
-
-            { // check if all "expect"-tests were fullfilled
-                var allFullfilled = true;
-                for(iExpectNarsese in expectedWithTvNarsese.keys()) {
-                    var wasFullfilled = expectedWithTvNarsese.get(iExpectNarsese);
-                    allFullfilled = allFullfilled && wasFullfilled;
-                    if (!wasFullfilled) {
-                        Sys.println('$iExpectNarsese was not fullfilled!');
-                    }
-                }
-
-                if (!allFullfilled) {
-                    Sys.println('FAILED: failed because not all expects with TV were fullfilled');
-                    return;
-                }
+            var res = runNarAndEvalutate(nalLines);
+            if (!res.success) {
+                Sys.println('FAILED: failed because not all expects with TV were fullfilled');
+                return;
             }
         }
 
         Sys.println("SUCCESS!!!");
+    }
+
+    // run nar with the *.nal file and evaluate if it did pass and which score was archived
+    public static function runNarAndEvalutate(nalLines:Array<String>):{success:Bool} {
+
+        var expectedWithTvNarsese:Map<String, Bool> = new Map<String, Bool>(); // expected narsese with TV, flag tells if it occurred
+
+        var reasoner = new Nar();
+        reasoner.answerHandler = new TestAnswerHandler(expectedWithTvNarsese); // install Q&A handler
+
+        reasoner.conclusionStrArr = []; // enable output logging
+
+        for (iNalLine in nalLines) {
+            Sys.println('//input: $iNalLine'); // debug read line
+
+            if (iNalLine.length == 0) {} // ignore empty lines
+            else if (iNalLine.charAt(0) == "!" && iNalLine.charAt(1) == "s") { // step
+                var steps = Std.parseInt(iNalLine.substring(2, iNalLine.length));
+                reasoner.process(steps);
+            }
+            else if(iNalLine.substring(0, 9)  == "//EXPECT ") {
+                var expected:String = iNalLine.substring(9);
+                expectedWithTvNarsese.set(expected, false); // false because it didn't occur yet
+            }
+            else if(iNalLine.substring(0, 2) == "//") {} // ignore commented lines
+            else {
+                reasoner.input(iNalLine);
+            }
+        }
+        
+        { // check if all "expect"-tests were fullfilled
+            var allFullfilled = true;
+            for(iExpectNarsese in expectedWithTvNarsese.keys()) {
+                var wasFullfilled = expectedWithTvNarsese.get(iExpectNarsese);
+                allFullfilled = allFullfilled && wasFullfilled;
+                if (!wasFullfilled) {
+                    Sys.println('$iExpectNarsese was not fullfilled!');
+                }
+            }
+
+            if (!allFullfilled) {
+                return {success:false};
+            }
+        }
+
+        return {success:true};
     }
 }
 
