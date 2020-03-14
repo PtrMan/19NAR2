@@ -1,0 +1,6 @@
+<(is * tom * fat) --> nlp>?
+//EXPECT < ( tom * fat ) --> is >. {1 0.9}
+<<($1 * $2) --> is> <=> <(is * $1 * $2) --> nlp>>.
+<(tom * fat) --> is>.
+
+!s50

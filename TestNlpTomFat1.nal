@@ -1,4 +1,7 @@
 <(is * tom * fat) --> nlp>?
+//EXPECT < ( tom * fat ) --> R >. {1 0.40276243093922653}
 <<($x * $y) --> R> <=> <(is * $x * $y) --> nlp>>.
 <tom --> human>.
 <(human * fat) --> R>.
+
+!s50
