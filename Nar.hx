@@ -13,7 +13,18 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 import Deriver;
 
+// parameters which can be set either by a human or another automated system
+// can be used to search with evolution for good candidates
+// don't confuse this with the config values
+class Parameters {
+    public var a:Int = 0;
+
+    public function new() {}
+}
+
 class Nar {
+    public var parameters:Parameters = new Parameters();
+
     public var mem:Memory = new Memory();
 
     // working set of tasks
@@ -33,6 +44,23 @@ class Nar {
     public var taskIdCounter = 100000; // used to uniquly identify task globably
 
     public function new() {
+        { // read parameters
+            // compute path of program, this is where the test files reside
+            var path:String = Sys.programPath();
+            // eat away till we hit "\", remove it too
+            while(path.length > 0) {
+                if(path.charAt(path.length-1) == "\\") {
+                    break;
+                }
+                path = path.substr(0, path.length-1); // eat away
+            }
+            path = path.substr(0, path.length-1); // eat away
+
+            var parametersMap:Map<String,String> = Nar.XmlImport.importXmlFromFile(path + "\\"+"parameters.xml");
+
+            // transfer parameters
+            this.parameters.a = Std.parseInt(parametersMap.get("a"));
+        }
     }
 
     // puts new input from the outside of the system into the system
@@ -1680,6 +1708,33 @@ class Unifier {
 }
 
 
+
+
+class XmlImport {
+    public static function importXmlFromFile(path:String): Map<String, String> {
+        var content=sys.io.File.getContent(path);
+        return importXml(content);
+    }
+
+	// tries to convert config XML to Dict
+	public static function importXml(xmlContent:String): Map<String, String> {
+        var res = new Map<String, String>();
+        
+        var xml:Xml = Xml.parse(xmlContent);
+        for(ixml in xml) {
+            if(ixml.nodeType == Document) {} // ignore
+			else {
+                if (ixml.nodeType == Element) { // is a element with children
+                    var key:String = ixml.nodeName;
+                    var val:String = ixml.firstChild().nodeValue;
+                    res.set(key, val);
+                }
+			}
+        }
+
+        return res;
+	}
+}
 
 
 class Assert {
