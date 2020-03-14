@@ -4,20 +4,35 @@ import sys.FileSystem;
 // automatic test which iterates and checks all *.nal files
 class TestNal {
     public static function main() {
+        // compute path of program, this is where the test files reside
+        var path:String = Sys.programPath();
+        // eat away till we hit "\", remove it too
+        while(path.length > 0) {
+            if(path.charAt(path.length-1) == "\\") {
+                break;
+            }
+            path = path.substr(0, path.length-1); // eat away
+        }
+        path = path.substr(0, path.length-1); // eat away
+
+
+        
         var nalTestFileNames :Array<String>;
         
         if (Sys.args().length != 0) { // were the files given as parameters?
             nalTestFileNames = Sys.args();
         }
         else {
-            nalTestFileNames = FileSystem.readDirectory(".").filter(iname -> iname.substr(0, 4) == "Test" && iname.substr(iname.length-4) == ".nal");
+            
+
+            nalTestFileNames = FileSystem.readDirectory(path).filter(iname -> iname.substr(0, 4) == "Test" && iname.substr(iname.length-4) == ".nal");
         }
 
         var score:Float = 0.0; // sum of score over all NAL test files
 
         for (iNalFileName in nalTestFileNames) {
             // loads narsese from file
-            var nalFileContent = File.getContent(iNalFileName);
+            var nalFileContent = File.getContent(path+"\\"+iNalFileName);
             var nalLines = nalFileContent.split("\r\n");
 
             var res = runNarAndEvalutate(nalLines);
