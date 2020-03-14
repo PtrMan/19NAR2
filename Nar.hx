@@ -1033,8 +1033,10 @@ class WorkingSetEntity {
             utility = task.sentence.tv.conf;
         }
 
-        // more deeper sentences get less attention
-        utility = utility * Math.pow(0.8, task.sentence.derivationDepth);
+        // deeper sentences get less attention
+        utility = utility * Math.pow(0.8, task.sentence.derivationDepth) * 0.1;
+        // more complicate terms get less attention
+        utility = utility * Math.pow(0.8, TermUtils.calcStructComplexity(task.sentence.term)) * 1.0;
 
         // TODO< reduce utility by complexity
         //var complexity:Int = TermUtils.calcComplexity(task.sentence.term);

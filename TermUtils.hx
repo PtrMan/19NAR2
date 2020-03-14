@@ -302,4 +302,40 @@ class TermUtils {
             default: false;
         }
     }
+
+    // computes structural complexity
+    // I define structural complexity as a complexity where compositions  & , &&, |, - etc get extra complexity to bias system
+    public static function calcStructComplexity(term:Term): Float {
+        // helper to compute complexity of content of compound, etc
+        function calcComplexityOfArr(arr:Array<Term>):Float {
+            var c = 0.0;
+            for(iContent in arr) {
+                c += calcStructComplexity(iContent);
+            }
+            return c;
+        }
+        
+        return switch term {
+            case Name(n): 1;
+            case ImgWild: 0;
+            case Compound(type,content):
+            var c = calcComplexityOfArr(content);
+            switch type {
+                case x if (x == "&" || x == "&&" || x == "-" || x == "|"):
+                c+=3.0;
+                case _:
+                c+=1.0;
+            }
+            c;
+            case Cop(_, subj, pred): calcStructComplexity(subj)+calcStructComplexity(pred)+1.0;
+            case Img(base, content):
+            calcComplexityOfArr(content)+1.0;
+            case Prod(content):
+            calcComplexityOfArr(content)+1.0;
+            case Var(type,name): 0;
+            case Str(content): 1;
+            case Set(type, content):
+            calcComplexityOfArr(content)+1.0;
+        }
+    }
 }
