@@ -17,7 +17,7 @@ import Deriver;
 // can be used to search with evolution for good candidates
 // don't confuse this with the config values
 class Parameters {
-    public var a:Int = 0;
+    public var comp0:Float = 0.1; // priority calc: complexity bias 0
 
     public function new() {}
 }
@@ -28,10 +28,10 @@ class Nar {
     public var mem:Memory = new Memory();
 
     // working set of tasks
-    public var workingSet:WorkingSet = new WorkingSet();
+    public var workingSet:WorkingSet;
 
     // working set of questions - which are importance sampled
-    public var questionWorkingSet:ImportanceSampledWorkingSet = new ImportanceSampledWorkingSet();
+    public var questionWorkingSet:ImportanceSampledWorkingSet;
 
     // used for debugging and unittesting
     // set to null to disable adding conclusions to this array
@@ -44,6 +44,9 @@ class Nar {
     public var taskIdCounter = 100000; // used to uniquly identify task globably
 
     public function new() {
+        workingSet = new WorkingSet(parameters);
+        questionWorkingSet = new ImportanceSampledWorkingSet(parameters);
+
         { // read parameters
             // compute path of program, this is where the test files reside
             var path:String = Sys.programPath();
@@ -59,7 +62,7 @@ class Nar {
             var parametersMap:Map<String,String> = Nar.XmlImport.importXmlFromFile(path + "\\"+"parameters.xml");
 
             // transfer parameters
-            this.parameters.a = Std.parseInt(parametersMap.get("a"));
+            this.parameters.comp0 = Std.parseFloat(parametersMap.get("comp0"));
         }
     }
 
@@ -493,7 +496,7 @@ class Nar {
                         //trace('check time = ${Sys.time() - timeBefore}');
 
                         if (!existsSentenceInWorkingSet) {
-                            workingSet.insert(workingSetEntity);
+                            workingSet.insert(workingSetEntity, parameters);
                         }
                     }
 
@@ -1017,7 +1020,7 @@ class WorkingSetEntity {
     }
 
     // /param scoreSumOfUnboosted
-    public function calcUtility(scoreSumOfUnboosted:Float) {
+    public function calcUtility(scoreSumOfUnboosted:Float, parameters:Parameters) {
         if (task.retPunctation() == "?") {
             // TODO< take time into account >
             // questions don't have a TV so we have to provide a specific base utility
@@ -1034,7 +1037,7 @@ class WorkingSetEntity {
         }
 
         // deeper sentences get less attention
-        utility = utility * Math.pow(0.8, task.sentence.derivationDepth * 0.1) * 1.0;
+        utility = utility * Math.pow(0.8, task.sentence.derivationDepth * parameters.comp0) * 1.0;
         // more complicate terms get less attention
         utility = utility * Math.pow(0.8, TermUtils.calcStructComplexity(task.sentence.term)) * 1.0;
 
@@ -1127,8 +1130,11 @@ class WorkingSet extends BaseWorkingSet {
 
     public var sortedWorkingsetByPriority:Array<PriorityWithWorkingsetEntities> = []; // sorted by priority
 
-    public function new() {
+    public var parameters:Parameters;
+
+    public function new(parameters) {
         super();
+        this.parameters = parameters;
     }
 
     public function retCount():Int {
@@ -1147,7 +1153,7 @@ class WorkingSet extends BaseWorkingSet {
                 
         for(iPwwse in sortedWorkingsetByPriority) {
             for(iEntity in iPwwse.entities) {
-                res += '   ${iEntity.task.sentence.convToStr()}:  ${labelBoosted && (iEntity.task.retPunctation() == "." && cast(iEntity.task, JudgementTask).isAnswerToQuestion) ? "BOOSTED" : ""}  score=${iEntity.calcUtility(scoreSumOfUnboosted)} accScore=${iEntity.accuScore}\n';
+                res += '   ${iEntity.task.sentence.convToStr()}:  ${labelBoosted && (iEntity.task.retPunctation() == "." && cast(iEntity.task, JudgementTask).isAnswerToQuestion) ? "BOOSTED" : ""}  score=${iEntity.calcUtility(scoreSumOfUnboosted, parameters)} accScore=${iEntity.accuScore}\n';
             }
         }
 
@@ -1186,11 +1192,11 @@ class WorkingSet extends BaseWorkingSet {
 
 
     // insert into workingset and maintain ordering
-    private function insertIntoWorkingsetByPriority(e:WorkingSetEntity) {
+    private function insertIntoWorkingsetByPriority(e:WorkingSetEntity, parameters:Parameters) {
         // search for matching priority
         var mfound:PriorityWithWorkingsetEntities = null; // found match by priority
         for(iPwwse in sortedWorkingsetByPriority) {
-            if (Math.abs(iPwwse.priority - e.calcUtility(0.0)) < 0.0000001) {
+            if (Math.abs(iPwwse.priority - e.calcUtility(0.0, parameters)) < 0.0000001) {
                 mfound = iPwwse;// match found
                 break;
             }
@@ -1212,7 +1218,7 @@ class WorkingSet extends BaseWorkingSet {
             });
         }
         else { // create new
-            sortedWorkingsetByPriority.push(new PriorityWithWorkingsetEntities(e.calcUtility(0.0), [e]));
+            sortedWorkingsetByPriority.push(new PriorityWithWorkingsetEntities(e.calcUtility(0.0, parameters), [e]));
         }
 
         sortedWorkingsetByPriority.sort((a, b) -> {
@@ -1227,13 +1233,13 @@ class WorkingSet extends BaseWorkingSet {
 
 
     // insert sorted by total score
-    public function insert(entity:WorkingSetEntity) {
+    public function insert(entity:WorkingSetEntity, parameters:Parameters) {
         var timeBefore = Sys.time();
         
         entitiesByTermInsertIfNotExistBySentence(entity);
 
         // insert into "real" queue grouped/ordered by priority
-        insertIntoWorkingsetByPriority(entity);
+        insertIntoWorkingsetByPriority(entity, parameters);
 
         /*
         if (entities.length == 0) { // is special case?
@@ -1389,8 +1395,11 @@ class WorkingSet extends BaseWorkingSet {
 class ImportanceSampledWorkingSet extends BaseWorkingSet {
     public var entities:Array<WorkingSetEntity> = [];
 
-    public function new() {
+    public var parameters:Parameters;
+
+    public function new(parameters) {
         super();
+        this.parameters=parameters;
     }
 
     public override function debug(): String {
@@ -1400,7 +1409,7 @@ class ImportanceSampledWorkingSet extends BaseWorkingSet {
 
         for(iEntity in entities) {
             //if(iEntity.isAnswerToQuestion)
-            res += '   ${iEntity.task.sentence.convToStr()}:  ${labelBoosted && (iEntity.task.retPunctation() == "." && cast(iEntity.task, JudgementTask).isAnswerToQuestion) ? "BOOSTED" : ""}  score=${iEntity.calcUtility(scoreSumOfUnboosted)} accScore=${iEntity.accuScore}\n';
+            res += '   ${iEntity.task.sentence.convToStr()}:  ${labelBoosted && (iEntity.task.retPunctation() == "." && cast(iEntity.task, JudgementTask).isAnswerToQuestion) ? "BOOSTED" : ""}  score=${iEntity.calcUtility(scoreSumOfUnboosted, parameters)} accScore=${iEntity.accuScore}\n';
         }
         
         res += 'ws count=${entities.length}\n';
@@ -1417,7 +1426,7 @@ class ImportanceSampledWorkingSet extends BaseWorkingSet {
             maxIdx = entities.length-1;
         }
 
-        var selAtMin = byMass ? entities[minIdx].accuScore : entities[minIdx].calcUtility(0.0);
+        var selAtMin = byMass ? entities[minIdx].accuScore : entities[minIdx].calcUtility(0.0, parameters);
         //var selAtMax = byMass ? entities[maxIdx].accuScore : entities[minIdx].calcUtility(0.0);
 
 
@@ -1448,7 +1457,7 @@ class ImportanceSampledWorkingSet extends BaseWorkingSet {
         // we use binary search
 
         var midIdx = Std.int((maxIdx+minIdx) / 2);
-        var selAtMid = byMass ? entities[midIdx].accuScore : entities[midIdx].calcUtility(0.0);
+        var selAtMid = byMass ? entities[midIdx].accuScore : entities[midIdx].calcUtility(0.0, parameters);
 
         if (order == 1 ? sel < selAtMid : sel > selAtMid) { // select split by order mode
             return calcIdxBySel(sel, byMass, depth+1, minIdx, midIdx);
@@ -1468,10 +1477,10 @@ class ImportanceSampledWorkingSet extends BaseWorkingSet {
         }
 
         if (!(entity.task.retPunctation() == "." && cast(entity.task, JudgementTask).isAnswerToQuestion)) {
-            scoreSumOfUnboosted += entity.calcUtility(0.0);
+            scoreSumOfUnboosted += entity.calcUtility(0.0, parameters);
         }
 
-        entities[entities.length-1].accuScore += entity.calcUtility(scoreSumOfUnboosted);
+        entities[entities.length-1].accuScore += entity.calcUtility(scoreSumOfUnboosted, parameters);
     }
 
     // forces a recomputation of the entire distribution
@@ -1484,14 +1493,14 @@ class ImportanceSampledWorkingSet extends BaseWorkingSet {
         scoreSumOfUnboosted = 0.0;
         for(iEntity in entities) {
             if (!(iEntity.task.retPunctation() == "." && cast(iEntity.task, JudgementTask).isAnswerToQuestion)) {
-                scoreSumOfUnboosted += iEntity.calcUtility(0.0);
+                scoreSumOfUnboosted += iEntity.calcUtility(0.0, parameters);
             }
         }
 
-        entities[0].accuScore = entities[0].calcUtility(scoreSumOfUnboosted);
+        entities[0].accuScore = entities[0].calcUtility(scoreSumOfUnboosted, parameters);
 
         for(idx in 1...entities.length) {
-            entities[idx].accuScore = entities[idx-1].accuScore + entities[idx].calcUtility(scoreSumOfUnboosted);
+            entities[idx].accuScore = entities[idx-1].accuScore + entities[idx].calcUtility(scoreSumOfUnboosted, parameters);
         }
     }
 
