@@ -3,20 +3,9 @@ import sys.FileSystem;
 
 // automatic test which iterates and checks all *.nal files
 class TestNal {
-    public static function main() {
-        // compute path of program, this is where the test files reside
-        var path:String = Sys.programPath();
-        // eat away till we hit "\", remove it too
-        while(path.length > 0) {
-            if(path.charAt(path.length-1) == "\\") {
-                break;
-            }
-            path = path.substr(0, path.length-1); // eat away
-        }
-        path = path.substr(0, path.length-1); // eat away
-
-
-        
+    // /param path where to search *.nal files
+    // /return score
+    public static function run(path:String): Float {
         var nalTestFileNames :Array<String>;
         
         if (Sys.args().length != 0) { // were the files given as parameters?
@@ -33,27 +22,44 @@ class TestNal {
             var nalFileContent = File.getContent(path+"\\"+iNalFileName);
             var nalLines = nalFileContent.split("\r\n");
 
-            var res = runNarAndEvalutate(nalLines);
+            var res = runNarAndEvalutate(nalLines, path);
             if (!res.success) {
                 Sys.println('FAILED: failed because not all expects with TV were fullfilled');
-                return;
+                return -1.0; // negative because failed
             }
             Sys.println('SCORE=${res.score}'); // print score of this test
             score += res.score; // add up all scores
         }
 
+        return score;
+    }
+
+    public static function main() {
+        // compute path of program, this is where the test files reside
+        var path:String = Sys.programPath();
+        // eat away till we hit "\", remove it too
+        while(path.length > 0) {
+            if(path.charAt(path.length-1) == "\\") {
+                break;
+            }
+            path = path.substr(0, path.length-1); // eat away
+        }
+        path = path.substr(0, path.length-1); // eat away
+
+
+        var score:Float = run(path);
         Sys.println('SCORESUM=${score}'); // print score of all tests
 
         Sys.println("SUCCESS!!!");
     }
 
     // run nar with the *.nal file and evaluate if it did pass and which score was archived
-    public static function runNarAndEvalutate(nalLines:Array<String>):{success:Bool,score:Float} {
+    public static function runNarAndEvalutate(nalLines:Array<String>, pathToNar:String):{success:Bool,score:Float} {
 
         var expectedWithTvNarsese:Map<String, Bool> = new Map<String, Bool>(); // expected narsese with TV, flag tells if it occurred
         var expectedWithLowestCyclesNarsese:Map<String, Int> = new Map<String, Int>();
 
-        var reasoner = new Nar();
+        var reasoner = new Nar(pathToNar);
         reasoner.answerHandler = new TestAnswerHandler(expectedWithTvNarsese, expectedWithLowestCyclesNarsese); // install Q&A handler
 
         reasoner.conclusionStrArr = []; // enable output logging

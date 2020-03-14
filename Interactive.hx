@@ -12,7 +12,7 @@ import sys.io.File;
 
 // interactive shell, is used like gdb
 class Interactive {
-    public var reasoner:Nar = new Nar();
+    public var reasoner:Nar = new Nar(null);
 
     public function new() {}
 

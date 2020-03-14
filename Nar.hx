@@ -43,23 +43,27 @@ class Nar {
 
     public var taskIdCounter = 100000; // used to uniquly identify task globably
 
-    public function new() {
+    // /param pathToNar the path to this Nar, used to load config and parameter file etc.
+    public function new(pathToNar:String) {
         workingSet = new WorkingSet(parameters);
         questionWorkingSet = new ImportanceSampledWorkingSet(parameters);
 
         { // read parameters
-            // compute path of program, this is where the test files reside
-            var path:String = Sys.programPath();
-            // eat away till we hit "\", remove it too
-            while(path.length > 0) {
-                if(path.charAt(path.length-1) == "\\") {
-                    break;
+            if (pathToNar == null) {
+                // compute path of program, this is where the test files reside
+                pathToNar = Sys.programPath();
+                // eat away till we hit "\", remove it too
+                while(pathToNar.length > 0) {
+                    if(pathToNar.charAt(pathToNar.length-1) == "\\") {
+                        break;
+                    }
+                    pathToNar = pathToNar.substr(0, pathToNar.length-1); // eat away
                 }
-                path = path.substr(0, path.length-1); // eat away
+                pathToNar = pathToNar.substr(0, pathToNar.length-1); // eat away
             }
-            path = path.substr(0, path.length-1); // eat away
 
-            var parametersMap:Map<String,String> = Nar.XmlImport.importXmlFromFile(path + "\\"+"parameters.xml");
+
+            var parametersMap:Map<String,String> = Nar.XmlImport.importXmlFromFile(pathToNar + "\\"+"parameters.xml");
 
             // transfer parameters
             this.parameters.comp0 = Std.parseFloat(parametersMap.get("comp0"));
