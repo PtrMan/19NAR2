@@ -1,0 +1,9 @@
+<{shape1} --> rectangle>.
+<{shape1} --> [filled]>.
+<({shape1} * {shape2}) --> leftOf>.
+<({shape1} * {shape2}) --> leftOf>.
+
+<(([filled] & rectangle) * {?1}) --> leftOf>?
+//EXPECT < ( ( [filled] & rectangle ) * {shape2} ) --> leftOf >. {1 0.42163100057836905}
+
+!s50

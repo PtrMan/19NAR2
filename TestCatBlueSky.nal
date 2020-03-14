@@ -4,7 +4,7 @@
 <{tom}-->cat>.
 <({tom}*{sky})-->likes>.
 
-//EXPECT < ( cat * [blue] ) --> likes >. {1 0.18024175086230582}
+//EXPECT < ( cat * [blue] ) --> likes >. {1 0.24598727759749053}
 <(cat*[blue])-->likes>?
 
 !s200

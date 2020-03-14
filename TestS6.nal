@@ -1,0 +1,16 @@
+// check to make sure that backward Q&A works for the question-judgement form
+// which is required to effectivly solve shapeworld
+
+<(([filled] & rectangle) * {?1}) --> leftOf>?
+
+// simplify task a bit
+<{shape1} --> rectangle>.
+<{shape1} --> [filled]>.
+//<{shape1} --> ( [filled] & rectangle )>.
+
+<({shape1} * {shape2}) --> leftOf>.
+
+// this is the expected answer which leads to the answer of the original question
+//EXPECTnotv < ( [filled] & rectangle ) --> (/ leftOf _ {shape2}) >.
+
+!s50

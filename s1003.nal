@@ -1,0 +1,6 @@
+<{shape1} --> rectangle>.
+<{shape1} --> [filled]>.
+<({shape1} * {shape2}) --> leftOf>.
+
+<([filled] * {?1}) --> leftOf>?
+<(rectangle * {?1}) --> leftOf>?
