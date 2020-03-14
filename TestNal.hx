@@ -23,8 +23,6 @@ class TestNal {
             nalTestFileNames = Sys.args();
         }
         else {
-            
-
             nalTestFileNames = FileSystem.readDirectory(path).filter(iname -> iname.substr(0, 4) == "Test" && iname.substr(iname.length-4) == ".nal");
         }
 
