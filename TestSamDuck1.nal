@@ -1,0 +1,6 @@
+<({sam} * water) --> like>.
+<{sam} --> duck>.
+
+//EXPECT < ( duck * water ) --> like >. {1 0.44751381215469616}
+<(duck * water) --> like>?
+!s50

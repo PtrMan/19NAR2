@@ -1,0 +1,15 @@
+// test related to shapeworld
+// is the question answered?
+// Q&A like this is necessary for efficient backward Q&A
+
+< ( [filled] & rectangle ) <-> {shape1} >?
+
+<{shape1} --> rectangle>.
+<{shape1} --> [filled]>.
+//|- <{shape1} --> ( [filled] & rectangle )>.
+
+// this is required to build the answer
+//EXPECTnotv < ( [filled] & rectangle ) <-> {shape1} >.
+////EXPECTnotv < {shape1} --> ( [filled] & rectangle ) >.
+
+!s150

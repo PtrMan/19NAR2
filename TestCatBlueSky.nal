@@ -1,0 +1,10 @@
+// from ALANN examples
+
+<{sky}-->[blue]>.
+<{tom}-->cat>.
+<({tom}*{sky})-->likes>.
+
+//EXPECT < ( cat * [blue] ) --> likes >. {1 0.18024175086230582}
+<(cat*[blue])-->likes>?
+
+!s200
