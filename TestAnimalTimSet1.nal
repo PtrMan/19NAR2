@@ -1,0 +1,6 @@
+<{tim} --> cat>.
+<cat --> animal>.
+//EXPECT < {tim} --> animal >. {1 0.81}
+<{?1} --> animal>?
+
+!s20
