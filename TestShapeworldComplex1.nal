@@ -1,0 +1,22 @@
+<{shape1} --> rectangle>.
+<{shape1} --> [filled]>.
+//|-
+//<{shape1} --> ([filled] & rectangle)>.
+
+<({shape1} * {shape2}) --> leftOf>.
+<({shape1} * {shape3}) --> aboveOf>.
+<{shape2} --> circle>.
+<{shape2} --> [unfilled]>.
+
+<({shape2} * {shape3}) --> aboveOf>.
+<{shape3} --> triangle>.
+<{shape3} --> [unfilled]>.
+<({shape3} * {shape2}) --> leftOf>.
+
+//EXPECT < ( ( [filled] & rectangle ) * {shape2} ) --> leftOf >. {1 0.42163100057836905}
+<(([filled] & rectangle) * {?1}) --> leftOf>?
+
+!s20
+!s50
+//!dw
+//!dj
