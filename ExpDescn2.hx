@@ -667,7 +667,7 @@ class ByCond<Type> {
 
 
 
-class Memory {
+class ProceduralMemory {
     public var sizePairsOfProceduralNode = 50; // how many pairs are in a procedural node?
 
     public var pairs:Array<Pair> = []; // all known pairs, read only!
@@ -776,7 +776,7 @@ class Executive {
     public var dbgDescisionMakingVerbose = false; // debugging : is decision making verbose
     public var dbgExecVerbose = false; // debugging : is execution of ops verbose?
 
-    public var mem = new Memory();
+    public var mem = new ProceduralMemory();
 
     public function goalNow(g:Term) {
         // check and exec if it is a action
