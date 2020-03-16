@@ -295,14 +295,6 @@ class TermUtils {
         return Compound(foldedType, terms);
     }
 
-    // checks if the term encodes a op
-    public static function isOp(term:Term):Bool {
-        return switch (term) {
-            case Name(n): n.charAt(0) == '^';
-            default: false;
-        }
-    }
-
     // computes structural complexity
     // I define structural complexity as a complexity where compositions  & , &&, |, - etc get extra complexity to bias system
     public static function calcStructComplexity(term:Term): Float {

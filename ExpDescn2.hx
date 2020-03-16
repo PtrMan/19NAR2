@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Robert Wünsche
+Copyright 2020 Robert Wünsche
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
@@ -22,6 +22,11 @@ import haxe.Int64;
 
 class ExpDescn2 {
 
+    // helper for testing etc
+    // builds a op-call without an argument
+    public static function buildCallOp(name:String):Term {
+        return Term.Cop("-->", Term.Prod([Term.Set("{", [Term.Name("SELF")])]), Term.Name(name));
+    }
     
     // tests if the executive can confirm a anticipation correctly
     public static function testAnticipationConfirm1() {
@@ -61,7 +66,7 @@ class ExpDescn2 {
     public static function testTraceEmpty1() {
         var uut:Executive = new Executive();
         uut.step([Term.Name("a")]);
-        uut.step([Term.Name("^b")]);
+        uut.step([buildCallOp("^b")]);
         uut.step([]);
         uut.step([Term.Name("c")]);
 
@@ -84,7 +89,7 @@ class ExpDescn2 {
 
         {
             var pair = new Pair(uut.createStamp());
-            pair.condops = [new CondOps(new Par([Term.Name("b")]), [Term.Name("^x")])];
+            pair.condops = [new CondOps(new Par([Term.Name("b")]), [buildCallOp("^x")])];
             pair.effect = new Par([Term.Name("g")]);
             uut.mem.pairs.push(pair);
         }
@@ -109,7 +114,7 @@ class ExpDescn2 {
 
 
         uut.step([Term.Name("a")]);
-        uut.step([Term.Name("^x")]);
+        uut.step([buildCallOp("^x")]);
         uut.step([Term.Name("b")]);
 
         // flood sequence out of memory
@@ -118,7 +123,7 @@ class ExpDescn2 {
         }
 
         uut.step([Term.Name("b")]);
-        uut.step([Term.Name("^y")]);
+        uut.step([buildCallOp("^y")]);
         uut.step([Term.Name("c")]);
         uut.step([Term.Name("g")]);
 
@@ -138,12 +143,12 @@ class ExpDescn2 {
         uut.step([]);
         uut.step([Term.Name("b")]);
 
-        for(t in 0...1000) {
+        for(t in 0...100) {
             uut.step([]);
         }
 
         // debug all evidence
-        Sys.println('');
+        Sys.println('evidence:');
         for(iEvidence in uut.mem.pairs) {
             Sys.println(iEvidence.convToStr());
         }
@@ -160,7 +165,7 @@ class ExpDescn2 {
 
         {
             var pair = new Pair(uut.createStamp());
-            pair.condops = [new CondOps(new Par([Term.Name("b")]), [Term.Name("^x")])];
+            pair.condops = [new CondOps(new Par([Term.Name("b")]), [buildCallOp("^x")])];
             pair.effect = new Par([Term.Name("g")]);
             uut.mem.pairs.push(pair);
         }
@@ -181,7 +186,7 @@ class ExpDescn2 {
         
         {
             var pair = new Pair(uut.createStamp());
-            pair.condops = [new CondOps(new Par([Term.Name("a")]), [Term.Name("^x")])];
+            pair.condops = [new CondOps(new Par([Term.Name("a")]), [buildCallOp("^x")])];
             pair.effect = new Par([Term.Name("b")]);
             uut.mem.pairs.push(pair);
 
@@ -189,7 +194,7 @@ class ExpDescn2 {
 
         {
             var pair = new Pair(uut.createStamp());
-            pair.condops = [new CondOps(new Par([Term.Name("b")]), [Term.Name("^x")])];
+            pair.condops = [new CondOps(new Par([Term.Name("b")]), [buildCallOp("^x")])];
             pair.effect = new Par([Term.Name("g")]);
             uut.mem.pairs.push(pair);
         }
@@ -219,7 +224,7 @@ class ExpDescn2 {
 
 
         uut.step([Term.Name("a")]);
-        uut.step([Term.Name("^a")]);
+        uut.step([buildCallOp("^a")]);
         uut.step([Term.Name("b")]);
 
         // flood sequence out of memory
@@ -228,7 +233,7 @@ class ExpDescn2 {
         }
 
         uut.step([Term.Name("b")]);
-        uut.step([Term.Name("^b")]);
+        uut.step([buildCallOp("^b")]);
         uut.step([Term.Name("c")]);
 
         // flood sequence out of memory
@@ -237,7 +242,7 @@ class ExpDescn2 {
         }
 
         uut.step([Term.Name("c")]);
-        uut.step([Term.Name("^c")]);
+        uut.step([buildCallOp("^c")]);
         uut.step([Term.Name("d")]);
 
         // flood sequence out of memory
@@ -246,7 +251,7 @@ class ExpDescn2 {
         }
 
         uut.step([Term.Name("d")]);
-        uut.step([Term.Name("^d")]);
+        uut.step([buildCallOp("^d")]);
         uut.step([Term.Name("e")]);
 
         // flood sequence out of memory
@@ -306,9 +311,9 @@ class ExpDescn2 {
 
 
         uut.step([Term.Name("a")]);
-        uut.step([Term.Name("^a")]);
+        uut.step([buildCallOp("^a")]);
         uut.step([Term.Name("b")]);
-        uut.step([Term.Name("^b")]);
+        uut.step([buildCallOp("^b")]);
         uut.step([Term.Name("c")]);
 
 
@@ -325,8 +330,8 @@ class ExpDescn2 {
         {
             var p:Pair = new Pair(uut.createStamp());
             p.effect = new Par([Term.Name("g")]);
-            p.condops.push( new CondOps(new Par([Term.Name("a")]), [Term.Name("^x")]));
-            p.condops.push( new CondOps(new Par([Term.Name("b")]), [Term.Name("^y")]));
+            p.condops.push( new CondOps(new Par([Term.Name("a")]), [buildCallOp("^x")]));
+            p.condops.push( new CondOps(new Par([Term.Name("b")]), [buildCallOp("^y")]));
             uut.mem.addPair(p);
         }
 
@@ -340,7 +345,7 @@ class ExpDescn2 {
 
 
         uut.step([Term.Name("a")]);
-        uut.step([Term.Name("^x")]);
+        uut.step([buildCallOp("^x")]);
         uut.step([Term.Name("b")]);
 
         uut.step([]);
@@ -350,7 +355,7 @@ class ExpDescn2 {
 
 
         // debug all evidence
-        Sys.println('');
+        Sys.println('Evidence:');
         for(iEvidence in uut.mem.pairs) {
             Sys.println(iEvidence.convToStr());
         }
@@ -365,10 +370,9 @@ class ExpDescn2 {
     public static function main() {
         //dbgSeq5(); // just for debugging
 
-        seq5Exec();
-
-        return;
-
+        // was just to test to see if it indeed builds the seq5(sequence of 5 items)
+        //seq5Exec();
+        //return;
 
         // short selftests
         //testGoalFullfillChain2_1();
@@ -379,6 +383,8 @@ class ExpDescn2 {
         testGoalFullfill3(); // MSC patricks test
         testGoalFullfillIfSatisfied1();
         testGoalFullfillIfSatisfied2();
+
+        Sys.println('... all unittests were successful!');
 
 
         var nExperimentThreads = 4; // number of threads for experiments
@@ -559,8 +565,10 @@ class ExpDescn2 {
                 var cyclesPong2:Int = 5*35001;//150000;
                 var executive:Executive = new Executive();
                 //doAlien1ExperimentWithExecutive(executive, cyclesAlien2);
-                //doPong2ExperimentWithExecutive(executive, cyclesPong2);
-                doSeaquestExperimentWithExecutive(executive, 30000);
+                var executive:Executive = new Executive();
+                doPong2ExperimentWithExecutive(executive, cyclesPong2);
+                var executive:Executive = new Executive();
+                //doSeaquestExperimentWithExecutive(executive, 30000);
                 
                 numberOfDoneExperiments++; // bump counter
 
@@ -746,7 +754,7 @@ class Executive {
         }
     }
 
-    var queuedAct: String = null;
+    var queuedAct: Term = null;
     var queuedActOrigin: Pair = null; // origin of the queued action if it was done by the executive
 
     var trace:Array<Par> = [];
@@ -762,7 +770,7 @@ class Executive {
 
     public var cycle:Int = 0; // global cycle timer
 
-    public var dbgEvidence = true; // debugging - debug new and revised evidence?
+    public var dbgEvidence = false; // debugging - debug new and revised evidence?
     public var dbgAnticipationVerbose = false; // are anticipations verbose?
 
     public var dbgDescisionMakingVerbose = false; // debugging : is decision making verbose
@@ -772,13 +780,8 @@ class Executive {
 
     public function goalNow(g:Term) {
         // check and exec if it is a action
-        if (TermUtils.isOp(g)) {
-            var opName:String = switch(g) {
-                case Name(n): n;
-                default: null; // must not happen!
-            }
-
-            execAct(opName, null);
+        if(tryDecomposeOpCall(g) != null) {
+            execAct(g, null);
         }
 
         // record to trace
@@ -807,7 +810,7 @@ class Executive {
         this.trace[0] = new Par([]);
         this.trace[0].events = parEvents;
 
-        if (true) { // debug trace
+        if (false) { // debug trace
             Sys.println('trace');
             for(idx2 in 0...this.trace.length) {
                 var idx = this.trace.length-1-idx2;
@@ -830,7 +833,11 @@ class Executive {
 
                 var massAccu = 0.0;
                 for(idx in 0...possibleActs.length) {
-                    queuedAct = possibleActs[idx].act.name; // queue action as next action
+                    // build queued act with the name and SELF arguments
+                    var actName:String = possibleActs[idx].act.name;
+                    var actTerm:Term = Cop("-->", Prod([Set("{", [Name("SELF")])]), Name(actName));
+
+                    queuedAct = actTerm; // queue action as next action
                     queuedActOrigin = null; // has no origin because it was done by random
 
                     massAccu += possibleActs[idx].mass;
@@ -850,7 +857,7 @@ class Executive {
             execAct(queuedAct, queuedActOrigin);
 
             // record to trace
-            this.trace[0].events.push(Term.Name(queuedAct));
+            this.trace[0].events.push(queuedAct);
         }
 
         if (false) { // debug trace
@@ -863,6 +870,17 @@ class Executive {
 
         
         
+        // helper function
+        // do terms contain a action?
+        function containsAction(terms:Array<Term>): Bool {
+            return terms.filter(v -> tryDecomposeOpCall(v) != null).length > 0;
+        }
+
+        // helper function
+        // aren't terms only actions?
+        function containsAnyNonaction(terms:Array<Term>): Bool {
+            return terms.filter(v -> !(tryDecomposeOpCall(v) != null)).length > 0;
+        }
 
         // * decision making
         queuedAct = null;
@@ -889,15 +907,7 @@ class Executive {
             var enable5Seq = true; // are seq impl with 5 elements enabled? - costs a bit of performance
             var canditates5SeqByLocalChainedGoal: Array<{pair:Pair, tv:Tv, exp:Float}> = [];
             if(enable5Seq) {
-                // do terms contain a action?
-                function containsAction(terms:Array<Term>): Bool {
-                    return terms.filter(v -> TermUtils.isOp(v)).length > 0;
-                }
-
-                // aren't terms only actions?
-                function containsAnyNonaction(terms:Array<Term>): Bool {
-                    return terms.filter(v -> !TermUtils.isOp(v)).length > 0;
-                }
+                
 
                 if (containsAnyNonaction(parEvents)) { // did candidate b just happen
                     // scan for ^x
@@ -928,8 +938,8 @@ class Executive {
                             // now we need to check if we find a seq with these conditions in the database
 
                             var seq5potentialCond0 = this.trace[cond0TraceIdx].events;
-                            var seq5potentialOp0 = this.trace[op0TraceIdx].events.filter(v -> TermUtils.isOp(v))[0];
-                            var seq5potentialCond1 = this.trace[0].events.filter(v -> !TermUtils.isOp(v));
+                            var seq5potentialOp0 = this.trace[op0TraceIdx].events.filter(v -> tryDecomposeOpCall(v) != null)[0];
+                            var seq5potentialCond1 = this.trace[0].events.filter(v -> !(tryDecomposeOpCall(v) != null));
                             var seq5potentialCandidates:Array<Pair> = mem.queryPairsByCond(seq5potentialCond0);                            
                             seq5potentialCandidates = seq5potentialCandidates.filter(iPair -> iPair.effect.events.filter(iEvent -> goalSystem.isEternalGoal(iEvent)).length > 0); // does it have a eternal goal as a effect?
                             seq5potentialCandidates = seq5potentialCandidates.filter(iPair -> !iPair.isConcurrentImpl && iPair.condops.length == 2);
@@ -976,7 +986,7 @@ class Executive {
             // helper function to return name
             function retName(t:Term):String {
                 return switch(t) {
-                    case Name(n): n;
+                    case Term.Cop("-->", _ , Name(n)): n;
                     default: throw "Invalid name!";
                 }
             }
@@ -990,7 +1000,7 @@ class Executive {
                 bestDecisionExp > decisionThreshold && 
                 retActByName(retName(bestDecisionMakingCandidate.condops[condOpsIdx].ops[0])).refractoryPeriodCooldown <= 0 // is it possible to execute the action based on refractory period?
             ) {
-                queuedAct = retName(bestDecisionMakingCandidate.condops[condOpsIdx].ops[0]); // queue action for next timestep
+                queuedAct = bestDecisionMakingCandidate.condops[condOpsIdx].ops[0]; // queue action for next timestep
                 queuedActOrigin = bestDecisionMakingCandidate;
             }
         }
@@ -998,18 +1008,6 @@ class Executive {
 
         // * store sequences if possible
         {
-            
-
-            // do terms contain a action?
-            function containsAction(terms:Array<Term>): Bool {
-                return terms.filter(v -> TermUtils.isOp(v)).length > 0;
-            }
-
-            // aren't terms only actions?
-            function containsAnyNonaction(terms:Array<Term>): Bool {
-                return terms.filter(v -> !TermUtils.isOp(v)).length > 0;
-            }
-
             if (
                 this.trace[0].events.length > 0 // most recent trace element must contain a event to get chained
             ) {
@@ -1040,9 +1038,9 @@ class Executive {
                         // build impl seq(s)
                         // because it has at least one (&/, events, ^action) =/> effect term
                 
-                        var nonactionsOf2:Array<Term> = this.trace[iConditionCandidateIdx].events.filter(v -> !TermUtils.isOp(v));
-                        var actionsOf1:Array<Term> = this.trace[traceIdxOfOpEvent].events.filter(v -> TermUtils.isOp(v));
-                        var nonactionsOf0:Array<Term> = this.trace[0].events.filter(v -> !TermUtils.isOp(v));
+                        var nonactionsOf2:Array<Term> = this.trace[iConditionCandidateIdx].events.filter(v -> !(tryDecomposeOpCall(v) != null));
+                        var actionsOf1:Array<Term> = this.trace[traceIdxOfOpEvent].events.filter(v -> tryDecomposeOpCall(v) != null);
+                        var nonactionsOf0:Array<Term> = this.trace[0].events.filter(v -> !(tryDecomposeOpCall(v) != null));
                         
                         {
                             for(iActionTerm in actionsOf1) { // iterate over all actions done at that time
@@ -1118,11 +1116,11 @@ class Executive {
                                                 if (containsAnyNonaction(this.trace[nonOp1Idx].events)) {
                                                     
                                                     
-                                                    var nonOpsOf2:Array<Term> = this.trace[idxNop2].events.filter(v -> !TermUtils.isOp(v)); // a
-                                                    var opsOf2:Array<Term> = this.trace[idxOp2].events.filter(v -> TermUtils.isOp(v)); // ^x
-                                                    var nonOpsOf1:Array<Term> = this.trace[nonOp1Idx].events.filter(v -> !TermUtils.isOp(v)); // b
-                                                    var opsOf1:Array<Term> = this.trace[idxOp1].events.filter(v -> TermUtils.isOp(v)); // ^y
-                                                    var nonOpsOf0:Array<Term> = this.trace[0].events.filter(v -> !TermUtils.isOp(v)); // c
+                                                    var nonOpsOf2:Array<Term> = this.trace[idxNop2].events.filter(v -> !(tryDecomposeOpCall(v) != null)); // a
+                                                    var opsOf2:Array<Term> = this.trace[idxOp2].events.filter(v -> tryDecomposeOpCall(v) != null); // ^x
+                                                    var nonOpsOf1:Array<Term> = this.trace[nonOp1Idx].events.filter(v -> !(tryDecomposeOpCall(v) != null)); // b
+                                                    var opsOf1:Array<Term> = this.trace[idxOp1].events.filter(v -> tryDecomposeOpCall(v) != null); // ^y
+                                                    var nonOpsOf0:Array<Term> = this.trace[0].events.filter(v -> !(tryDecomposeOpCall(v) != null)); // c
 
                                                     // try to add to knowledge
                                                     {
@@ -1160,6 +1158,17 @@ class Executive {
         goalSystem.goalDerivation(this);
 
         cycle++; // advance global cycle timer
+    }
+
+    // helper function to check if a term is a operation call and to decompose it into name and arguments
+    // returns null if it is not a operation call
+    public static function tryDecomposeOpCall(term:Term):{name:String, args:Array<Term>} {
+        switch term {
+            case Term.Cop("-->", Term.Prod(args), Term.Name(name)) if (name.length > 0 && name.charAt(0) == '^'):
+            return {name:name, args:args};
+            case _:
+            return null;
+        }
     }
 
     // TODO< replace with addEvidence2() >
@@ -1375,13 +1384,25 @@ class Executive {
 
     // realize action
     // /param origin origin of the action, used for anticipation , can be null
-    function execAct(actName:String, origin:Pair) {
-        if(dbgExecVerbose) Sys.println('ACT $actName origin = ${origin != null ? origin.convToStr() : "null"}');
+    function execAct(actTerm:Term, origin:Pair) {
+        if(dbgExecVerbose) Sys.println('ACT ${TermUtils.convToStr(actTerm)} origin = ${origin != null ? origin.convToStr() : "null"}');
+
+        // extract arguments and name of op
+        var args:Array<Term> = null; // arguments
+        var actName:String = null;
+        switch actTerm {
+            case Cop("-->", Prod(args2), Name(actName2)):
+            actName = actName2;
+            args = args2;
+            case _:
+            if (dbgExecVerbose)  Sys.println('   ... action has invalid format, ignore');
+            return; // invalid format of act
+        }
 
         // lookup action and call handler
         var act = retActByName(actName);
         act.refractoryPeriodCooldown = act.refractoryPeriod;
-        act.exec();
+        act.exec(args);
 
         if (origin != null) {
             // add anticipation
@@ -2421,7 +2442,7 @@ class Act {
         this.name = name;
     }
 
-    /*abstract*/public function exec() {
+    /*abstract*/public function exec(args:Array<Term>) {
         throw "NOT IMPLEMENTED!";
     }
 }
@@ -2436,7 +2457,7 @@ class CountOp extends Act {
         super(name);
     }
 
-    public override function exec() {
+    public override function exec(args:Array<Term>) {
         counter++;
     }
 }
@@ -2454,7 +2475,7 @@ class TermInjOp extends Act {
         this.term = term;
     }
 
-    public override function exec() {
+    public override function exec(args:Array<Term>) {
         queue.push(TermUtils.cloneShallow(term));
         counter++;
     }
@@ -2474,7 +2495,7 @@ class Pong1Act extends Act {
         this.w = w;
     }
 
-    public override function exec() {
+    public override function exec(args:Array<Term>) {
         w.posX += delta;
         w.posX = Math.max(0.0, w.posX);
         w.posX = Math.min(1.0, w.posX);
@@ -2535,7 +2556,7 @@ class Pong2Act extends Act {
         this.w = w;
     }
 
-    public override function exec() {
+    public override function exec(args:Array<Term>) {
         w.speed = delta;
     }
 }
@@ -2672,7 +2693,7 @@ class Alien1Act extends Act {
         this.w = w;
     }
 
-    public override function exec() {
+    public override function exec(args:Array<Term>) {
         w.posX += delta;
         w.posX = Math.max(0.0, w.posX);
         w.posX = Math.min(1.0, w.posX);
@@ -2779,7 +2800,7 @@ class Seaquest1Act extends Act {
         this.w = w;
     }
 
-    public override function exec() {
+    public override function exec(args:Array<Term>) {
         w.posX += deltaX;
         w.posY += deltaY;
         w.posX = Math.max(0.0, w.posX);
@@ -3134,8 +3155,11 @@ class Logger {
     public var f:FileOutput;
 
     public function new() {
-        FileSystem.deleteFile("logX.log"); // delete old file
-        f = File.append("logX.log");
+        var logName:String = "logX.log";
+        if (FileSystem.exists(logName)) {
+            FileSystem.deleteFile(logName); // delete old file
+        }
+        f = File.append(logName);
     }
 
     public static function log(text:String) {
