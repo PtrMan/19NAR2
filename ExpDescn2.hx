@@ -13,11 +13,9 @@ import sys.io.File;
 import sys.io.FileOutput;
 import haxe.Int64;
 
-// decision making experiment
-
 // features:
 // * anticipation
-// * decision making: actions can have a refractory peroid to avoid spamming the environment with pointless actions
+// * decision making: actions can have a refractory period to avoid spamming the environment with pointless actions
 // * goal system: expectation and tree based goal system
 
 class ExpDescn2 {
@@ -783,30 +781,6 @@ class Executive {
                 var exp = Tv.calcExp(tv.freq, tv.conf);
                 res.push({pair:iCandi, exp:exp}); // add if it is a candidate if the effect of it is a goal
             }
-
-            /* commented because it belonged to old goal system
-
-            var sampledGoals = [];
-            { // sample some goals
-                var thisSampledGoal = goalSystem.sample(rng, cycle);
-                if (thisSampledGoal != null) {
-                    sampledGoals.push(thisSampledGoal);
-                }
-            }
-
-            for(iGoal in sampledGoals) {
-                for(iEffect in iCandi.effect.events) {
-                    if (TermUtils.equal(iEffect, iGoal.term)) {
-                        add = true;
-                        break; // optimization
-                    }
-                }
-            }
-
-            if (add) {
-                res.push({pair:iCandi, tv:tv});
-            }
-            */
         }
 
         return res;
@@ -1344,36 +1318,7 @@ class TreePlanningGoalSystem extends AbstractGoalSystem {
 
             tryAdd(selectedNode);
         }
-        
-        /* old code
-
-
-        var sampledGoal = goalSystem.sample(rng, cycle);
-        if (sampledGoal != null) {
-            // try to derive goals
-            var matchingPairs = pairs.filter(iPair -> Par.checkSubset(iPair.effect, new Par([sampledGoal.term])));
-            matchingPairs = pairs.filter(iPair -> iPair.cond.events.length == 1); // HACK< only accept single par conj for now >
-            for(iMatchingPair in matchingPairs) {
-                var goalTerm:Term = iMatchingPair.cond.events[0]; // TODO TODO TODO< rewrite Par to parallel conjunction >
-
-                var compoundTv:Tv = new Tv(iMatchingPair.calcFreq(), iMatchingPair.calcConf());
-                var goalTv = Tv.deduction(compoundTv, sampledGoal.tv);
-
-                // (&/, a, ^b) =/> c    c!  |- (&/, a, ^b)! |- a!
-                if(false) trace('derived goal ${iMatchingPair.convToStr()} |- ${TermUtils.convToStr(goalTerm)}! {${goalTv.freq} ${goalTv.conf}}');
-
-                var conclStamp:Stamp = Stamp.merge(iMatchingPair.stamp, sampledGoal.stamp); // we need to merge stamp because it is a conclusion
-                goalSystem.tryAddDerivedGoal(goalTerm, goalTv, conclStamp, cycle);
-            }
-        }
-         */
     }
-    
-/* commented because api is not compatible
-    public override function tryAddDerivedGoal(term:Term, tv:Tv, stamp:Stamp, time:Int, source:Pair) {
-        // TODO
-    }
-*/
 
     /*
     // helper to compute the relative priority of a goal
@@ -1713,31 +1658,6 @@ class ForwardChainer {
                 exp:dedTv.exp()};
             }
         ];
-
-
-        // execute first element
-        //return [
-        //    {pair: chain2[0], exp:chainTv.exp()} // return only first chain element because our plan starts with it
-        //];
-
-
-        /* commented because old code which stores it, we can't do this and must use it for planning
-        // * store derivation(s)
-
-        { // build derived pair
-            Assert.enforce(chain.length == 5, "expect specific length!"); // we assume that the chain is (&/, a, ^b, c, ^d, e)
-
-            // build  (&/, a, ^b, ^d) =/> e
-            var conclPair:Pair = new Pair(combinedStamp);
-            conclPair.cond = new Par([chain[0]]);
-            conclPair.act = [chain[1], chain[3]]; // TODO< implement for any length of ops seqs >
-            conclPair.effect = new Par([chain[4]]);
-
-            exec.mem.addPair(conclPair); // TODO< check if conclusion exist already >
-        }
-
-        // TODO< build and add (&/, a, ^b, c, ^d, e)
-        */
     }
 }
 
