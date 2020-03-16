@@ -1,1 +1,1 @@
-haxe --java outJava --main ExpDescn2 && java -jar outJava\ExpDescn2.jar
+haxe --java outJava --main ExpDescn3 && java -jar outJava\ExpDescn3.jar
