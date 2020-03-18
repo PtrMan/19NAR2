@@ -111,7 +111,15 @@ class Nar {
 
     // puts new narsese input from the outside into the system
     public function input(narsese:String) {
-        var parseResult = ProtoLexer.parse(narsese);
+        var isEvent = false;
+
+        var processedNarsese:String = narsese; // narsese with removed stuff where a parser is not necessary
+        if (StringTools.endsWith(processedNarsese, " :|:")) {
+            isEvent = true;
+            processedNarsese = processedNarsese.substr(0, processedNarsese.length-4); // remove " :|:"
+        }
+
+        var parseResult = ProtoLexer.parse(processedNarsese);
 
         var tv = null;
         if (parseResult.punctuation != "?") {
@@ -122,7 +130,12 @@ class Nar {
             tv.conf = parseResult.tvConf;
         }
 
-        inputTerm(parseResult.term, tv, parseResult.punctuation);
+        if (isEvent) {
+            trace("TODO : handling of event is not yet implemented!");
+        }
+        else {
+            inputTerm(parseResult.term, tv, parseResult.punctuation);
+        }
     }
 
     private function reportAnswer(question:QuestionTask, sentence:Sentence) {
