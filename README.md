@@ -37,4 +37,4 @@ run
 to preload a `.nal` file for interactive Q&A. 
 (currently Q&A does work with narsese)
 
-and enter `!s5000` to give it 5000 cycles to work on the question(s).
+and enter `!s50` to give it 50 cycles to work on the question(s).
