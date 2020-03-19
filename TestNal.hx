@@ -60,9 +60,9 @@ class TestNal {
         var expectedWithLowestCyclesNarsese:Map<String, Int> = new Map<String, Int>();
 
         var reasoner = new Nar(pathToNar);
-        reasoner.answerHandler = new TestAnswerHandler(expectedWithTvNarsese, expectedWithLowestCyclesNarsese); // install Q&A handler
+        reasoner.declarative.answerHandler = new TestAnswerHandler(expectedWithTvNarsese, expectedWithLowestCyclesNarsese); // install Q&A handler
 
-        reasoner.conclusionStrArr = []; // enable output logging
+        reasoner.declarative.conclusionStrArr = []; // enable output logging
 
         for (iNalLine in nalLines) {
             Sys.println('//input: $iNalLine'); // debug read line

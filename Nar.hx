@@ -23,9 +23,51 @@ class Parameters {
 }
 
 class Nar {
+    public var declarative:Declarative;
+
+    public function new(pathToNar:String) {
+        declarative = new Declarative(pathToNar);
+    }
+
+    // puts new narsese input from the outside into the system
+    public function input(narsese:String) {
+        var isEvent = false;
+
+        var processedNarsese:String = narsese; // narsese with removed stuff where a parser is not necessary
+        if (StringTools.endsWith(processedNarsese, " :|:")) {
+            isEvent = true;
+            processedNarsese = processedNarsese.substr(0, processedNarsese.length-4); // remove " :|:"
+        }
+
+        var parseResult = ProtoLexer.parse(processedNarsese);
+
+        var tv = null;
+        if (parseResult.punctuation != "?") {
+            tv = new Tv(1.0, 0.9); // standard TV
+        }
+        if (parseResult.tvFreq != null) {
+            tv.freq = parseResult.tvFreq;
+            tv.conf = parseResult.tvConf;
+        }
+
+        if (isEvent) {
+            trace("TODO : handling of event is not yet implemented!");
+        }
+        else {
+            declarative.inputTerm(parseResult.term, tv, parseResult.punctuation);
+        }
+    }
+
+    // run the declarative reasoner for a number of cycles
+    public function process(cycles:Int = 20) {
+        declarative.process(cycles);
+    }
+}
+
+class Declarative {
     public var parameters:Parameters = new Parameters();
 
-    public var mem:Memory = new Memory();
+    public var mem:DeclarativeMemory = new DeclarativeMemory();
 
     // working set of tasks
     public var workingSet:WorkingSet;
@@ -109,34 +151,7 @@ class Nar {
         } */
     }
 
-    // puts new narsese input from the outside into the system
-    public function input(narsese:String) {
-        var isEvent = false;
-
-        var processedNarsese:String = narsese; // narsese with removed stuff where a parser is not necessary
-        if (StringTools.endsWith(processedNarsese, " :|:")) {
-            isEvent = true;
-            processedNarsese = processedNarsese.substr(0, processedNarsese.length-4); // remove " :|:"
-        }
-
-        var parseResult = ProtoLexer.parse(processedNarsese);
-
-        var tv = null;
-        if (parseResult.punctuation != "?") {
-            tv = new Tv(1.0, 0.9); // standard TV
-        }
-        if (parseResult.tvFreq != null) {
-            tv.freq = parseResult.tvFreq;
-            tv.conf = parseResult.tvConf;
-        }
-
-        if (isEvent) {
-            trace("TODO : handling of event is not yet implemented!");
-        }
-        else {
-            inputTerm(parseResult.term, tv, parseResult.punctuation);
-        }
-    }
+    
 
     private function reportAnswer(question:QuestionTask, sentence:Sentence) {
         var cycles:Int = globalCycleCounter-question.questionTime; // how many cycles did the answer take?
@@ -219,7 +234,7 @@ class Nar {
                     if (!mem.hasConceptByName(TermUtils.convToStr(iTermName))) {
                         continue;
                     }
-                    var nodeOfTerm: Node = mem.retConceptByName(TermUtils.convToStr(iTermName));
+                    var nodeOfTerm: DeclarativeNode = mem.retConceptByName(TermUtils.convToStr(iTermName));
 
                     var needToRecompute = false;
 
@@ -313,9 +328,9 @@ class Nar {
                 // we only care about the n highest concepts (to save a lot of time)
                 
                 // ... sort by maxexp and slice
-                var highestRankedConceptsOf2ndPremise: Array<Node>;
+                var highestRankedConceptsOf2ndPremise: Array<DeclarativeNode>;
                 {
-                    var conceptsOf2ndPremise: Array<Node> = [];
+                    var conceptsOf2ndPremise: Array<DeclarativeNode> = [];
                     // retrieve concepts
                     for(selectedSecondaryPremiseTerm in TermUtils.enumTerms(premiseTerm)) {
                         var primaryConcept = mem.retConceptByName(TermUtils.convToStr(selectedSecondaryPremiseTerm));
@@ -828,7 +843,7 @@ class Nar {
     public var answerHandler:AnswerHandler = null; // answer handler which is invoked when ever a new answer is derived
 }
 
-class Node {
+class DeclarativeNode {
     public var name:Term; // name of the concept
 
     public var judgments: Array<Sentence> = []; // all judgments of the concept
@@ -849,9 +864,9 @@ interface AnswerHandler {
     function report(sentence:Sentence, cycles:Int):Void;
 }
 
-class Memory {
+class DeclarativeMemory {
     // name key is name as string
-    public var conceptsByName:Map<String, Node> = new Map<String, Node>();
+    public var conceptsByName:Map<String, DeclarativeNode> = new Map<String, DeclarativeNode>();
 
     public var maxNodes:Int = 10000;
 
@@ -861,11 +876,11 @@ class Memory {
         return conceptsByName.get(name) != null;
     }
 
-    public function retConceptByName(name:String): Node {
+    public function retConceptByName(name:String): DeclarativeNode {
         return conceptsByName.get(name);
     }
 
-    public function addConcept(concept:Node) {
+    public function addConcept(concept:DeclarativeNode) {
         conceptsByName.set( TermUtils.convToStr(concept.name) , concept);
     }
 
@@ -879,7 +894,7 @@ class Memory {
                 nodeOfTerm = retConceptByName(TermUtils.convToStr(iTermName));
             }
             else {
-                nodeOfTerm = new Node(iTermName);
+                nodeOfTerm = new DeclarativeNode(iTermName);
                 addConcept(nodeOfTerm);
             }
 
@@ -908,10 +923,10 @@ class Memory {
     
     // limit memory of concepts to keep under AIKR
     public function limitMemoryConcepts() {
-        var nodeByMaxExp: Array<{maxExp:Float, node:Node}> = [];
+        var nodeByMaxExp: Array<{maxExp:Float, node:DeclarativeNode}> = [];
 
         for(iConceptName in conceptsByName.keys()) {
-            var node: Node = conceptsByName.get(iConceptName);
+            var node: DeclarativeNode = conceptsByName.get(iConceptName);
             var maxExpOfNode: Float = node.retMaxExp();
             nodeByMaxExp.push({maxExp:maxExpOfNode, node:node});
         }
@@ -919,7 +934,7 @@ class Memory {
         nodeByMaxExp.sort( (a, b) -> (a.maxExp < b.maxExp ? 1 : ((a.maxExp == b.maxExp) ? 0 : -1) )); // sort by max exp()
         nodeByMaxExp = nodeByMaxExp.slice(0, maxNodes); // limit memory
 
-        conceptsByName = new Map<String, Node>();
+        conceptsByName = new Map<String, DeclarativeNode>();
         for (iNodeByMaxExp in nodeByMaxExp) {
             conceptsByName.set(TermUtils.convToStr(iNodeByMaxExp.node.name), iNodeByMaxExp.node);
         }

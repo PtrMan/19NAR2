@@ -19,6 +19,7 @@ test that it doesn't derive if the set constraints are not fullfilled!
 
 */
 
+import Nar.Declarative;
 import haxe.macro.Expr;
 
 class Deriver {
@@ -571,7 +572,7 @@ class Deriver {
     }
 
     // single premise derivation
-    public static function deriveSinglePremise(premiseTask:Nar.Task, nar:Nar): Array<Nar.Task> {
+    public static function deriveSinglePremise(premiseTask:Nar.Task, nar:Declarative): Array<Nar.Task> {
         var premiseTerm = premiseTask.sentence.term;
         var premiseTermStructuralOrigins = premiseTask.sentence.stamp.structuralOrigins.arr;
         var premiseTv = premiseTask.sentence.tv;

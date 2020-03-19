@@ -39,13 +39,13 @@ class Interactive {
         }
         else if (inputLine == "!dw") { // debug working set
             // print working set
-            Sys.println(reasoner.workingSet.debug());
+            Sys.println(reasoner.declarative.workingSet.debug());
         }
         else if (inputLine == "!ds") { // debug summary
-            reasoner.debugSummary();
+            reasoner.declarative.debugSummary();
         }
         else if (inputLine == "!dj") { // debug all judgements
-            reasoner.debugJudgements();
+            reasoner.declarative.debugJudgements();
         }
         else if (inputLine == "!pe") { // profiler enable
             Nar.Config.enProfiler = true;
@@ -75,7 +75,7 @@ class Interactive {
 
     public static function main() {
         var interactive = new Interactive();
-        interactive.reasoner.conclusionStrArr = []; // enable output logging
+        interactive.reasoner.declarative.conclusionStrArr = []; // enable output logging
 
         // load zero or any number of *.nal files
         for (iArg in Sys.args()) {
