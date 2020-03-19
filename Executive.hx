@@ -1798,18 +1798,6 @@ class Act {
 }
 
 
-
-
-
-class Assert {
-    // contract programming
-    public static function enforce(b:Bool, msg:String) {
-        if (!b) {
-            throw msg;
-        }
-    }
-}
-
 // incremental gaussian distribution estimator
 // see http://datagenetics.com/blog/november22017/index.html
 class IncrementalCentralDistribution {
@@ -1834,7 +1822,7 @@ class IncrementalCentralDistribution {
 }
 
 class Logger {
-    public static var singleton = new Logger();
+    public static var singleton:Logger;// = new Logger();
     
     public var f:FileOutput;
 
