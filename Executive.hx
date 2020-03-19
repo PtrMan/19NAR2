@@ -18,10 +18,6 @@ import haxe.Int64;
 // * decision making: actions can have a refractory period to avoid spamming the environment with pointless actions
 // * goal system: expectation and tree based goal system
 
-class ExpDescn2 {
-}
-
-
 // lookup table of a type by condition of a pair
 // supports query by subset
 @:generic
