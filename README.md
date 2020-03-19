@@ -32,9 +32,6 @@ enter
 
 run
 
-> haxe --run Interactive ALANN_CatBlueSky.nal
+> haxe --run Interactive TestCatBlueSky.nal
 
-to preload a `.nal` file for interactive Q&A. 
-(currently Q&A does work with narsese)
-
-and enter `!s50` to give it 50 cycles to work on the question(s).
+to preload/run a `.nal` file for interactive Q&A. The required steps will be automatically taken by commands such as `!s50`, this gives it 50 timesteps to work on questions.
