@@ -115,7 +115,7 @@ class Declarative {
 
     // used to submit a question which will get handled with a answer handler
     public function question(term:Term, handler:AnswerHandler2) {
-        var sentence = new Sentence(term, tv, new Stamp([stampIdCounter.copy()], new StructuralOriginsStamp([])), punctation);
+        var sentence = new Sentence(term, null, new Stamp([stampIdCounter.copy()], new StructuralOriginsStamp([])), "?");
         stampIdCounter = haxe.Int64.add(stampIdCounter, haxe.Int64.make(0,1));
 
         /* old code

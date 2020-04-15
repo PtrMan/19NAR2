@@ -16,7 +16,6 @@ import haxe.Int64;
 // features:
 // * anticipation
 // * decision making: actions can have a refractory period to avoid spamming the environment with pointless actions
-// * goal system: expectation and tree based goal system
 
 // lookup table of a type by condition of a pair
 // supports query by subset
@@ -927,7 +926,7 @@ class GoalSystem {
     // used to submit a new goal
     public function submitGoal2(goal:ActiveGoal2) {
         // debug
-        Sys.println('[d] submitted goal ${Utils.convCondOpToStr(goal.condOps)}');
+        Sys.println('[d] submitted goal ${ExecUtils.convCondOpToStr(goal.condOps)}');
 
         // TODO< look for goal with same term and reset time and tv if found! >
         //throw "TODO";
@@ -1062,7 +1061,7 @@ class DeclarativeAnswerHandler implements Nar.AnswerHandler2 {
         var derivCondOp:CondOps = new CondOps(derivCondPar, []);
 
         { // debug
-            Sys.println('[d] derived goal ${Utils.convCondOpToStr(derivCondOp)}');
+            Sys.println('[d] derived goal ${ExecUtils.convCondOpToStr(derivCondOp)}');
         }
 
         // * create derived goal
@@ -1092,7 +1091,7 @@ class ActiveGoal2 {
     }
 }
 
-class Utils {
+class ExecUtils {
     public static function convCondOpToStr(condops:CondOps):String {
         var parEventsAsStr:Array<String> = condops.cond.events.map(iTerm -> TermUtils.convToStr(iTerm));
         var opsAsStr:Array<String> = condops.ops.map(iTerm -> TermUtils.convToStr(iTerm));
@@ -1187,6 +1186,7 @@ class CondOps {
     }
 }
 
+// TODO< rename to ImplSeq >
 class Pair {
     public var condops:Array<CondOps> = []; // array of sequence of conditions and operations
 
