@@ -87,11 +87,15 @@ class ProceduralMemory {
 
     // queries by conditional, either the complete parEvents or for single events (subset)
     public function queryPairsByCond(parEvents:Array<Term>): Array<ImplSeq> {
+        TODO TODO
+
         return byCond.queryByCond(parEvents);
     }
 
-    private function hasProceduralNodeByName(name:Array<Term>) {
-        return proceduralNodes.hasKey(name);
+    // queries by single event predicate
+    // usually used for backward inference (goal derivation)
+    public function queryByPredicate(pred:Term): Array<ImplSeq> {
+        TODO TODO TODO
     }
 }
 
