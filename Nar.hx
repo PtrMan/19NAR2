@@ -27,6 +27,7 @@ class Nar {
 
     public function new(pathToNar:String) {
         declarative = new Declarative(pathToNar);
+        executive.decl = declarative; // link up
     }
 
     // puts new narsese input from the outside into the system
@@ -112,6 +113,27 @@ class Declarative {
         }
     }
 
+    // used to submit a question which will get handled with a answer handler
+    public function question(term:Term, handler:AnswerHandler2) {
+        var sentence = new Sentence(term, tv, new Stamp([stampIdCounter.copy()], new StructuralOriginsStamp([])), punctation);
+        stampIdCounter = haxe.Int64.add(stampIdCounter, haxe.Int64.make(0,1));
+
+        /* old code
+        if (punctation == ".") { // only add to memory for judgments
+            mem.updateConceptsForJudgement(sentence);
+        }
+        */
+
+        var task:Task = null;
+
+        var q = new QuestionTask(sentence, QuestionLink.Null, taskIdCounter++);
+        q.questionTime = globalCycleCounter;
+        q.handler = handler;
+        task = q;
+    
+        storeTasks([task], {putIntoWorkingSet:true});
+    }
+
     // puts new input from the outside of the system into the system
     public function inputTerm(term:Term, tv:Tv, punctation:String) {
         var sentence = new Sentence(term, tv, new Stamp([stampIdCounter.copy()], new StructuralOriginsStamp([])), punctation);
@@ -168,8 +190,12 @@ class Declarative {
             conclusionStrArr.push(str);
         }
 
-        if (answerHandler != null) {
-            answerHandler.report(sentence, cycles);
+        if (question.handler != null) {
+            question.handler.report(sentence, cycles);
+        }
+
+        if (answerListener != null) {
+            answerListener.report(sentence, cycles);
         }
     }
 
@@ -840,7 +866,7 @@ class Declarative {
         }
     }
     
-    public var answerHandler:AnswerHandler = null; // answer handler which is invoked when ever a new answer is derived
+    public var answerListener:AnswerListener = null; // answer listener which is invoked when ever a new answer is derived
 }
 
 class DeclarativeNode {
@@ -858,8 +884,15 @@ class DeclarativeNode {
     }
 }
 
+// listener which is called when ever a new answer is derived
+interface AnswerListener {
+    // /param cycles how long did the answer take?
+    function report(sentence:Sentence, cycles:Int):Void;
+}
+
+
 // handler which is called when ever a new answer is derived
-interface AnswerHandler {
+interface AnswerHandler2 {
     // /param cycles how long did the answer take?
     function report(sentence:Sentence, cycles:Int):Void;
 }
@@ -1008,6 +1041,8 @@ class QuestionTask extends Task {
     public var questionTime:Int = -1; // global cycle time of the question, -1 if it is not tracked
 
     public var ref2:Sentence = null; // reference to 2nd premise of this question - used for hypothetical question derivation to guide search process
+
+    public var handler:AnswerHandler2 = null; // answer handler which will get called when answer was found
 
     public function new(sentence, questionLink, id) {
         super(sentence, id);
