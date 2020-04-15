@@ -13,130 +13,75 @@ import sys.io.File;
 import sys.io.FileOutput;
 import haxe.Int64;
 
-// features:
-// * anticipation
-// * decision making: actions can have a refractory period to avoid spamming the environment with pointless actions
-
-// lookup table of a type by condition of a ImplSeq
-// supports query by subset
-@:generic
-class ByCond<Type> {
-
-    // maps conditions to the ImplSeq's which contain the condition
-    // key is the string serialization of the parallel key terms as a string
-    private var pairsByCond:Map<String,Array<Type>> = new Map<String,Array<Type>>();
-
-    public function new() {}
-
-    public function add(events:Array<Term>, value:Type) {
-        { // store by cond
-            {
-                var keyComplete = ""+events.map(v -> TermUtils.convToStr(v));
-                var tableResult = pairsByCond.get(keyComplete);
-                if (tableResult != null) {
-                    var arr = tableResult.concat([value]);
-                    pairsByCond.set(keyComplete, arr);
-                }
-                else {
-                    pairsByCond.set(keyComplete, [value]);
-                }
-            }
-
-            for(iEvent in events) {
-                var key = ""+[TermUtils.convToStr(iEvent)];
-                var tableResult = pairsByCond.get(key);
-                if (tableResult != null) {
-                    var arr = tableResult.concat([value]);
-                    pairsByCond.set(key, arr);
-                }
-                else {
-                    pairsByCond.set(key, [value]);
-                }
-            }
-        }
-    }
-
-    public function hasKey(key:Array<Term>): Bool {
-        var keyComplete = ""+key.map(v -> TermUtils.convToStr(v));
-        var tableResult = pairsByCond.get(keyComplete);
-        return tableResult != null;
-    }
-
-    public function retByKey(key:Array<Term>): Array<Type> {
-        var keyComplete = ""+key.map(v -> TermUtils.convToStr(v));
-        return pairsByCond.get(keyComplete);
-    }
-
-    public function queryByCond(parEvents:Array<Term>): Array<Type> {
-        //Par.checkSubset(new Par(parEvents), v.cond)
-
-        var result = [];
-
-        {
-            var keyComplete = ""+parEvents.map(v -> TermUtils.convToStr(v));
-            var tableResult = pairsByCond.get(keyComplete);
-            if (tableResult != null) {
-                result = result.concat(tableResult);
-            }
-        }
-
-        for(iEvent in parEvents) {
-            var key = ""+[TermUtils.convToStr(iEvent)];
-            var tableResult = pairsByCond.get(key);
-            if (tableResult != null) {
-                result = result.concat(tableResult);
-            }
-        }
-
-        return result;
-    }
-}
-
-
-
 class ProceduralMemory {
     public var sizePairsOfProceduralNode = 50; // how many pairs are in a procedural node?
 
-    public var pairs:Array<ImplSeq> = []; // all known ImplSeq's, read only!
-    // is extremely slow to iterate on!
-
-    // procedural nodes
-    public var proceduralNodes: ByCond<ProceduralNode> = new ByCond<ProceduralNode>();
-
-    // maps conditions to the pairs which contain the condition
-    // key is the string serialization of the parallel key terms as a string
-    private var byCond:ByCond<ImplSeq> = new ByCond<ImplSeq>();
+    public var proceduralNodes: Map<String, ProceduralNode> = new Map<String, ProceduralNode>(); // by string of term of name of ProceduralNode
 
     public function new() {}
 
-    public function addPair(pair:ImplSeq) {
-        pairs.push(pair);
+    // TODO< rename to addImplSeq() >
+    public function addPair(implSeq:ImplSeq) {
+        // enumerate all terms where we have to try to add the ImplSeq
+        var containedTerms:Array<Term> = [];
+        {
+            // we need to add events of condops
+            for (iCondOp in implSeq.condops) {
+                for (iEvent in iCondOp.cond.events) {
+                    containedTerms.push(iEvent);
+                }
+            }
 
-        byCond.add(pair.condops[0].cond.events, pair);
-        
-        // add ProceduralNode by key if it doesn't yet exist
-        if(!hasProceduralNodeByName(pair.condops[0].cond.events)) {
-            proceduralNodes.add(pair.condops[0].cond.events, new ProceduralNode(pair.condops[0].cond.events));
+            // we need to add pred event of ImplSeq
+            for (iEvent in implSeq.effect.events) {
+                containedTerms.push(iEvent);
+            }
         }
 
-        { // add pair and keep under AIKR
-            for(ipn in proceduralNodes.retByKey(pair.condops[0].cond.events)) {
-                ipn.proceduralPairs.push(pair);
-
-                // TODO< check ordering >
-                ipn.proceduralPairs.sort((a, b) -> {
-                    var aExp:Float = Tv.calcExp(a.calcFreq(), a.calcConf());
-                    var bExp:Float = Tv.calcExp(b.calcFreq(), b.calcConf());
-                    if (aExp > bExp) {
-                        return 1;
-                    }
-                    if (aExp < bExp) {
-                        return -1;
-                    }
-                    return 0;
-                });
-                ipn.limitSize(sizePairsOfProceduralNode);
+        // helper to create procedural node if it doesn't exist by name. tries to add implSeq to the implSeq node by name.
+        // /param name name to add implSeq to
+        function tryAddImplSeqToProceduralNodes(name:Term) {
+            var nameAsStr:String = TermUtils.convToStr(name);
+            
+            // add new node if node doesn't exist
+            if (!proceduralNodes.exists(nameAsStr)) {
+                var createdNode = new ProceduralNode(name);
+                proceduralNodes.set(nameAsStr, createdNode);
             }
+            
+            // try to add to node
+            var selNode:ProceduralNode = proceduralNodes.get(nameAsStr);
+
+            // only add if it doesn't exist already
+            // * try to find it
+            for (iImplSeq in selNode.implSeqs) {
+                if (ImplSeq.checkSameByTerm(iImplSeq, implSeq)) {
+                    return; // found it -> no need to add
+                }
+            }
+
+            // * add it
+            selNode.implSeqs.push(implSeq);
+
+            // keep under AIKR
+            // TODO< check if ordering is correct >
+            selNode.implSeqs.sort((a, b) -> {
+                var aExp:Float = Tv.calcExp(a.calcFreq(), a.calcConf());
+                var bExp:Float = Tv.calcExp(b.calcFreq(), b.calcConf());
+                if (aExp > bExp) {
+                    return 1;
+                }
+                if (aExp < bExp) {
+                    return -1;
+                }
+                return 0;
+            });
+            selNode.limitSize(sizePairsOfProceduralNode);
+        }
+
+        // try add implSeq to node by name
+        for (iName in containedTerms) {
+            tryAddImplSeqToProceduralNodes(iName);
         }
     }
 
@@ -153,17 +98,17 @@ class ProceduralMemory {
 // similar to node in ALANN, just for procedural knowledge
 // a node in ALANN is similar to a concept, the adressing is just different
 class ProceduralNode {
-    public var name:Array<Term>; // name of the node
+    public var name:Term; // name of the node
 
     // ImplSeq's, ordered by exp() to favor ImplSeq's which lead to better actions
-    public var proceduralPairs:Array<ImplSeq> = [];
+    public var implSeqs:Array<ImplSeq> = [];
     
     public function new(name) {
         this.name = name;
     }
 
     public function limitSize(size:Int) {
-        proceduralPairs = proceduralPairs.slice(0, size);
+        implSeqs = implSeqs.slice(0, size);
     }
 }
 
@@ -866,9 +811,6 @@ class Executive {
 
 
 
-
-// TODO< implement goal derivation ! >
-
 // the used goal system
 class GoalSystem {
     // importance sampled by currentTime-creationTime * exp()
@@ -1184,6 +1126,21 @@ class CondOps {
         this.cond = cond;
         this.ops = ops;
     }
+
+    public static function checkSame(a:CondOps, b:CondOps):Bool {
+        if (!Par.checkSame(a.cond,b.cond)) {
+            return false;
+        }
+        if (a.ops.length!=b.ops.length) {
+            return false;
+        }
+        for(idx in 0...a.ops.length) {
+            if (!TermUtils.equal(a.ops[idx], b.ops[idx])) {
+                return false;
+            }
+        }
+        return true;
+    }
 }
 
 class ImplSeq {
@@ -1229,6 +1186,26 @@ class ImplSeq {
         }
 
         return '(&/, ${seq.join(",")}) =/> ${effect.events.map(v -> TermUtils.convToStr(v))} {${calcFreq()} ${calcConf()}} // cnt=$evidenceCnt';
+    }
+
+    // check if it represents the same equivalent term
+    public static function checkSameByTerm(a:ImplSeq, b:ImplSeq):Bool {
+        if(a.isConcurrentImpl != b.isConcurrentImpl) { // must have same copula
+            return false;
+        }
+        if(!Par.checkSame(a.effect, b.effect)) {
+            return false;
+        }
+        if (a.condops.length != b.condops.length) {
+            return false;
+        }
+        for(idx in 0...a.condops.length) {
+            if (!CondOps.checkSame(a.condops[idx], b.condops[idx])) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }
 
