@@ -8,13 +8,13 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-import Sq2.AnswerHandler;
+import Nar.AnswerHandler;
 import sys.io.File;
 
 // IRC client
 class InteractiveIrc {
     public static function main() {
-        var reasoner = new Sq2();
+        var reasoner = new Nar();
         reasoner.conclusionStrArr = []; // enable output logging
         
         var handler = new IrcHandler2(reasoner); // send IRC messages from IRC to NAR
@@ -59,7 +59,7 @@ class InteractiveIrc {
 
 // handler from IRC to reasoner
 class IrcHandler2 implements IrcClient.IrcHandler {
-    public function new(reasoner:Sq2) {
+    public function new(reasoner:Nar) {
         this.reasoner = reasoner;
     }
     
@@ -73,7 +73,7 @@ class IrcHandler2 implements IrcClient.IrcHandler {
         }
     }
     
-    public var reasoner:Sq2;
+    public var reasoner:Nar;
 }
 
 class AnswerHandler2 implements AnswerHandler {
@@ -81,7 +81,7 @@ class AnswerHandler2 implements AnswerHandler {
         this.ircClient = ircClient;
     }
     
-    public function report(sentence:Sq2.Sentence) {
+    public function report(sentence:Nar.Sentence) {
         ircClient.sendMsg(ircClient.ircChannel, sentence.convToStr());
     }
 
