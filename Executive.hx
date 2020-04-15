@@ -17,12 +17,12 @@ import haxe.Int64;
 // * anticipation
 // * decision making: actions can have a refractory period to avoid spamming the environment with pointless actions
 
-// lookup table of a type by condition of a pair
+// lookup table of a type by condition of a ImplSeq
 // supports query by subset
 @:generic
 class ByCond<Type> {
 
-    // maps conditions to the pairs which contain the condition
+    // maps conditions to the ImplSeq's which contain the condition
     // key is the string serialization of the parallel key terms as a string
     private var pairsByCond:Map<String,Array<Type>> = new Map<String,Array<Type>>();
 
@@ -97,7 +97,7 @@ class ByCond<Type> {
 class ProceduralMemory {
     public var sizePairsOfProceduralNode = 50; // how many pairs are in a procedural node?
 
-    public var pairs:Array<Pair> = []; // all known pairs, read only!
+    public var pairs:Array<ImplSeq> = []; // all known ImplSeq's, read only!
     // is extremely slow to iterate on!
 
     // procedural nodes
@@ -105,11 +105,11 @@ class ProceduralMemory {
 
     // maps conditions to the pairs which contain the condition
     // key is the string serialization of the parallel key terms as a string
-    private var byCond:ByCond<Pair> = new ByCond<Pair>();
+    private var byCond:ByCond<ImplSeq> = new ByCond<ImplSeq>();
 
     public function new() {}
 
-    public function addPair(pair:Pair) {
+    public function addPair(pair:ImplSeq) {
         pairs.push(pair);
 
         byCond.add(pair.condops[0].cond.events, pair);
@@ -141,7 +141,7 @@ class ProceduralMemory {
     }
 
     // queries by conditional, either the complete parEvents or for single events (subset)
-    public function queryPairsByCond(parEvents:Array<Term>): Array<Pair> {
+    public function queryPairsByCond(parEvents:Array<Term>): Array<ImplSeq> {
         return byCond.queryByCond(parEvents);
     }
 
@@ -155,8 +155,8 @@ class ProceduralMemory {
 class ProceduralNode {
     public var name:Array<Term>; // name of the node
 
-    // pairs, ordered by exp() to favor pairs which lead to better actions
-    public var proceduralPairs:Array<Pair> = [];
+    // ImplSeq's, ordered by exp() to favor ImplSeq's which lead to better actions
+    public var proceduralPairs:Array<ImplSeq> = [];
     
     public function new(name) {
         this.name = name;
@@ -182,7 +182,7 @@ class Executive {
     }
 
     var queuedAct: Term = null;
-    var queuedActOrigin: Pair = null; // origin of the queued action if it was done by the executive
+    var queuedActOrigin: ImplSeq = null; // origin of the queued action if it was done by the executive
 
     var trace:Array<Par> = [];
 
@@ -314,27 +314,27 @@ class Executive {
         // * decision making
         queuedAct = null;
         queuedActOrigin = null;
-        var bestDecisionMakingCandidate:Pair;
+        var bestDecisionMakingCandidate:ImplSeq;
         { // select best decision making candidate
             
             var timeBefore = Sys.time();
             
             
-            var candidates:Array<Pair> = [];// candidates for decision making in this step
+            var candidates:Array<ImplSeq> = [];// candidates for decision making in this step
             // * compute candidates for decision making in this step
             candidates = mem.queryPairsByCond(parEvents)
                 .filter(iPair -> iPair.effect.events.filter(iEvent -> goalSystem2.isGoalByTerm(iEvent)).length > 0) // does it have a eternal goal as a effect?
                 .filter(v -> !v.isConcurrentImpl); /////pairs.filter(v -> Par.checkSubset(new Par(parEvents), v.cond));
             
             // (&/, a, ^op) =/> b  where b!
-            var candidatesByLocalChainedGoal: Array<{pair:Pair, tv:Tv, exp:Float}> = [
+            var candidatesByLocalChainedGoal: Array<{pair:ImplSeq, tv:Tv, exp:Float}> = [
                 for (iPair in candidates) {pair:iPair, tv:new Tv(iPair.calcFreq(), iPair.calcConf()),  exp:Tv.calcExp(iPair.calcFreq(), iPair.calcConf())}
             ];
 
             // * compute two op decision making candidates
             // ex: (&/, a, ^x, b, ^y) =/> c
             var enable5Seq = true; // are seq impl with 5 elements enabled? - costs a bit of performance
-            var canditates5SeqByLocalChainedGoal: Array<{pair:Pair, tv:Tv, exp:Float}> = [];
+            var canditates5SeqByLocalChainedGoal: Array<{pair:ImplSeq, tv:Tv, exp:Float}> = [];
             if(enable5Seq) {
                 
 
@@ -369,7 +369,7 @@ class Executive {
                             var seq5potentialCond0 = this.trace[cond0TraceIdx].events;
                             var seq5potentialOp0 = this.trace[op0TraceIdx].events.filter(v -> tryDecomposeOpCall(v) != null)[0];
                             var seq5potentialCond1 = this.trace[0].events.filter(v -> !(tryDecomposeOpCall(v) != null));
-                            var seq5potentialCandidates:Array<Pair> = mem.queryPairsByCond(seq5potentialCond0);                            
+                            var seq5potentialCandidates:Array<ImplSeq> = mem.queryPairsByCond(seq5potentialCond0);                            
                             seq5potentialCandidates = seq5potentialCandidates.filter(iPair -> iPair.effect.events.filter(iEvent -> goalSystem2.isGoalByTerm(iEvent)).length > 0); // does it have a eternal goal as a effect?
                             seq5potentialCandidates = seq5potentialCandidates.filter(iPair -> !iPair.isConcurrentImpl && iPair.condops.length == 2);
                             seq5potentialCandidates = seq5potentialCandidates.filter(iPair -> iPair.condops[0].ops.length == 1 && TermUtils.equal(iPair.condops[0].ops[0], seq5potentialOp0)); // op of condops[0] must match up
@@ -389,7 +389,7 @@ class Executive {
             //candidatesByLocalChainedGoal = filterCandidatesByGoal(candidates); // chain local pair -> matching goal in goal system
             
             var timeBefore2 = Sys.time();
-            var candidatesByGoal: Array<{pair:Pair, tv:Tv, exp:Float}> = goalSystem2.retDecisionMakingCandidatesForCurrentEvents(parEvents);
+            var candidatesByGoal: Array<{pair:ImplSeq, tv:Tv, exp:Float}> = goalSystem2.retDecisionMakingCandidatesForCurrentEvents(parEvents);
             if(dbgDescisionMakingVerbose) Sys.println('descnMaking goal system time=${Sys.time()-timeBefore2}');
 
             var timeBefore3 = Sys.time();
@@ -397,7 +397,7 @@ class Executive {
             ///var candidatesFromForwardChainer2 = ForwardChainer.step(parEvents, 2, this);
             if(dbgDescisionMakingVerbose) Sys.println('descnMaking goal system forward chainer time=${Sys.time()-timeBefore3}');
 
-            var candidates: Array<{pair:Pair, tv:Tv, exp:Float}> = candidatesByLocalChainedGoal
+            var candidates: Array<{pair:ImplSeq, tv:Tv, exp:Float}> = candidatesByLocalChainedGoal
                 .concat(candidatesByGoal)
                 ///.concat(candidatesFromForwardChainer1)
                 ///.concat(candidatesFromForwardChainer2)
@@ -476,7 +476,7 @@ class Executive {
                             for(iActionTerm in actionsOf1) { // iterate over all actions done at that time
                                 if (dbgEvidence) {                            
                                     var stamp:Stamp = createStamp();
-                                    var createdPair:Pair = new Pair(stamp);
+                                    var createdPair:ImplSeq = new ImplSeq(stamp);
                                     createdPair.condops = [new CondOps(new Par(nonactionsOf2), actionsOf1)];
                                     createdPair.effect = new Par(nonactionsOf0);
                                     trace('evidence  ${createdPair.convToStr()}');
@@ -646,8 +646,8 @@ class Executive {
 
         if (!existsEvidence) { // create new evidence if it doesn't yet exist
             
-            // store pair
-            var createdPair:Pair = new Pair(stamp);
+            // store ImplSeq
+            var createdPair:ImplSeq = new ImplSeq(stamp);
 
             var ops = iActionTerm != null ? [iActionTerm] : [];
             createdPair.condops = [new CondOps(new Par(conds), ops)];
@@ -729,7 +729,7 @@ class Executive {
         if (!existsEvidence) { // create new evidence if it doesn't yet exist
             
             // store pair
-            var createdPair:Pair = new Pair(stamp);
+            var createdPair:ImplSeq = new ImplSeq(stamp);
             createdPair.condops = condOps;
             createdPair.effect = new Par(effects);
             createdPair.isConcurrentImpl = isConcurrentImpl;
@@ -770,7 +770,7 @@ class Executive {
     }
 
     // filters all candidates by the active goals of the system
-    function filterCandidatesByGoal(candidates:Array<Pair>):Array<{pair:Pair, exp:Float}> {
+    function filterCandidatesByGoal(candidates:Array<ImplSeq>):Array<{pair:ImplSeq, exp:Float}> {
         var res = [];
         for(iCandi in candidates) {
             // add it to the decision making candidates if it is a candidate
@@ -792,7 +792,7 @@ class Executive {
 
     // realize action
     // /param origin origin of the action, used for anticipation , can be null
-    function execAct(actTerm:Term, origin:Pair) {
+    function execAct(actTerm:Term, origin:ImplSeq) {
         if(dbgExecVerbose) Sys.println('ACT ${TermUtils.convToStr(actTerm)} origin = ${origin != null ? origin.convToStr() : "null"}');
 
         // extract arguments and name of op
@@ -820,7 +820,7 @@ class Executive {
     }
 
     // select best action
-    public function selBestAct(candidates:Array<{pair:Pair, exp:Float}>): Pair {
+    public function selBestAct(candidates:Array<{pair:ImplSeq, exp:Float}>): ImplSeq {
         if (dbgDescisionMakingVerbose) trace('selBestAct() #candidates=${candidates.length}');
 
         if (candidates.length == 0) {
@@ -909,7 +909,7 @@ class GoalSystem {
     }
 
     // returns the candidates for decision making which match to current events as a precondition together with exp()
-    public function retDecisionMakingCandidatesForCurrentEvents(currentEvents: Array<Term>): Array<{pair:Pair, tv:Tv, exp:Float}> {
+    public function retDecisionMakingCandidatesForCurrentEvents(currentEvents: Array<Term>): Array<{pair:ImplSeq, tv:Tv, exp:Float}> {
         // retDecisionMakingCandidatesForCurrentEvents() is not implemented!
         return [];
     }
@@ -1130,7 +1130,7 @@ class ExecUtils {
 
 // anticipated event which is anticipated because a action was done which leads to some anticipated effect
 class InflightAnticipation {
-    public var origin:Pair; // origin of the anticipation: ex: (&/, a, ^b) =/> c
+    public var origin:ImplSeq; // origin of the anticipation: ex: (&/, a, ^b) =/> c
     public var deadline:Int; // deadline: max global cycle time until the anticipated event must have been occured
 
     public function new(origin, deadline) {
@@ -1186,8 +1186,7 @@ class CondOps {
     }
 }
 
-// TODO< rename to ImplSeq >
-class Pair {
+class ImplSeq {
     public var condops:Array<CondOps> = []; // array of sequence of conditions and operations
 
     //public var cond:Par = null;
