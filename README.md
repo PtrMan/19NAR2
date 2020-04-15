@@ -20,6 +20,16 @@ The size of procedural items of a node(node as the node in ALANN) is limited, it
 declarative items in the declarative table are ordered by conf.
 Ordering by confidence was chosen instead of exp() because the system should be able to consider "negative" evidence equaly (so the function to order the items can't take frequency into account).
 
+# Declarative
+
+
+
+# Procedural
+
+features:
+* anticipation (good handling of neg-confirm)
+* decision making: actions can have a refractory period to avoid spamming the environment with pointless actions
+
 # try procedural
 
 enter
