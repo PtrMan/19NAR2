@@ -50,6 +50,9 @@ class Interactive {
         else if (inputLine == "!pe") { // profiler enable
             Nar.Config.enProfiler = true;
         }
+        else if (inputLine == "!r") { // reset
+            reasoner.resetMemory();
+        }
         else if (inputLine.substr(0, 3) == "!l ") {
             var path:String = inputLine.substring(3);
             loadFromFile(path);

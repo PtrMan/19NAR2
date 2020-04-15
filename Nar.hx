@@ -63,6 +63,11 @@ class Nar {
     public function process(cycles:Int = 20) {
         declarative.process(cycles);
     }
+
+    public function resetMemory() {
+        declarative.resetMemory();
+        // TODO executive.mem.resetMemory();
+    }
 }
 
 class Declarative {
@@ -132,6 +137,13 @@ class Declarative {
         task = q;
     
         storeTasks([task], {putIntoWorkingSet:true});
+    }
+    
+    // resets memory
+    public function resetMemory() {
+        questionWorkingSet.reset();
+        workingSet.reset();
+        mem.reset();
     }
 
     // puts new input from the outside of the system into the system
@@ -972,6 +984,10 @@ class DeclarativeMemory {
             conceptsByName.set(TermUtils.convToStr(iNodeByMaxExp.node.name), iNodeByMaxExp.node);
         }
     }
+
+    public function reset() {
+        conceptsByName.clear();
+    }
 }
 
 
@@ -1456,6 +1472,11 @@ class WorkingSet extends BaseWorkingSet {
 
         }
     }
+
+    public function reset() {
+        sortedWorkingsetByPriority = [];
+        entitiesByTerm.clear();
+    }
 }
 
 // working set which is sampled with importance sampling
@@ -1575,6 +1596,11 @@ class ImportanceSampledWorkingSet extends BaseWorkingSet {
     // necessary for fair probabilistic selection of tasks
     public function calcIdxByScoreMass(mass:Float): Int {
         return calcIdxBySel(mass, true, 1);
+    }
+
+    public function reset() {
+        entities = [];
+        entitiesByTerm.clear();
     }
 }
 
