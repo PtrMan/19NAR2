@@ -87,15 +87,42 @@ class ProceduralMemory {
 
     // queries by conditional, either the complete parEvents or for single events (subset)
     public function queryPairsByCond(parEvents:Array<Term>): Array<ImplSeq> {
-        TODO TODO
+        if (parEvents.length == 0) {
+            return []; // should never happen!
+        }
 
-        return byCond.queryByCond(parEvents);
+        var res = [];
+
+        // * query of all parallel events
+        if (proceduralNodes.exists(TermUtils.convToStr(parEvents[0]))) { // we can query parallel events by first event
+            var selNode = proceduralNodes.get(TermUtils.convToStr(parEvents[0]));
+            // select all where first event matches 
+            res = res.concat(
+                selNode.implSeqs.filter(iImplSeq -> Par.checkSame(iImplSeq.condops[0].cond, new Par(parEvents))));
+        }
+
+        // * query for each single event
+        for(iSelEvent in parEvents) {
+            var selNode = proceduralNodes.get(TermUtils.convToStr(parEvents[0]));
+            if (selNode != null) {
+                // select all where first event matches 
+                res = res.concat(
+                    selNode.implSeqs.filter(iImplSeq -> Par.checkSame(iImplSeq.condops[0].cond, new Par([iSelEvent]))));
+            }
+        }
+
+        return res;
     }
 
     // queries by single event predicate
     // usually used for backward inference (goal derivation)
     public function queryByPredicate(pred:Term): Array<ImplSeq> {
-        TODO TODO TODO
+        var selNode = proceduralNodes.get(TermUtils.convToStr(pred));
+        if (selNode == null) {
+            return [];
+        }
+        // TODO?< do we need to select by subset of Par? >
+        return selNode.implSeqs.filter(iImplSeq -> Par.checkSame(iImplSeq.effect, new Par([pred])));
     }
 }
 
@@ -533,8 +560,8 @@ class Executive {
 
         anticipationMaintainNegAnticipations();
         decisionmakingActionCooldown();
-        ///goalSystem.step(this); // let the goal system manage eternal goals etc
-        ///goalSystem.goalDerivation(this);
+        goalSystem2.step(this); // let the goal system manage eternal goals etc
+        goalSystem2.goalDerivation(this);
 
         goalSystem2.currentTime = cycle;
 
@@ -900,6 +927,28 @@ class GoalSystem {
             return;
         }
         processGoal(sampledGoal, exec.decl);
+    }
+
+    // derives new goals
+    public function goalDerivation(exec:Executive) {
+        var sampledGoal:ActiveGoal2 = sample(exec.cycle);
+        if (sampledGoal == null) {
+            return;
+        }
+
+        if (sampledGoal.condOps.ops.length == 0) { // we only handle the cond ops without ops for now
+            var selGoalEvent:Term = sampledGoal.condOps.cond.events[0]; // select first event of par events
+            Sys.println('[d] goalsystem: sel goal = '+TermUtils.convToStr(selGoalEvent));
+
+            var matchingImplSeqs:Array<ImplSeq> = exec.mem.queryByPredicate(selGoalEvent);
+            for(iMatchedImplSeq in matchingImplSeqs) {
+                Sys.println('[d] goalsystem: matching impl seq = '+iMatchedImplSeq.convToStr());
+            }
+
+            Sys.println('[d] goalsystem: TODO');
+        }
+
+
     }
 
     public function sample(time:Int): ActiveGoal2 {
