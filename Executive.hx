@@ -901,8 +901,17 @@ class GoalSystem {
         // debug
         Sys.println('[d] submitted goal ${ExecUtils.convCondOpToStr(goal.condOps)}');
 
-        // TODO< look for goal with same term and reset time and tv if found! >
-        //throw "TODO";
+        // look for goal with same term and reset time and tv if found
+        for(iGoal in activeGoals) {
+            if (CondOps.checkSame(iGoal.condOps, goal.condOps)) {
+                if (goal.creationTime > iGoal.creationTime) {
+                    iGoal.creationTime = goal.creationTime;
+                    iGoal.tv = goal.tv;
+                }
+
+                return; // found, we don't need to add goal
+            }
+        }
 
         activeGoals.push(goal);
     }
