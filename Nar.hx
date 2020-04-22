@@ -2268,6 +2268,7 @@ enum EnumOperationType {
     STAR; // *
     SLASH; // "/"
     UNDERSCORE; // _
+    AMPSLASH; // &/
     AMPERSAND; // &
     PIPE; // |
     MINUS; // -
@@ -2316,12 +2317,13 @@ class NarseseLexer extends Lexer<EnumOperationType> {
             /* 21*/"^\"[a-z0-9A-Z_!\\?:\\.,;\\ \\-\\(\\)\\[\\]{}<>]*\"", // string 
 
             /* 22*/"^\\_",
-            /* 23*/"^&", // used for compounds
-            /* 24*/"^\\|", // used for compounds
-            /* 25*/"^-", // used for compounds
+            /* 23*/"^&\\/",
+            /* 24*/"^&", // used for compounds
+            /* 25*/"^\\|", // used for compounds
+            /* 26*/"^-", // used for compounds
 
-            /* 26*/"^\\!",
-            /* 27*/"^=/>",
+            /* 27*/"^\\!",
+            /* 28*/"^=/>",
         ];
     }
 
@@ -2461,29 +2463,35 @@ class NarseseLexer extends Lexer<EnumOperationType> {
 
             case 23:
             var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
-            res.contentOperation = EnumOperationType.AMPERSAND;
+            res.contentOperation = EnumOperationType.AMPSLASH;
             res.contentString = matchedString;
             return res;
 
             case 24:
             var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
-            res.contentOperation = EnumOperationType.PIPE;
+            res.contentOperation = EnumOperationType.AMPERSAND;
             res.contentString = matchedString;
             return res;
 
             case 25:
             var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
-            res.contentOperation = EnumOperationType.MINUS;
+            res.contentOperation = EnumOperationType.PIPE;
             res.contentString = matchedString;
             return res;
 
             case 26:
             var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
-            res.contentOperation = EnumOperationType.EXCLAMATIONMARK;
+            res.contentOperation = EnumOperationType.MINUS;
             res.contentString = matchedString;
             return res;
 
             case 27:
+            var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
+            res.contentOperation = EnumOperationType.EXCLAMATIONMARK;
+            res.contentString = matchedString;
+            return res;
+
+            case 28:
             var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
             res.contentOperation = EnumOperationType.PREDIMPL;
             res.contentString = matchedString;
@@ -2534,11 +2542,12 @@ class NarseseParser extends Parser<EnumOperationType> {
             case STAR: 18; // *
             case SLASH: 19; // "/"
             case UNDERSCORE: 22; // _
-            case AMPERSAND: 23; // &
-            case PIPE: 24; // |
-            case MINUS: 25; // -
-            case EXCLAMATIONMARK: 26; // !
-            case PREDIMPL: 27; // =/>
+            case AMPSLASH: 23; // &/
+            case AMPERSAND: 24; // &
+            case PIPE: 25; // |
+            case MINUS: 26; // -
+            case EXCLAMATIONMARK: 27; // !
+            case PREDIMPL: 28; // =/>
         }
     }
 }
@@ -2757,6 +2766,9 @@ class ProtoLexer {
                 "|";
                 case Name("-"):
                 "-";
+                case Name("&/"):
+                trace('here ');
+                "&/";
                 case _:
                 // TODO< better error message >
                 throw "Parsing failed: content in \"(\" ... \")\" must be a product or conj/disj!"; // TODO< can also be a image >
@@ -2782,7 +2794,7 @@ class ProtoLexer {
             idx = 0;
             while (idx < braceContent.length) {
                 switch (braceContent[idx]) {
-                    case Name(type2) if (type2 == "*" || type2 == "&" || type2 == "|" || type2 == "-"):
+                    case Name(type2) if (type2 == "*" || type2 == "&" || type2 == "|" || type2 == "-" || type2 == "&/"):
                     throw 'Parsing failed: product elements must not be $type2 !';
                     case _:
                     productContent.push(braceContent[idx]);
@@ -2797,6 +2809,9 @@ class ProtoLexer {
 
                 case type2 if (type2 == "&" || type2 == "|"): // is compound
                 parser2.stack.push(Compound(type2, productContent));
+
+                case "&/": // is compound
+                parser2.stack.push(Compound("&/", productContent));
 
                 case "-": // is compound
                 // check
@@ -2879,7 +2894,7 @@ class ProtoLexer {
             /*   1 */new Arc<EnumOperationType>(EnumArcType.ARC, 20, null, 2, null),
             /*   2 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 16, setPunctuation, 0, 3), // .
             /*   3 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 17, setPunctuation, 0, 4), // ?
-            /*   4 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 26, setPunctuation, 0, null), // !
+            /*   4 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 27, setPunctuation, 0, null), // !
 
             /*   5 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
             /*   6 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
@@ -2918,10 +2933,10 @@ class ProtoLexer {
             /*  33 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 14, tokenStore, 34, 35), // "[" - we need to store token to know when the set ended
             /*  34 */new Arc<EnumOperationType>(EnumArcType.ARC, 90, null, 0, null),
 
-            /*  35 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 23, tokenStore, 0, 36), // "&" - is a seperator for compound, just store it
-            /*  36 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 24, tokenStore, 0, 37), // "|" - is a seperator for compound, just store it
-            /*  37 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 25, tokenStore, 0, null), // "-" - is a seperator for compound, just store it
-            /*  38 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  35 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 24, tokenStore, 0, 36), // "&" - is a seperator for compound, just store it
+            /*  36 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 25, tokenStore, 0, 37), // "|" - is a seperator for compound, just store it
+            /*  37 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 26, tokenStore, 0, 38), // "-" - is a seperator for compound, just store it
+            /*  38 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 23, tokenStore, 0, null), // "&/" - is a seperator for compound sequence
             /*  39 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
 
             // statement "<"pred copular subj">"
@@ -2935,7 +2950,7 @@ class ProtoLexer {
 
             /*  45 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 3, statementSetCopula, 50, 46), // ==>
             /*  46 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 4, statementSetCopula, 50, 47), // <=>
-            /*  47 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 27, statementSetCopula, 50, null), // =/>
+            /*  47 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 28, statementSetCopula, 50, null), // =/>
             /*  48 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
             /*  49 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
 
