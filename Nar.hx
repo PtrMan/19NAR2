@@ -50,12 +50,17 @@ class Nar {
             tv.freq = parseResult.tvFreq;
             tv.conf = parseResult.tvConf;
         }
-
-        if (isEvent) {
-            trace("TODO : handling of event is not yet implemented!");
+        
+        if (isEvent && parseResult.punctuation == "!") {
+            if (executive != null) { // executive could be null
+                executive.submitGoalByTerm(parseResult.term, tv);
+            }
+        }
+        else if(!isEvent && parseResult.punctuation != "!") {
+            declarative.inputTerm(parseResult.term, tv, parseResult.punctuation);
         }
         else {
-            declarative.inputTerm(parseResult.term, tv, parseResult.punctuation);
+            trace("TODO : handling of event punctation combination isn't implemented!");
         }
     }
 
