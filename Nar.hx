@@ -2259,7 +2259,6 @@ enum EnumOperationType {
 	
     DOT; // .
     QUESTIONMARK; // ?
-    //EXCLAMATIONMARK; // !
     //AT; // @
     STAR; // *
     SLASH; // "/"
@@ -2272,8 +2271,9 @@ enum EnumOperationType {
     //DOUBLEAMPERSAND; // &&
     //AMPERSAND; // &
 
+    EXCLAMATIONMARK; // !
 
-	//HALFH; // |-    
+    //HALFH; // |-
 }
 
 class NarseseLexer extends Lexer<EnumOperationType> {
@@ -2312,6 +2312,8 @@ class NarseseLexer extends Lexer<EnumOperationType> {
             /* 23*/"^&", // used for compounds
             /* 24*/"^\\|", // used for compounds
             /* 25*/"^-", // used for compounds
+
+            /* 26*/"^\\!",
         ];
     }
 
@@ -2467,6 +2469,12 @@ class NarseseLexer extends Lexer<EnumOperationType> {
             res.contentString = matchedString;
             return res;
 
+            case 26:
+            var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
+            res.contentOperation = EnumOperationType.EXCLAMATIONMARK;
+            res.contentString = matchedString;
+            return res;
+
             default:
             throw 'Not implemented regex rule index=$ruleIndex!';
         }
@@ -2515,6 +2523,7 @@ class NarseseParser extends Parser<EnumOperationType> {
             case AMPERSAND: 23; // &
             case PIPE: 24; // |
             case MINUS: 25; // -
+            case EXCLAMATIONMARK: 26; // !
         }
     }
 }
@@ -2854,8 +2863,8 @@ class ProtoLexer {
             /*   0 */new Arc<EnumOperationType>(EnumArcType.END, 0, null, -1, null), // global end arc
             /*   1 */new Arc<EnumOperationType>(EnumArcType.ARC, 20, null, 2, null),
             /*   2 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 16, setPunctuation, 0, 3), // .
-            /*   3 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 17, setPunctuation, 0, null), // ?
-            /*   4 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*   3 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 17, setPunctuation, 0, 4), // ?
+            /*   4 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 26, setPunctuation, 0, null), // !
 
             /*   5 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
             /*   6 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
