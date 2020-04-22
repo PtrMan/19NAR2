@@ -2278,6 +2278,8 @@ enum EnumOperationType {
 
     EXCLAMATIONMARK; // !
 
+    PREDIMPL; // =/>
+
     //HALFH; // |-
 }
 
@@ -2319,6 +2321,7 @@ class NarseseLexer extends Lexer<EnumOperationType> {
             /* 25*/"^-", // used for compounds
 
             /* 26*/"^\\!",
+            /* 27*/"^=/>",
         ];
     }
 
@@ -2480,6 +2483,12 @@ class NarseseLexer extends Lexer<EnumOperationType> {
             res.contentString = matchedString;
             return res;
 
+            case 27:
+            var res = new Token<EnumOperationType>(EnumTokenType.OPERATION);
+            res.contentOperation = EnumOperationType.PREDIMPL;
+            res.contentString = matchedString;
+            return res;
+
             default:
             throw 'Not implemented regex rule index=$ruleIndex!';
         }
@@ -2529,6 +2538,7 @@ class NarseseParser extends Parser<EnumOperationType> {
             case PIPE: 24; // |
             case MINUS: 25; // -
             case EXCLAMATIONMARK: 26; // !
+            case PREDIMPL: 27; // =/>
         }
     }
 }
@@ -2924,8 +2934,8 @@ class ProtoLexer {
             /*  44 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 2, statementSetCopula, 50, 45), // <->
 
             /*  45 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 3, statementSetCopula, 50, 46), // ==>
-            /*  46 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 4, statementSetCopula, 50, null), // <=>
-            /*  47 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
+            /*  46 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 4, statementSetCopula, 50, 47), // <=>
+            /*  47 */new Arc<EnumOperationType>(EnumArcType.OPERATION, 27, statementSetCopula, 50, null), // =/>
             /*  48 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
             /*  49 */new Arc<EnumOperationType>(EnumArcType.ERROR, 0, null, -1, null),
 
