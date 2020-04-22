@@ -937,18 +937,45 @@ class GoalSystem {
         }
 
         if (sampledGoal.condOps.ops.length == 0) { // we only handle the cond ops without ops for now
+            Sys.println('[d] goalsystem: GOAL DERIVATION');
+
             var selGoalEvent:Term = sampledGoal.condOps.cond.events[0]; // select first event of par events
-            Sys.println('[d] goalsystem: sel goal = '+TermUtils.convToStr(selGoalEvent));
+            Sys.println('[d] goalsystem: sel goal = '+TermUtils.convToStr(selGoalEvent)+"!");
 
             var matchingImplSeqs:Array<ImplSeq> = exec.mem.queryByPredicate(selGoalEvent);
             for(iMatchedImplSeq in matchingImplSeqs) {
                 Sys.println('[d] goalsystem: matching impl seq = '+iMatchedImplSeq.convToStr());
             }
 
-            Sys.println('[d] goalsystem: TODO');
+            // we need to derive goals from matching implSeqs by goal deduction
+            // a =/> b.
+            // b!
+            // |- ded
+            // a!
+            for(iImplSeq in matchingImplSeqs) {
+                var tvCompound = new Tv(iImplSeq.calcFreq(), iImplSeq.calcConf());
+                var tvComponent = sampledGoal.tv;
+                var tvConcl = Tv.deduction(tvCompound, tvComponent);
+                
+                var stampConcl = Stamp.merge(sampledGoal.stamp, iImplSeq.stamp);
+                
+                // TODO< we need to deal with multiple condops! >
+                var goal:ActiveGoal2 = new ActiveGoal2(iImplSeq.condops[0], tvConcl, stampConcl, currentTime);
+                submitGoal2(goal);
+            }
         }
-
-
+        else { // case with ops
+            {
+                // (a &/ ^x)!
+                // |- DesireDed (deduction)   (structural deduction)
+                // a!
+                var condOpsConcl = new CondOps(sampledGoal.condOps.cond, []); // split off ops
+                var tvConcl = Tv.structDeduction(sampledGoal.tv);
+                
+                var goal:ActiveGoal2 = new ActiveGoal2(condOpsConcl, tvConcl, sampledGoal.stamp, currentTime);
+                submitGoal2(goal);
+            }
+        }
     }
 
     public function sample(time:Int): ActiveGoal2 {
