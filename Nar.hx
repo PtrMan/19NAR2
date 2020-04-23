@@ -57,7 +57,12 @@ class Nar {
             }
         }
         else if(!isEvent && parseResult.punctuation != "!") {
-            declarative.inputTerm(parseResult.term, tv, parseResult.punctuation);
+            switch (parseResult.term) { // dispatch by declarative/procedural
+                case Term.Cop(cop,_,_) if (cop=="=/>"):
+                executive.inputJudgement(parseResult.term, tv);
+                case _:
+                declarative.inputTerm(parseResult.term, tv, parseResult.punctuation);
+            }
         }
         else {
             trace("TODO : handling of event punctation combination isn't implemented!");
@@ -2313,7 +2318,7 @@ class NarseseLexer extends Lexer<EnumOperationType> {
             /* 17*/"^\\?",
             /* 18*/"^\\*",
             /* 19*/"^\\/",
-            /* 20*/"^[a-z0-9A-Z_\\.]+", // identifier // TODO< other letters >
+            /* 20*/"^[\\^a-z0-9A-Z_\\.]+", // identifier // TODO< other letters >
             /* 21*/"^\"[a-z0-9A-Z_!\\?:\\.,;\\ \\-\\(\\)\\[\\]{}<>]*\"", // string 
 
             /* 22*/"^\\_",

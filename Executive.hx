@@ -193,6 +193,30 @@ class Executive {
         this.trace[0].events.push(g);
     }
 
+    // converts a impl seq to the real representation
+    public function inputJudgement(term:Term, tv:Tv) {
+        function isOp(term:Term) {
+            return switch (term) {
+                case Term.Cop("-->", Term.Prod(_), Term.Name(name)) if (name.length > 0 && name.charAt(0) == "^"): true;
+                case _: false;
+            }
+        }
+
+        switch (term) {
+            case Term.Cop("=/>", Term.Compound("&/", [seq0, op1]), pred) if(isOp(op1)): // match for impl seq
+            
+            // build impl seq
+            var implSeq = new ImplSeq(createStamp());
+            implSeq.effect = new Par([pred]);
+            implSeq.condops = [new CondOps(new Par([seq0]), [op1])];
+            mem.addPair(implSeq);
+
+            case _:
+            trace('Executive.inputJugdgement() expected (term &/ op) =/> x. !');
+            // ignore term
+        }
+    }
+
     public function step(parEvents:Array<Term>) {
         // * add evidence of parallel events
         //   builds a =|> b  b =|> a  from parEvents=[a, b]
