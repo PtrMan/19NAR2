@@ -563,6 +563,10 @@ class Executive {
         goalSystem2.step(this); // let the goal system manage eternal goals etc
         goalSystem2.goalDerivation(this);
 
+        if (cycle % 101 == 0) {
+            goalSystem2.limitMemory();
+        }
+
         goalSystem2.currentTime = cycle;
 
         cycle++; // advance global cycle timer
@@ -1049,6 +1053,13 @@ class GoalSystem {
             }
         }
         return null;
+    }
+
+    public function limitMemory() {
+        var maxGoals = 1000;
+
+        activeGoals.sort( (a, b) -> (calcRelativePri(a, currentTime) < calcRelativePri(b, currentTime) ? 1 : ((calcRelativePri(a, currentTime) == calcRelativePri(b, currentTime)) ? 0 : -1) ));
+        activeGoals = activeGoals.slice(0, maxGoals); // keep under AIKR
     }
 
     // helper to compute the relative priority of a goal
