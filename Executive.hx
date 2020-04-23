@@ -997,7 +997,7 @@ class GoalSystem {
                 var stampConcl = Stamp.merge(sampledGoal.stamp, iImplSeq.stamp);
                 
                 // TODO< we need to deal with multiple condops! >
-                var goal:ActiveGoal2 = new ActiveGoal2(iImplSeq.condops[0], tvConcl, stampConcl, currentTime);
+                var goal:ActiveGoal2 = new ActiveGoal2(iImplSeq.condops[0], tvConcl, stampConcl, sampledGoal.creationTime);
                 submitGoal2(goal);
             }
         }
@@ -1009,7 +1009,7 @@ class GoalSystem {
                 var condOpsConcl = new CondOps(sampledGoal.condOps.cond, []); // split off ops
                 var tvConcl = Tv.structDeduction(sampledGoal.tv);
                 
-                var goal:ActiveGoal2 = new ActiveGoal2(condOpsConcl, tvConcl, sampledGoal.stamp, currentTime);
+                var goal:ActiveGoal2 = new ActiveGoal2(condOpsConcl, tvConcl, sampledGoal.stamp, sampledGoal.creationTime);
                 submitGoal2(goal);
             }
         }
