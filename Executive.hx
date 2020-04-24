@@ -223,8 +223,8 @@ class Executive {
         if (parEvents.length > 1) {
             // TODO< sample ba random if there are to many events >
             for(idxA in 0...parEvents.length) for(idxB in 0...parEvents.length) {
-                addEvidence([parEvents[idxA]], [parEvents[idxB]], createStamp(), null, true);
-                addEvidence([parEvents[idxB]], [parEvents[idxA]], createStamp(), null, true);
+                addEvidence([parEvents[idxA]], 0, [parEvents[idxB]], createStamp(), null, true);
+                addEvidence([parEvents[idxB]], 0, [parEvents[idxA]], createStamp(), null, true);
             }
         }
 
@@ -472,12 +472,15 @@ class Executive {
                         var actionsOf1:Array<Term> = this.trace[traceIdxOfOpEvent].events.filter(v -> tryDecomposeOpCall(v) != null);
                         var nonactionsOf0:Array<Term> = this.trace[0].events.filter(v -> !(tryDecomposeOpCall(v) != null));
                         
+                        var dtEffect:Int = traceIdxOfOpEvent-0; // compute dt
+
                         {
                             for(iActionTerm in actionsOf1) { // iterate over all actions done at that time
                                 if (dbgEvidence) {                            
                                     var stamp:Stamp = createStamp();
                                     var createdPair:ImplSeq = new ImplSeq(stamp);
                                     createdPair.condops = [new CondOps(new Par(nonactionsOf2), actionsOf1)];
+                                    createdPair.dtEffect = dtEffect;
                                     createdPair.effect = new Par(nonactionsOf0);
                                     trace('evidence  ${createdPair.convToStr()}');
                                 }
@@ -485,25 +488,25 @@ class Executive {
 
                                 var stamp:Stamp = createStamp();
 
-                                addEvidence(nonactionsOf2, nonactionsOf0, stamp, iActionTerm, false);
+                                addEvidence(nonactionsOf2, dtEffect, nonactionsOf0, stamp, iActionTerm, false);
                                 
                                 // add evidence of combinations of single events of cond and effect
                                 if (nonactionsOf2.length > 1) {
                                     for(iCond in nonactionsOf2) {
-                                        addEvidence([iCond], nonactionsOf0, stamp, iActionTerm, false);
+                                        addEvidence([iCond], dtEffect, nonactionsOf0, stamp, iActionTerm, false);
                                     }
                                 }
 
                                 if (nonactionsOf0.length > 1) {
                                     for(iEffect in nonactionsOf0) {
-                                        addEvidence(nonactionsOf2, [iEffect], stamp, iActionTerm, false);
+                                        addEvidence(nonactionsOf2, dtEffect, [iEffect], stamp, iActionTerm, false);
                                     }
                                 }
                                 
                                 if (nonactionsOf2.length > 1 && nonactionsOf0.length > 1) {
                                     for(iCond in nonactionsOf2) {
                                         for (iEffect in nonactionsOf0) {
-                                            addEvidence([iCond], [iEffect], stamp, iActionTerm, false);
+                                            addEvidence([iCond], dtEffect, [iEffect], stamp, iActionTerm, false);
                                         }
                                     }
                                 }
@@ -557,7 +560,8 @@ class Executive {
                                                         // TODO< add different combinations of event, par event, op, etc >
 
                                                         var condOps:Array<CondOps> = [new CondOps(new Par(nonOpsOf2), [opsOf2[0]]), new CondOps(new Par(nonOpsOf1), [opsOf1[0]])];
-                                                        addEvidence2(condOps, nonOpsOf0, createStamp(), false, horizon5seq);
+                                                        var dtEffect:Int = idxOp1-0; // compute dt
+                                                        addEvidence2(condOps, dtEffect, nonOpsOf0, createStamp(), false, horizon5seq);
                                                     }
                                                 }
                                             }
@@ -610,7 +614,7 @@ class Executive {
     // TODO< replace with addEvidence2() >
     // adds new evidence
     // /param iActionTerm is the action term which is used for checking and, can be null if isConcurrentImpl is true
-    private function addEvidence(conds:Array<Term>, effects:Array<Term>, stamp:Stamp, iActionTerm:Term, isConcurrentImpl) {
+    private function addEvidence(conds:Array<Term>, dtEffect:Int, effects:Array<Term>, stamp:Stamp, iActionTerm:Term, isConcurrentImpl) {
         
         if (Par.checkIntersect(new Par(conds), new Par(effects))) {
             return; // exclude (&/, a, ^b) =/> a
@@ -655,6 +659,7 @@ class Executive {
 
             var ops = iActionTerm != null ? [iActionTerm] : [];
             createdPair.condops = [new CondOps(new Par(conds), ops)];
+            createdPair.dtEffect = dtEffect;
             createdPair.effect = new Par(effects);
             createdPair.isConcurrentImpl = isConcurrentImpl;
 
@@ -669,7 +674,7 @@ class Executive {
 
     // adds new evidence
     // /param iActionTerm is the action term which is used for checking and, can be null if isConcurrentImpl is true
-    private function addEvidence2(condOps:Array<CondOps>, effects:Array<Term>, stamp:Stamp, isConcurrentImpl, horizon:Float) {
+    private function addEvidence2(condOps:Array<CondOps>, dtEffect:Int, effects:Array<Term>, stamp:Stamp, isConcurrentImpl, horizon:Float) {
         for (iCondOps in condOps) {
             if (Par.checkIntersect(iCondOps.cond, new Par(effects))) {
                 return; // exclude (&/, a, ^b) =/> a
@@ -735,6 +740,7 @@ class Executive {
             // store pair
             var createdPair:ImplSeq = new ImplSeq(stamp);
             createdPair.condops = condOps;
+            createdPair.dtEffect = dtEffect;
             createdPair.effect = new Par(effects);
             createdPair.isConcurrentImpl = isConcurrentImpl;
             createdPair.horizon = horizon;
@@ -1270,9 +1276,7 @@ class CondOps {
 class ImplSeq {
     public var condops:Array<CondOps> = []; // array of sequence of conditions and operations
 
-    //public var cond:Par = null;
-    //public var act:Array<Term> = []; // TODO< rename to ops >
-    
+    public var dtEffect:Int = 0; // time before effect happens
     public var effect:Par = null;
 
     public var evidencePositive = 1; // positive evidence counter
@@ -1309,7 +1313,8 @@ class ImplSeq {
             seq.push('${iCondOp.ops.map(v -> TermUtils.convToStr(v))}');
         }
 
-        return '(&/, ${seq.join(",")}) =/> ${effect.events.map(v -> TermUtils.convToStr(v))} {${calcFreq()} ${calcConf()}} // cnt=$evidenceCnt';
+        var copStr = isConcurrentImpl ? "=|>" : "=/>";
+        return '(${seq.join(" &/ ")} &/ $dtEffect) $copStr ${effect.events.map(v -> TermUtils.convToStr(v))} {${calcFreq()} ${calcConf()}} // cnt=$evidenceCnt';
     }
 
     // check if it represents the same equivalent term
