@@ -1359,30 +1359,6 @@ class Act {
     }
 }
 
-
-// incremental gaussian distribution estimator
-// see http://datagenetics.com/blog/november22017/index.html
-class IncrementalCentralDistribution {
-    public function new() {}
-
-    public function next(x:Float) {
-        var nextMean:Float = mean + (x - mean)/(n+1);
-        var nextS:Float = s + (x - mean)*(x - nextMean);
-
-        mean = nextMean;
-        s = nextS;
-        n++;
-    }
-
-    public function calcVariance():Float {
-        return Math.sqrt(s/n);
-    }
-
-    public var n:Int = 0; // TODO< should be Long integer >
-    public var mean:Float = 0.0;
-    public var s:Float = 0.0;
-}
-
 class Logger {
     public static var singleton:Logger;// = new Logger();
     
