@@ -183,6 +183,11 @@ class Executive {
 
     public var decl:Nar.Declarative = null; // declarative part of the reasoner
 
+    // config - deadline algorithm
+    // "dt2plus" - compute deadline by interval*2 + slack, similar to 'OpenNARS for Research'
+    // "const"   - take constant deadline, good for crisp environments where a clear deadline makes sense
+    public var deadlineAlgorithm:String = "const";
+
     public function goalNow(g:Term) {
         // check and exec if it is a action
         if(tryDecomposeOpCall(g) != null) {
@@ -823,9 +828,17 @@ class Executive {
         act.exec(args);
 
         if (origin != null) {
+            var deadline:Int = anticipationDeadline;
+            if (deadlineAlgorithm == "dt2plus") { // is our deadline algorithm dt*2 + deadlineSlack , simular to the one done in 'OpenNARS for Research'?
+                var deadlineSlack:Int = 5;    
+                deadline = origin.dtEffect*2 + deadlineSlack;
+            }
+            
             // add anticipation
-            if(dbgAnticipationVerbose) trace('ANTICIPATION anticipate ${origin.convToStr()}');
-            anticipationsInflight.push(new InflightAnticipation(origin, cycle + anticipationDeadline));
+            if(dbgAnticipationVerbose) trace('ANTICIPATION anticipate ${origin.convToStr()} deadline +$deadline');
+            
+            
+            anticipationsInflight.push(new InflightAnticipation(origin, cycle + deadline));
         }
     }
 
@@ -1314,7 +1327,7 @@ class ImplSeq {
         }
 
         var copStr = isConcurrentImpl ? "=|>" : "=/>";
-        return '(${seq.join(" &/ ")} &/ $dtEffect) $copStr ${effect.events.map(v -> TermUtils.convToStr(v))} {${calcFreq()} ${calcConf()}} // cnt=$evidenceCnt';
+        return '(${seq.join(" &/ ")} &/ +$dtEffect) $copStr ${effect.events.map(v -> TermUtils.convToStr(v))} {${calcFreq()} ${calcConf()}} // cnt=$evidenceCnt';
     }
 
     // check if it represents the same equivalent term
