@@ -222,7 +222,9 @@ class Executive {
         }
     }
 
-    public function step(parEvents:Array<Term>) {
+    public var parEvents:Array<Term> = []; // current parallel events, is used to accumulate events which happen in one frame/instant
+
+    public function step() {
         // * add evidence of parallel events
         //   builds a =|> b  b =|> a  from parEvents=[a, b]
         if (parEvents.length > 1) {
@@ -603,6 +605,8 @@ class Executive {
         goalSystem2.currentTime = cycle;
 
         cycle++; // advance global cycle timer
+
+        parEvents = []; // reset accumulator of current parallel events
     }
 
     // helper function to check if a term is a operation call and to decompose it into name and arguments
