@@ -13,12 +13,14 @@ import Executive;
 // supposed to be a simple experiment for the procedural functionality
 class ExpProcAnti0 {
     public static function main() {
-        testAnticipation0();
+        testAnticipation0("const");
+        testAnticipation0("dt2plus");
     }
 
     // test very simple anticipation
-    public static function testAnticipation0() {
+    public static function testAnticipation0(deadlineAlgorithm:String) {
         var reasoner:Nar = new Nar(null);
+        reasoner.executive.deadlineAlgorithm = deadlineAlgorithm;
 
         var op = new CountOp("^x");
         reasoner.executive.acts.push({mass:1.0, act:op});
