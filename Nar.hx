@@ -52,8 +52,13 @@ class Nar {
         }
         
         if (isEvent && parseResult.punctuation == "!") {
-            if (executive != null) { // executive could be null
+            if (executive != null) { // executive could be null?
                 executive.submitGoalByTerm(parseResult.term, tv);
+            }
+        }
+        else if (isEvent && parseResult.punctuation == ".") {
+            if (executive != null) { // executive could be null?
+                executive.parEvents.push(parseResult.term); // append to current concurrent events
             }
         }
         else if(!isEvent && parseResult.punctuation != "!") {
