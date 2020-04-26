@@ -188,6 +188,7 @@ class Executive {
     // "const"   - take constant deadline, good for crisp environments where a clear deadline makes sense
     public var deadlineAlgorithm:String = "const";
 
+    /* commented because outdated, we pass ops to be executed with different API
     public function goalNow(g:Term) {
         // check and exec if it is a action
         if(tryDecomposeOpCall(g) != null) {
@@ -197,9 +198,33 @@ class Executive {
         // record to trace
         this.trace[0].events.push(g);
     }
+    */
+
+    
+    // used to submit a goal
+    public function submitGoalByTerm(goalTerm:Term, tv:Tv) {
+        goalSystem2.submitGoalByTerm(goalTerm, tv, createStamp(), cycle);
+    }
+
+
+    public function submitEventGoal(term:Term, tv:Tv) {
+        function isOp(term:Term) {
+            return switch (term) {
+                case Term.Cop("-->", Term.Prod(_), Term.Name(name)) if (name.length > 0 && name.charAt(0) == "^"): true;
+                case _: false;
+            }
+        }
+
+        if (isOp(term)) {
+            queuedAct = term; // queue to execute action
+        }
+        else {
+            submitGoalByTerm(term, tv);
+        }
+    }
 
     // converts a impl seq to the real representation
-    public function inputJudgement(term:Term, tv:Tv) {
+    public function submitEternalJudgement(term:Term, tv:Tv) {
         function isOp(term:Term) {
             return switch (term) {
                 case Term.Cop("-->", Term.Prod(_), Term.Name(name)) if (name.length > 0 && name.charAt(0) == "^"): true;
@@ -872,11 +897,6 @@ class Executive {
     // helper to create stamp
     public function createStamp():Stamp {
         return new Stamp([Int64.make(0, stampCounter++)], new StructuralOriginsStamp([]));
-    }
-
-    // used to submit a goal
-    public function submitGoalByTerm(goalTerm:Term, tv:Tv) {
-        goalSystem2.submitGoalByTerm(goalTerm, tv, createStamp(), cycle);
     }
 
     public var anticipationsInflight:Array<InflightAnticipation> = []; // anticipations in flight

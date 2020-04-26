@@ -53,7 +53,7 @@ class Nar {
         
         if (isEvent && parseResult.punctuation == "!") {
             if (executive != null) { // executive could be null?
-                executive.submitGoalByTerm(parseResult.term, tv);
+                executive.submitEventGoal(parseResult.term, tv);
             }
         }
         else if (isEvent && parseResult.punctuation == ".") {
@@ -64,7 +64,7 @@ class Nar {
         else if(!isEvent && parseResult.punctuation != "!") {
             switch (parseResult.term) { // dispatch by declarative/procedural
                 case Term.Cop(cop,_,_) if (cop=="=/>"):
-                executive.inputJudgement(parseResult.term, tv);
+                executive.submitEternalJudgement(parseResult.term, tv);
                 case _:
                 declarative.inputTerm(parseResult.term, tv, parseResult.punctuation);
             }
