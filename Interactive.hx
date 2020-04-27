@@ -53,7 +53,10 @@ class Interactive {
         else if (inputLine == "!r") { // reset
             reasoner.resetMemory();
         }
-        else if (inputLine.substr(0, 3) == "!l ") {
+        else if (inputLine == "!re 0") { // reset default executive
+            reasoner.executive = new Executive();
+        }
+        else if (inputLine.substr(0, 3) == "!l ") { // load from file
             var path:String = inputLine.substring(3);
             loadFromFile(path);
         }
