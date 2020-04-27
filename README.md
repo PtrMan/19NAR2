@@ -30,7 +30,8 @@ features:
 * anticipation (good handling of neg-confirm)
 * decision making: actions can have a refractory period to avoid spamming the environment with pointless actions
 
-# try procedural
+# How to run
+## try procedural
 
 enter
 > compileRun.bat
@@ -38,10 +39,13 @@ enter
 (under windows) to run some procedural tests
 (doesn't run everything currently).
 
-# try declarative
+## try declarative
 
 run
 
 > haxe --run Interactive TestCatBlueSky.nal
 
 to preload/run a `.nal` file for interactive Q&A. The required steps will be automatically taken by commands such as `!s50`, this gives it 50 timesteps to work on questions.
+
+# Technological origins
+See [Mechanisms](https://github.com/PtrMan/19NAR2/wiki/Mechanism) for a detailed documentation of the origins.
