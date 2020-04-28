@@ -1158,7 +1158,7 @@ class GoalSystem {
     private function calcRelativePri(activeGoal:ActiveGoal2, time:Int): Float {
         var timediff = time-activeGoal.creationTime;
         var decay = Math.exp(-decayrate*timediff);
-        return decay*Tv.calcExp(activeGoal.tv.freq, activeGoal.tv.conf);
+        return decay*Tv.calcExp(activeGoal.tv.freq, activeGoal.tv.conf)*activeGoal.desire; // multiply by desire to not take care of undesired goals
     }
 }
 
