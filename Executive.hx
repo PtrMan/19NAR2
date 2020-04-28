@@ -250,6 +250,11 @@ class Executive {
     public var parEvents:Array<Term> = []; // current parallel events, is used to accumulate events which happen in one frame/instant
 
     public function step() {
+        // * "neutralize" fullfilled goals
+        for (iEvent in parEvents) {
+            goalSystem2.submitEvent(iEvent);
+        }
+
         // * add evidence of parallel events
         //   builds a =|> b  b =|> a  from parEvents=[a, b]
         if (parEvents.length > 1) {
@@ -930,6 +935,13 @@ class GoalSystem {
         var bestGoal:ActiveGoal2 = null;
         
         for(iGoal in activeGoals) {
+            // is eligable by desire?
+            // we don't want to realize goals with to low desire!
+            var desireThreshold:Float = 0.1;
+            if (iGoal.desire < desireThreshold) {
+                continue; // ignore
+            }
+            
             if( iGoal.condOps.ops.length == 0 ) { // must have no ops
                 if (iGoal.condOps.cond.events.length == 1) { // must be a single event which is the goal
                     if (TermUtils.equal(iGoal.condOps.cond.events[0], effects[0])) { // is the term the same? // TODO< check for subset of par >
@@ -1129,6 +1141,16 @@ class GoalSystem {
         activeGoals = activeGoals.slice(0, maxGoals); // keep under AIKR
     }
 
+    // event happened
+    public function submitEvent(term:Term) {
+        // scan all goals and decrement desire if it matches
+        for(iGoal in activeGoals) {
+            if (iGoal.condOps.ops.length == 0 && Par.checkSame(iGoal.condOps.cond, new Par([term]))) { // does term match?
+                iGoal.desire = 0.0; // we fullfilled the goal when the event happened
+            }
+        }
+    }
+
     // helper to compute the relative priority of a goal
     private function calcRelativePri(activeGoal:ActiveGoal2, time:Int): Float {
         var timediff = time-activeGoal.creationTime;
@@ -1191,6 +1213,8 @@ class ActiveGoal2 {
     public var creationTime:Int; // creation time in cycles
 
     public var qaWasQuestedAlready:Bool = false; // was a question already submitted to the declarative inference for ^d special op?
+
+    public var desire:Float = 1.0; // how much do we want to realize the goal?
 
     public function new(condOps, tv, stamp, creationTime) {
         this.condOps = condOps;
