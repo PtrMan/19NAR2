@@ -927,6 +927,8 @@ class GoalSystem {
 
     public var currentTime:Int = 0; // must be updated by executive!
 
+    public var debugGoalSystem:Bool = false;
+
     public function new() {}
 
     
@@ -971,7 +973,7 @@ class GoalSystem {
     }
 
     public function submitGoalByTerm(goalTerm:Term, tv:Tv, stamp:Stamp, currentTime2:Int) {
-        Sys.println('[d] submitted goal by term ${TermUtils.convToStr(goalTerm)} ${tv.convToStr()}');
+        if(debugGoalSystem) Sys.println('[d] submitted goal by term ${TermUtils.convToStr(goalTerm)} ${tv.convToStr()}');
 
         var goalCondOp:CondOps = new CondOps(new Par([goalTerm]), []);
 
@@ -982,7 +984,7 @@ class GoalSystem {
     // used to submit a new goal
     public function submitGoal2(goal:ActiveGoal2) {
         // debug
-        Sys.println('[d] submitted goal ${ExecUtils.convCondOpToStr(goal.condOps)}');
+        if(debugGoalSystem) Sys.println('[d] submitted goal ${ExecUtils.convCondOpToStr(goal.condOps)}');
 
         // look for goal with same term and reset time and tv if found
         for(iGoal in activeGoals) {
@@ -1029,14 +1031,14 @@ class GoalSystem {
         }
 
         if (sampledGoal.condOps.ops.length == 0) { // we only handle the cond ops without ops for now
-            Sys.println('[d] goalsystem: GOAL DERIVATION');
+            if(debugGoalSystem) Sys.println('[d] goalsystem: GOAL DERIVATION');
 
             var selGoalEvent:Term = sampledGoal.condOps.cond.events[0]; // select first event of par events
-            Sys.println('[d] goalsystem: sel goal = '+TermUtils.convToStr(selGoalEvent)+"!");
+            if(debugGoalSystem) Sys.println('[d] goalsystem: sel goal = '+TermUtils.convToStr(selGoalEvent)+"!");
 
             var matchingImplSeqs:Array<ImplSeq> = exec.mem.queryByPredicate(selGoalEvent);
             for(iMatchedImplSeq in matchingImplSeqs) {
-                Sys.println('[d] goalsystem: matching impl seq = '+iMatchedImplSeq.convToStr());
+                if(debugGoalSystem) Sys.println('[d] goalsystem: matching impl seq = '+iMatchedImplSeq.convToStr());
             }
 
             // we need to derive goals from matching implSeqs by goal deduction
