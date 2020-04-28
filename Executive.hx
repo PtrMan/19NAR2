@@ -951,7 +951,7 @@ class GoalSystem {
                             bestGoal = iGoal;
                         }
                         else {
-                            if (iGoal.tv.exp() > bestGoal.tv.exp()) {
+                            if (iGoal.desire.exp() > bestGoal.desire.exp()) {
                                 bestGoal = iGoal;
                             }
                         }
@@ -963,7 +963,7 @@ class GoalSystem {
         if (bestGoal == null) {
             return null;
         }
-        return bestGoal.tv;
+        return bestGoal.desire;
     }
 
     // returns the candidates for decision making which match to current events as a precondition together with exp()
@@ -992,7 +992,6 @@ class GoalSystem {
                 if (goal.creationTime > iGoal.creationTime) {
                     iGoal.desire = goal.desire; // we need to reset desire too!!!
                     iGoal.creationTime = goal.creationTime;
-                    iGoal.tv = goal.tv;
                 }
 
                 return; // found, we don't need to add goal
@@ -1049,7 +1048,7 @@ class GoalSystem {
             // a!
             for(iImplSeq in matchingImplSeqs) {
                 var tvCompound = new Tv(iImplSeq.calcFreq(), iImplSeq.calcConf());
-                var tvComponent = sampledGoal.tv;
+                var tvComponent = sampledGoal.desire;
                 var tvConcl = Tv.deduction(tvCompound, tvComponent);
                 
                 var stampConcl = Stamp.merge(sampledGoal.stamp, iImplSeq.stamp);
@@ -1065,7 +1064,7 @@ class GoalSystem {
                 // |- DesireDed (deduction)   (structural deduction)
                 // a!
                 var condOpsConcl = new CondOps(sampledGoal.condOps.cond, []); // split off ops
-                var tvConcl = Tv.structDeduction(sampledGoal.tv);
+                var tvConcl = Tv.structDeduction(sampledGoal.desire);
                 
                 var goal:ActiveGoal2 = new ActiveGoal2(condOpsConcl, tvConcl, sampledGoal.stamp, sampledGoal.creationTime);
                 submitGoal2(goal);
@@ -1158,7 +1157,7 @@ class GoalSystem {
     private function calcRelativePri(activeGoal:ActiveGoal2, time:Int): Float {
         var timediff = time-activeGoal.creationTime;
         var decay = Math.exp(-decayrate*timediff);
-        return decay*Tv.calcExp(activeGoal.tv.freq, activeGoal.tv.conf)*activeGoal.desire.exp(); // multiply by desire to not take care of undesired goals
+        return decay*activeGoal.desire.exp(); // multiply by desire to not take care of undesired goals
     }
 }
 
@@ -1206,7 +1205,7 @@ class DeclarativeAnswerHandler implements Nar.AnswerHandler2 {
         }
 
         // * create derived goal
-        var derivedGoal:ActiveGoal2 = new ActiveGoal2(derivCondOp, goal.tv, goal.stamp, goalSystem.currentTime);
+        var derivedGoal:ActiveGoal2 = new ActiveGoal2(derivCondOp, goal.desire, goal.stamp, goalSystem.currentTime);
 
         // * register goal
         goalSystem.submitGoal2(derivedGoal);
@@ -1218,7 +1217,6 @@ class DeclarativeAnswerHandler implements Nar.AnswerHandler2 {
 
 class ActiveGoal2 {
     public var condOps:CondOps;
-    public var tv:Tv;
     public var stamp:Stamp;
     public var creationTime:Int; // creation time in cycles
 
@@ -1226,22 +1224,18 @@ class ActiveGoal2 {
 
     public var desire:Tv = new Tv(1.0, 0.998); // how much do we want to realize the goal?
 
-    public function new(condOps, tv, stamp, creationTime) {
+    public function new(condOps, desire, stamp, creationTime) {
         this.condOps = condOps;
-        this.tv = tv;
+        this.desire = desire;
         this.stamp = stamp;
         this.creationTime = creationTime;
     }
 
     public function convToStr():String {
         var res = ExecUtils.convCondOpToStr(condOps) + " ";
-        res += tv.convToStr() + " ";
-        res += 'desExp=${calcDesireExp()}';
+        res += desire.convToStr() + " ";
+        res += 'desExp=${desire.exp()}';
         return res;
-    }
-
-    public function calcDesireExp() {
-        return desire.exp();
     }
 }
 
