@@ -940,7 +940,7 @@ class GoalSystem {
             // is eligable by desire?
             // we don't want to realize goals with to low desire!
             var desireThreshold:Float = 0.1;
-            if (iGoal.desire < desireThreshold) {
+            if (iGoal.desire.exp() < desireThreshold) {
                 continue; // ignore
             }
             
@@ -990,7 +990,7 @@ class GoalSystem {
         for(iGoal in activeGoals) {
             if (CondOps.checkSame(iGoal.condOps, goal.condOps)) {
                 if (goal.creationTime > iGoal.creationTime) {
-                    iGoal.desire = 1.0; // we need to reset desire too!!!
+                    iGoal.desire = goal.desire; // we need to reset desire too!!!
                     iGoal.creationTime = goal.creationTime;
                     iGoal.tv = goal.tv;
                 }
@@ -1149,7 +1149,7 @@ class GoalSystem {
         // scan all goals and decrement desire if it matches
         for(iGoal in activeGoals) {
             if (iGoal.condOps.ops.length == 0 && Par.checkSame(iGoal.condOps.cond, new Par([term]))) { // does term match?
-                iGoal.desire = 0.0; // we fullfilled the goal when the event happened
+                iGoal.desire = new Tv(0.0, 0.998); // we fullfilled the goal when the event happened
             }
         }
     }
@@ -1158,7 +1158,7 @@ class GoalSystem {
     private function calcRelativePri(activeGoal:ActiveGoal2, time:Int): Float {
         var timediff = time-activeGoal.creationTime;
         var decay = Math.exp(-decayrate*timediff);
-        return decay*Tv.calcExp(activeGoal.tv.freq, activeGoal.tv.conf)*activeGoal.desire; // multiply by desire to not take care of undesired goals
+        return decay*Tv.calcExp(activeGoal.tv.freq, activeGoal.tv.conf)*activeGoal.desire.exp(); // multiply by desire to not take care of undesired goals
     }
 }
 
@@ -1224,7 +1224,7 @@ class ActiveGoal2 {
 
     public var qaWasQuestedAlready:Bool = false; // was a question already submitted to the declarative inference for ^d special op?
 
-    public var desire:Float = 1.0; // how much do we want to realize the goal?
+    public var desire:Tv = new Tv(1.0, 0.998); // how much do we want to realize the goal?
 
     public function new(condOps, tv, stamp, creationTime) {
         this.condOps = condOps;
@@ -1236,8 +1236,12 @@ class ActiveGoal2 {
     public function convToStr():String {
         var res = ExecUtils.convCondOpToStr(condOps) + " ";
         res += tv.convToStr() + " ";
-        res += 'des=$desire';
+        res += 'desExp=${calcDesireExp()}';
         return res;
+    }
+
+    public function calcDesireExp() {
+        return desire.exp();
     }
 }
 
