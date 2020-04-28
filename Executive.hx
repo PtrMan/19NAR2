@@ -990,6 +990,7 @@ class GoalSystem {
         for(iGoal in activeGoals) {
             if (CondOps.checkSame(iGoal.condOps, goal.condOps)) {
                 if (goal.creationTime > iGoal.creationTime) {
+                    iGoal.desire = 1.0; // we need to reset desire too!!!
                     iGoal.creationTime = goal.creationTime;
                     iGoal.tv = goal.tv;
                 }
@@ -1161,6 +1162,13 @@ class GoalSystem {
     }
 }
 
+// helper to dump/debug all goals
+class GoalSystemDebug {
+    public static function debugAllGoals(goalSystem:GoalSystem):Array<String> {
+        return goalSystem.activeGoals.map(v -> v.convToStr());
+    }
+}
+
 // Q&A handler to handler answer to ^d question and to create a new goal with the unified variables
 class DeclarativeAnswerHandler implements Nar.AnswerHandler2 {
     public var goalSystem:GoalSystem;
@@ -1223,6 +1231,13 @@ class ActiveGoal2 {
         this.tv = tv;
         this.stamp = stamp;
         this.creationTime = creationTime;
+    }
+
+    public function convToStr():String {
+        var res = ExecUtils.convCondOpToStr(condOps) + " ";
+        res += tv.convToStr() + " ";
+        res += 'des=$desire';
+        return res;
     }
 }
 
