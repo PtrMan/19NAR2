@@ -823,10 +823,10 @@ class Executive {
         var res = [];
         for(iCandi in candidates) {
             // add it to the decision making candidates if it is a candidate
-            ///OLD CODE 21.03.2020
-            ///var tv:Tv = goalSystem.retDecisionMakingCandidateTv(iCandi); 
-            var tv:Tv = goalSystem2.retDecisionMakingCandidateTv(iCandi.effect.events);
-            if (tv != null) {
+            var tvComponent:Tv = goalSystem2.retDecisionMakingCandidateTv(iCandi.effect.events);
+            if (tvComponent != null) {
+                var tv:Tv = Tv.deduction(new Tv(iCandi.calcFreq(), iCandi.calcConf()), tvComponent); // goal deduction
+
                 var exp = Tv.calcExp(tv.freq, tv.conf);
                 res.push({pair:iCandi, exp:exp}); // add if it is a candidate if the effect of it is a goal
             }
