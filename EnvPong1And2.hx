@@ -11,7 +11,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 import Executive;
 
 // pong2 and pong1 ONA conform implementation as implemented in ONA
-// TODO< bat width is different >
 class EnvPong1And2 {
     public static function main() {
         runPong1(10000);
@@ -24,6 +23,7 @@ class EnvPong1And2 {
     public var batX:Int = 20;
     public var batVX:Int = 0;
     public var batWidth:Int = 6; //"radius", batWidth from middle to the left and right
+    public var virtualBatWidth:Int = 6; // bat width used for center computation
     public var vX:Int = 1;
     public var vY:Int = 1;
     public var mulVX:Int = 0; // multiply x velocity by this before moving
@@ -87,11 +87,11 @@ class EnvPong1And2 {
             }
             */
 
-            if(batX <= ballX - batWidth) {
+            if(batX <= ballX - virtualBatWidth) {
                 if(true) Sys.println('BALL right');
                 reasoner.input("<{right}-->ball>. :|:");
             }
-            else if(ballX + batWidth < batX) {
+            else if(ballX + virtualBatWidth < batX) {
                 if(true) Sys.println('BALL right');
                 reasoner.input("<{left}-->ball>. :|:");
             }
@@ -206,15 +206,12 @@ class EnvPong1And2 {
         reasoner.executive.randomActProb = 0.05;
         reasoner.executive.deadlineAlgorithm = "dt2plus"; // natural environment
 
-        //var opStop = new SwitchOp("^stop");
-        //reasoner.executive.acts.push({mass:1.0, act:opStop});
-
-
         reasoner.executive.dbgAnticipationVerbose = true;
         
         var env:EnvPong1And2 = new EnvPong1And2();
         env.batWidth = 4;
         env.mulVX = 1; // move ball in x
+        env.virtualBatWidth = 0; // has no virtual width
 
         env.opLeft = new SwitchOp("^left");
         reasoner.executive.acts.push({mass:1.0, act:env.opLeft});
