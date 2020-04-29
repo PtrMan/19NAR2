@@ -1002,6 +1002,7 @@ class GoalSystem {
 
                 if (isOverlap) {
                     if (goal.desire.exp() > iGoal.desire.exp()) { // choice rule
+                        iGoal.stamp = goal.stamp;
                         iGoal.desire = goal.desire; // we need to reset desire too!!!
                         iGoal.creationTime = goal.creationTime;
                     }
@@ -1009,9 +1010,9 @@ class GoalSystem {
                     return;
                 }
                 else {
-                    // try to revise
-                    Sys.println('TODO handle revision code');
-
+                    // goal revision
+                    iGoal.stamp = Stamp.merge(iGoal.stamp, goal.stamp);
+                    iGoal.desire = Tv.revision(iGoal.desire, goal.desire);
                     return;
                 }
             }
