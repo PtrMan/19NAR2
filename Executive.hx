@@ -984,7 +984,7 @@ class GoalSystem {
     // used to submit a new goal
     public function submitGoal2(goal:ActiveGoal2, source:EnumSentenceSource) {
         // debug
-        if(debugGoalSystem) Sys.println('[d] submitted goal ${ExecUtils.convCondOpToStr(goal.condOps)} source ${source}');
+        if(debugGoalSystem) Sys.println('[d] submitted goal ${ExecUtils.convCondOpToStr(goal.condOps)}! source ${source}');
 
         // look for goal with same term and reset time and tv if found
         for(iGoal in activeGoals) {
@@ -1221,7 +1221,7 @@ class DeclarativeAnswerHandler implements Nar.AnswerHandler2 {
         var derivCondOp:CondOps = new CondOps(derivCondPar, []);
 
         { // debug
-            Sys.println('[d] derived goal ${ExecUtils.convCondOpToStr(derivCondOp)}');
+            Sys.println('[d] derived goal ${ExecUtils.convCondOpToStr(derivCondOp)}!');
         }
 
         // * create derived goal
@@ -1252,7 +1252,7 @@ class ActiveGoal2 {
     }
 
     public function convToStr():String {
-        var res = ExecUtils.convCondOpToStr(condOps) + " ";
+        var res = ExecUtils.convCondOpToStr(condOps) + "! ";
         res += desire.convToStr() + " ";
         res += 'desExp=${desire.exp()}';
         return res;
@@ -1283,8 +1283,14 @@ class ExecUtils {
         }
 
         var parEventsAsStr2 = concatTermStr(parEventsAsStr, "&|");
-        var opsAsStr2 = concatTermStr(opsAsStr, "&/");
-        return '($parEventsAsStr2 &/ $opsAsStr2)';
+
+        if (condops.ops.length == 0) {
+            return parEventsAsStr2;
+        }
+        else {
+            var opsAsStr2 = concatTermStr(opsAsStr, "&/");
+            return '($parEventsAsStr2 &/ $opsAsStr2)';
+        }
     }
 }
 
