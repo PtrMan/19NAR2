@@ -201,9 +201,9 @@ class Executive {
     */
 
     
-    // used to submit a goal
+    // used to submit a goal by input
     public function submitGoalByTerm(goalTerm:Term, tv:Tv) {
-        goalSystem2.submitGoalByTerm(goalTerm, tv, createStamp(), cycle);
+        goalSystem2.submitGoalByTerm(goalTerm, tv, createStamp(), cycle, EnumSentenceSource.INPUT);
     }
 
 
@@ -972,29 +972,48 @@ class GoalSystem {
         return [];
     }
 
-    public function submitGoalByTerm(goalTerm:Term, tv:Tv, stamp:Stamp, currentTime2:Int) {
+    public function submitGoalByTerm(goalTerm:Term, tv:Tv, stamp:Stamp, currentTime2:Int, source:EnumSentenceSource) {
         if(debugGoalSystem) Sys.println('[d] submitted goal by term ${TermUtils.convToStr(goalTerm)} ${tv.convToStr()}');
 
         var goalCondOp:CondOps = new CondOps(new Par([goalTerm]), []);
 
         var goal:ActiveGoal2 = new ActiveGoal2(goalCondOp, tv, stamp, currentTime);
-        submitGoal2(goal);
+        submitGoal2(goal, source);
     }
 
     // used to submit a new goal
-    public function submitGoal2(goal:ActiveGoal2) {
+    public function submitGoal2(goal:ActiveGoal2, source:EnumSentenceSource) {
         // debug
-        if(debugGoalSystem) Sys.println('[d] submitted goal ${ExecUtils.convCondOpToStr(goal.condOps)}');
+        if(debugGoalSystem) Sys.println('[d] submitted goal ${ExecUtils.convCondOpToStr(goal.condOps)} source ${source}');
 
         // look for goal with same term and reset time and tv if found
         for(iGoal in activeGoals) {
             if (CondOps.checkSame(iGoal.condOps, goal.condOps)) {
-                if (goal.creationTime > iGoal.creationTime) {
-                    iGoal.desire = goal.desire; // we need to reset desire too!!!
-                    iGoal.creationTime = goal.creationTime;
+                if(source == EnumSentenceSource.INPUT) { // favor input goals
+                    if (goal.creationTime > iGoal.creationTime) {
+                        iGoal.desire = goal.desire; // we need to reset desire too!!!
+                        iGoal.creationTime = goal.creationTime;
+                    }
+    
+                    return; // found, we don't need to add goal
                 }
 
-                return; // found, we don't need to add goal
+                var isOverlap = Stamp.checkOverlap(goal.stamp, iGoal.stamp);
+
+                if (isOverlap) {
+                    if (goal.desire.exp() > iGoal.desire.exp()) { // choice rule
+                        iGoal.desire = goal.desire; // we need to reset desire too!!!
+                        iGoal.creationTime = goal.creationTime;
+                    }
+
+                    return;
+                }
+                else {
+                    // try to revise
+                    Sys.println('TODO handle revision code');
+
+                    return;
+                }
             }
         }
 
@@ -1055,7 +1074,7 @@ class GoalSystem {
                 
                 // TODO< we need to deal with multiple condops! >
                 var goal:ActiveGoal2 = new ActiveGoal2(iImplSeq.condops[0], tvConcl, stampConcl, sampledGoal.creationTime);
-                submitGoal2(goal);
+                submitGoal2(goal, EnumSentenceSource.DERIVED);
             }
         }
         else { // case with ops
@@ -1067,7 +1086,7 @@ class GoalSystem {
                 var tvConcl = Tv.structDeduction(sampledGoal.desire);
                 
                 var goal:ActiveGoal2 = new ActiveGoal2(condOpsConcl, tvConcl, sampledGoal.stamp, sampledGoal.creationTime);
-                submitGoal2(goal);
+                submitGoal2(goal, EnumSentenceSource.DERIVED);
             }
         }
     }
@@ -1208,7 +1227,7 @@ class DeclarativeAnswerHandler implements Nar.AnswerHandler2 {
         var derivedGoal:ActiveGoal2 = new ActiveGoal2(derivCondOp, goal.desire, goal.stamp, goalSystem.currentTime);
 
         // * register goal
-        goalSystem.submitGoal2(derivedGoal);
+        goalSystem.submitGoal2(derivedGoal, EnumSentenceSource.DERIVED);
     }
 }
 
@@ -1433,6 +1452,12 @@ class Act {
     /*abstract*/public function exec(args:Array<Term>) {
         throw "NOT IMPLEMENTED!";
     }
+}
+
+// enum for the source of a sentence
+enum EnumSentenceSource {
+    INPUT;
+    DERIVED;
 }
 
 class Logger {
