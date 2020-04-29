@@ -39,6 +39,20 @@ class EnvPong1And2 {
 
     public function envLoop(reasoner:Nar, iterations:Int) {
         while(true) {
+            // DEBUG check for invalid goals
+            if(true) {
+                for(iStr in GoalSystemDebug.debugAllGoals(reasoner.executive.goalSystem2)) {
+                    if (iStr.indexOf("(  )")!=-1) {
+                        for(iStr2 in GoalSystemDebug.debugAllGoals(reasoner.executive.goalSystem2)) {
+                            Sys.println(iStr2);
+                        }
+
+                        throw "goal system contains invalid goal!";
+                    }
+                }
+            }
+
+
             if(true) Sys.println('');
             if(true) Sys.println('');
             if(true) Sys.println('');
