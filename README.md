@@ -10,6 +10,23 @@ Install it with
 The procedural test require a JDK to compile the transpiled Java sourcecode.
 
 
+# How to run
+## try procedural
+
+enter
+> compileRun.bat
+
+(under windows) to run some procedural tests
+(doesn't run everything currently).
+
+## try declarative
+
+run
+
+> haxe --run Interactive TestCatBlueSky.nal
+
+to preload/run a `.nal` file for interactive Q&A. The required steps will be automatically taken by commands such as `!s50`, this gives it 50 timesteps to work on questions.
+
 # Attention
 
 Declarative attention is implemented with an agenda like mechanism based on a "flat" table.  Items in the table are ordered by the result of a score function. The score function currently takes decay and confidence of the sentence of the item into account.
@@ -30,18 +47,7 @@ features:
 * anticipation (good handling of neg-confirm)
 * decision making: actions can have a refractory period to avoid spamming the environment with pointless actions
 
-# try procedural
 
-enter
-> compileRun.bat
 
-(under windows) to run some procedural tests
-(doesn't run everything currently).
-
-# try declarative
-
-run
-
-> haxe --run Interactive TestCatBlueSky.nal
-
-to preload/run a `.nal` file for interactive Q&A. The required steps will be automatically taken by commands such as `!s50`, this gives it 50 timesteps to work on questions.
+# Technological origins
+See [Mechanisms](https://github.com/PtrMan/19NAR2/wiki/Mechanism) for a detailed documentation of the origins.
