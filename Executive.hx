@@ -8,9 +8,6 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-import sys.FileSystem;
-import sys.io.File;
-import sys.io.FileOutput;
 import haxe.Int64;
 
 class ProceduralMemory {
@@ -1539,27 +1536,4 @@ class Act {
 enum EnumSentenceSource {
     INPUT;
     DERIVED;
-}
-
-class Logger {
-    public static var singleton:Logger;// = new Logger();
-    
-    public var f:FileOutput;
-
-    public function new() {
-        var logName:String = "logX.log";
-        if (FileSystem.exists(logName)) {
-            FileSystem.deleteFile(logName); // delete old file
-        }
-        f = File.append(logName);
-    }
-
-    public static function log(text:String) {
-        Logger.singleton.log2(text);
-    }
-
-    private function log2(text:String) {
-        f.writeString(text+"\n");
-        f.flush();
-    }
 }
