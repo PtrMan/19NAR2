@@ -351,11 +351,67 @@ class Executive {
         // * decision making
         queuedAct = null;
         queuedActOrigin = null;
-        var bestDecisionMakingCandidate:ImplSeq;
-        { // select best decision making candidate
+        var bestDecisionMakingCandidate:ImplSeq = null;
+
+
+
+        // select best decision making candidate by NAL classical inference
+        // we do this by filtering the goals by current event and consider matching events of the seq by ded
+        {
+            // list of candidates eligable for decision making
+            // desire: the computed desire with the current parallel events
+            var decisionCandidates3:Array<{desire:Tv, originGoal:ActiveGoal2}> = [];
+
+            var sw = Stopwatch.createAndStart();
             
+            // for all single events
+            for(iCurrentEvent in parEvents) {
+                for(iMatchingGoal in goalSystem2.retByMatchingFirstEvent(new Par([iCurrentEvent])).filter(igoal -> igoal.condOps.ops.length > 0)/*must have ops*/) {
+                    var desire:Tv = ruleOpDeduction(iMatchingGoal.desire, new Tv(1.0, 0.998)); // compute tv of conclusion by ded
+                    decisionCandidates3.push({desire:desire,originGoal:iMatchingGoal});
+                }
+            }
+
+            // for parallel occuring events
+            {
+                for(iMatchingGoal in goalSystem2.retByMatchingFirstEvent(new Par(parEvents)).filter(igoal -> igoal.condOps.ops.length > 0)/*must have ops*/) {
+                    var desire:Tv = ruleOpDeduction(iMatchingGoal.desire, new Tv(1.0, 0.998)); // compute tv of conclusion by ded
+                    decisionCandidates3.push({desire:desire,originGoal:iMatchingGoal});
+                }
+            }
+
+            if (decisionCandidates3.length > 0) { // are there any candidates for decision making?
+                // NOTE< we select first op for now!, TODO< we actually need to queue up ops! > >
+                var bestDecisionCandidate:{opTerm:Term, desire:Tv} = {opTerm:decisionCandidates3[0].originGoal.condOps.ops[0], desire:decisionCandidates3[0].desire};
+                for(iCandidate in decisionCandidates3) {
+                    if(iCandidate.desire.exp() > bestDecisionCandidate.desire.exp()) {
+                        // NOTE< we select first op for now!, TODO< we actually need to queue up ops! > >
+                        bestDecisionCandidate = {opTerm:decisionCandidates3[0].originGoal.condOps.ops[0], desire:decisionCandidates3[0].desire};
+                    }
+                }
+
+                if (bestDecisionCandidate.desire.exp() > decisionThreshold) {
+                    // exec
+
+                    queuedAct = bestDecisionCandidate.opTerm;
+                    // TODO < store term of origin for anticipation! >
+                    Sys.println('EXEC TODO<store term of origin for anticipation>!');
+
+                }
+            }
+
+
+
+
+            var dt:Float = sw.retCurrentTimeDiff();
+            if(dbgDescisionMakingVerbose) Sys.println('descnMaking classical time=$dt');
+        }
+
+
+        // select best decision making candidate
+        // NOTE< old more complicated and slightly wrong decision making is disabled for now! >
+        if(false) { 
             var timeBefore = Sys.time();
-            
             
             var candidates:Array<ImplSeq> = [];// candidates for decision making in this step
             // * compute candidates for decision making in this step
@@ -637,6 +693,11 @@ class Executive {
         cycle++; // advance global cycle timer
 
         parEvents = []; // reset accumulator of current parallel events
+    }
+
+    // //{Event (&/,a,op())!, Event a.} |- Event op()!
+    public static function ruleOpDeduction(compoundTv:Tv,componentTv:Tv):Tv {
+        return Tv.deduction(compoundTv, componentTv);
     }
 
     // helper function to check if a term is a operation call and to decompose it into name and arguments
@@ -931,6 +992,10 @@ class GoalSystem {
 
     public function new() {}
 
+    // filter goals by first event
+    public function retByMatchingFirstEvent(par:Par): Array<ActiveGoal2> {
+        return activeGoals.filter(iActiveGoal -> Par.checkSame(iActiveGoal.condOps.cond, par));
+    }
     
     // returns the TV of the goal of the effect of the pair, returns null if it doesn't lead to a goal
     public function retDecisionMakingCandidateTv(effects:Array<Term>):Tv {
@@ -1050,7 +1115,7 @@ class GoalSystem {
             return;
         }
 
-        if (sampledGoal.condOps.ops.length == 0) { // we only handle the cond ops without ops for now
+        if (sampledGoal.condOps.ops.length == 0) {
             if(debugGoalSystem) Sys.println('[d] goalsystem: GOAL DERIVATION');
 
             var selGoalEvent:Term = sampledGoal.condOps.cond.events[0]; // select first event of par events
@@ -1080,14 +1145,16 @@ class GoalSystem {
         }
         else { // case with ops
             {
-                // (a &/ ^x)!
-                // |- DesireDed (deduction)   (structural deduction)
-                // a!
-                var condOpsConcl = new CondOps(sampledGoal.condOps.cond, []); // split off ops
-                var tvConcl = Tv.structDeduction(sampledGoal.desire);
-                
-                var goal:ActiveGoal2 = new ActiveGoal2(condOpsConcl, tvConcl, sampledGoal.stamp, sampledGoal.creationTime);
-                submitGoal2(goal, EnumSentenceSource.DERIVED);
+                if (sampledGoal.condOps.cond.events.length > 0) { // must have cond events!
+                    // (a &/ ^x)!
+                    // |- DesireDed (deduction)   (structural deduction)
+                    // a!
+                    var condOpsConcl = new CondOps(sampledGoal.condOps.cond, []); // split off ops
+                    var desireConcl = Tv.structDeduction(sampledGoal.desire);
+                    
+                    var goal:ActiveGoal2 = new ActiveGoal2(condOpsConcl, desireConcl, sampledGoal.stamp, sampledGoal.creationTime);
+                    submitGoal2(goal, EnumSentenceSource.DERIVED);
+                }
             }
         }
     }
