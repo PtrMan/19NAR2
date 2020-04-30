@@ -990,6 +990,8 @@ class GoalSystem {
 
     public var debugGoalSystem:Bool = false;
 
+    public var goaltableSize:Int = 30;
+
     public function new() {}
 
     // filter goals by first event
@@ -1048,6 +1050,9 @@ class GoalSystem {
 
     // used to submit a new goal
     public function submitGoal2(goal:ActiveGoal2, source:EnumSentenceSource) {
+        var store = true; // do we want to store the goal additionally?
+                          // is required to keep goals up to date, old not important or outdated goals will get pushed out of memory!
+        
         // debug
         if(debugGoalSystem) Sys.println('[d] submitted goal ${ExecUtils.convCondOpToStr(goal.condOps)}! source ${source}');
 
@@ -1058,6 +1063,7 @@ class GoalSystem {
                     if (goal.creationTime > iGoal.creationTime) {
                         iGoal.desire = goal.desire; // we need to reset desire too!!!
                         iGoal.creationTime = goal.creationTime;
+                        iGoal.stamp = goal.stamp;
                     }
     
                     return; // found, we don't need to add goal
@@ -1071,19 +1077,22 @@ class GoalSystem {
                         iGoal.desire = goal.desire; // we need to reset desire too!!!
                         iGoal.creationTime = goal.creationTime;
                     }
-
-                    return;
+                    store = true; // still store it
+                    break; // fall through to store goal
                 }
                 else {
                     // goal revision
                     iGoal.stamp = Stamp.merge(iGoal.stamp, goal.stamp);
                     iGoal.desire = Tv.revision(iGoal.desire, goal.desire);
-                    return;
+                    store = true; // still store it
+                    break;
                 }
             }
         }
 
-        activeGoals.push(goal);
+        if (store) {
+            activeGoals.push(goal);
+        }
     }
 
     // checks if term is a goal
@@ -1224,10 +1233,8 @@ class GoalSystem {
     }
 
     public function limitMemory() {
-        var maxGoals = 1000;
-
         activeGoals.sort( (a, b) -> (calcRelativePri(a, currentTime) < calcRelativePri(b, currentTime) ? 1 : ((calcRelativePri(a, currentTime) == calcRelativePri(b, currentTime)) ? 0 : -1) ));
-        activeGoals = activeGoals.slice(0, maxGoals); // keep under AIKR
+        activeGoals = activeGoals.slice(0, goaltableSize); // keep under AIKR
     }
 
     // event happened
