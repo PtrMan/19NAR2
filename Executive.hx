@@ -1006,7 +1006,7 @@ class GoalSystem {
 
     public var currentTime:Int = 0; // must be updated by executive!
 
-    public var debugGoalSystem:Bool = true;
+    public var debugGoalSystem:Bool = false;
 
     public var goaltableSize:Int = 30;
 
