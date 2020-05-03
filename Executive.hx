@@ -155,7 +155,7 @@ class Executive {
     }
 
     var queuedAct: Term = null;
-    var queuedActOrigin: ImplSeq = null; // origin of the queued action if it was done by the executive
+    var queuedActOrigins: Array<ImplSeq> = []; // origins of the queued action if it was done by the executive
 
     var trace:Array<Par> = [];
 
@@ -301,7 +301,7 @@ class Executive {
                     var actTerm:Term = Cop("-->", Prod([Set("{", [Name("SELF")])]), Name(actName));
 
                     queuedAct = actTerm; // queue action as next action
-                    queuedActOrigin = null; // has no origin because it was done by random
+                    queuedActOrigins = []; // has no origin because it was done by random
 
                     massAccu += possibleActs[idx].mass;
                     if (massAccu > selMass) {
@@ -312,12 +312,12 @@ class Executive {
                 //commented because old code
                 //var idx=Std.random(possibleActs.length);
                 //queuedAct = possibleActs[idx].act.name; // queue action as next action
-                //queuedActOrigin = null; // has no origin because it was done by random
+                //queuedActOrigins = []; // has no origin because it was done by random
             }
         }
         
         if (queuedAct != null) {
-            execAct(queuedAct, queuedActOrigin);
+            execAct(queuedAct, queuedActOrigins);
 
             // record to trace
             this.trace[0].events.push(queuedAct);
@@ -347,7 +347,7 @@ class Executive {
 
         // * decision making
         queuedAct = null;
-        queuedActOrigin = null;
+        queuedActOrigins = [];
         var bestDecisionMakingCandidate:ImplSeq = null;
 
 
@@ -379,26 +379,38 @@ class Executive {
 
             if (decisionCandidates3.length > 0) { // are there any candidates for decision making?
                 // NOTE< we select first op for now!, TODO< we actually need to queue up ops! > >
-                var bestDecisionCandidate:{opTerm:Term, desire:Tv} = {opTerm:decisionCandidates3[0].originGoal.condOps.ops[0], desire:decisionCandidates3[0].desire};
+                var bestDecisionCandidate:{condOps:CondOps, opTerm:Term, desire:Tv} = {condOps:decisionCandidates3[0].originGoal.condOps, opTerm:decisionCandidates3[0].originGoal.condOps.ops[0], desire:decisionCandidates3[0].desire};
                 for(iCandidate in decisionCandidates3) {
                     if(iCandidate.desire.exp() > bestDecisionCandidate.desire.exp()) {
                         // NOTE< we select first op for now!, TODO< we actually need to queue up ops! > >
-                        bestDecisionCandidate = {opTerm:decisionCandidates3[0].originGoal.condOps.ops[0], desire:decisionCandidates3[0].desire};
+                        bestDecisionCandidate = {condOps:iCandidate.originGoal.condOps, opTerm:iCandidate.originGoal.condOps.ops[0], desire:iCandidate.desire};
                     }
                 }
 
                 if (bestDecisionCandidate.desire.exp() > decisionThreshold) {
-                    // exec
+                    var origins:Array<ImplSeq> = [];
+                    
+                    //COMMENTED BECAUSE OLD CODE IS USING IT AND WE DONT USE OLD CODE!   queuedAct = bestDecisionCandidate.opTerm;
 
-                    queuedAct = bestDecisionCandidate.opTerm;
-                    // TODO < store term of origin for anticipation! >
-                    Sys.println('EXEC TODO<store term of origin for anticipation>!');
+                    Sys.println('[d ] DescnMaking: found best decision candidate, query possible anticipations for '+ExecUtils.convCondOpToStr(bestDecisionCandidate.condOps));
+
+                    // query all impl seq's where the condOps match,
+                    // we need this for anticipation like
+                    //    happened: (a &/ ^opX).
+                    //    need to anticipate all effects of matching impl seq like ex:
+                    //        (a &/ ^opX) =/> z.
+                    //        (a &/ ^opX) =/> sx.
+                    // TODO LATER LOW< we do handle only candidates with one condops, how to generalize it to more? >
+                    var matchingImplSeq = mem.queryPairsByCond(parEvents).filter(iImplSeq -> iImplSeq.condops.length == 1 && CondOps.checkSame(iImplSeq.condops[0], bestDecisionCandidate.condOps));
+                    for (iMatchingImplSeq in matchingImplSeq) {
+                        // add origins of decision for later anticipation
+                        origins.push(iMatchingImplSeq);
+                    }
+
+                    execAct(bestDecisionCandidate.opTerm, origins);
 
                 }
             }
-
-
-
 
             var dt:Float = sw.retCurrentTimeDiff();
             if(dbgDescisionMakingVerbose) Sys.println('descnMaking classical time=$dt');
@@ -521,7 +533,7 @@ class Executive {
                 retActByName(retName(bestDecisionMakingCandidate.condops[condOpsIdx].ops[0])).refractoryPeriodCooldown <= 0 // is it possible to execute the action based on refractory period?
             ) {
                 queuedAct = bestDecisionMakingCandidate.condops[condOpsIdx].ops[0]; // queue action for next timestep
-                queuedActOrigin = bestDecisionMakingCandidate;
+                queuedActOrigins = [bestDecisionMakingCandidate];
             }
         }
         
@@ -898,9 +910,11 @@ class Executive {
     }
 
     // realize action
-    // /param origin origin of the action, used for anticipation , can be null
-    function execAct(actTerm:Term, origin:ImplSeq) {
-        if(dbgExecVerbose) Sys.println('ACT ${TermUtils.convToStr(actTerm)} origin = ${origin != null ? origin.convToStr() : "null"}');
+    // /param origin origin of the action, used for anticipation , can be empty
+    function execAct(actTerm:Term, origins:Array<ImplSeq>) {
+        if(dbgExecVerbose) Sys.println('[d ] exec: ACT ${TermUtils.convToStr(actTerm)}');
+        //if(dbgExecVerbose) Sys.println('[d ] exec:     origins = ${origins.map(io -> io.convToStr()}');
+
 
         // extract arguments and name of op
         var args:Array<Term> = null; // arguments
@@ -919,6 +933,14 @@ class Executive {
         act.refractoryPeriodCooldown = act.refractoryPeriod;
         act.exec(args);
 
+        for(iOrigin in origins) {
+            anticipationGenerate(iOrigin);
+        }
+    }
+
+    // generate a anticipation
+    // /param origin can be null, origin of the anticipation, ex: (a &/ ^opX) =/> b
+    public function anticipationGenerate(origin:ImplSeq) {
         if (origin != null) {
             var deadline:Int = anticipationDeadline;
             if (deadlineAlgorithm == "dt2plus") { // is our deadline algorithm dt*2 + deadlineSlack , simular to the one done in 'OpenNARS for Research'?
@@ -927,8 +949,7 @@ class Executive {
             }
             
             // add anticipation
-            if(dbgAnticipationVerbose) trace('ANTICIPATION anticipate ${origin.convToStr()} deadline +$deadline');
-            
+            Sys.println('[d ] ANTICIPATION: anticipate ${origin.convToStr()} deadline +$deadline');
             
             anticipationsInflight.push(new InflightAnticipation(origin, cycle + deadline));
         }
