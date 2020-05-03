@@ -1006,7 +1006,7 @@ class GoalSystem {
 
     public var currentTime:Int = 0; // must be updated by executive!
 
-    public var debugGoalSystem:Bool = false;
+    public var debugGoalSystem:Bool = true;
 
     public var goaltableSize:Int = 30;
 
@@ -1370,8 +1370,9 @@ class ExecUtils {
             for(iTs in ts) {
                 res2 += iTs+" "+connector+" ";
             }
-            res.substr(0, res.length-2-connector.length);
-            return '( $res )';
+
+            res2.substr(0, res2.length-2-connector.length);
+            return '( $res2 )';
         }
 
         var parEventsAsStr2 = concatTermStr(parEventsAsStr, "&|");
