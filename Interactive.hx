@@ -56,6 +56,18 @@ class Interactive {
         else if (inputLine == "!re 0") { // reset default executive
             reasoner.executive = new Executive();
         }
+        else if (startsWidth(inputLine, "!edt ")) { // executive decision threshold (set)
+            var val:Float = Std.parseFloat(inputLine.substr(5));
+            if (Math.isNaN(val)) {
+                Sys.println('command error: not a float!');
+            }
+            else if(val < 0.0 || val > 1.0) {
+                Sys.println('command error: decision threshold must be between 0.0 and 1.0!');
+            }
+            else {
+                reasoner.executive.decisionThreshold = val;
+            }
+        }
         else if (inputLine.substr(0, 3) == "!l ") { // load from file
             var path:String = inputLine.substring(3);
             loadFromFile(path);
@@ -93,5 +105,10 @@ class Interactive {
             var inputLine: String = Sys.stdin().readLine();
             interactive.processLine(inputLine);
         }
+    }
+
+    // helper
+    private static function startsWidth(str:String, sub:String):Bool {
+        return str.substr(0, sub.length) == sub;
     }
 }
