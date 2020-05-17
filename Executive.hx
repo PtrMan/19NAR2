@@ -720,6 +720,10 @@ class Executive {
         }
     }
 
+    // enable "exponential intervals"?
+    // the basic idea is to divide the time-intervals before the pred of a impl seq into exponential sized "chunks" and account for the evidence for each chunk seperatlyy
+    public var enExponentialIntervals:Bool = true; // config
+
     // TODO< replace with addEvidence2() >
     // adds new evidence
     // /param iActionTerm is the action term which is used for checking and, can be null if isConcurrentImpl is true
@@ -741,8 +745,15 @@ class Executive {
                 // iPair.evidenceCnt++; // commented here because neg evidence should only come from neg-confirm, because we assume a open-world
 
                 if (Par.checkSubset(iPair.effect, new Par(effects))) {
-                    iPair.evidenceCnt++;
-                    iPair.evidencePositive++;
+                    var isInChunk = enExponentialIntervals ? false : true;
+                    if (enExponentialIntervals) {
+                        isInChunk = exponentialIntervals_checkSameChunk(dtEffect, iPair.dtEffect);
+                    }
+
+                    if(isInChunk) { // only account for evidence if it is in the same chunk
+                        iPair.evidenceCnt++;
+                        iPair.evidencePositive++;
+                    }
                 }
             }
         }
@@ -809,7 +820,12 @@ class Executive {
                     }
                 }
 
-                if (isSame) {
+                var isInChunk = enExponentialIntervals ? false : true;
+                if (enExponentialIntervals) {
+                    isInChunk = exponentialIntervals_checkSameChunk(dtEffect, iPair.dtEffect);
+                }
+
+                if(isSame && isInChunk) { // only account for evidence if it is in the same chunk
                     iPair.evidenceCnt++;
                     iPair.evidencePositive++;
                 }
@@ -860,7 +876,20 @@ class Executive {
         }
     }
 
-
+    // checks if the intervals fall into the same range acording to the "exponential interval" criterion
+    public static function exponentialIntervals_checkSameChunk(aDt:Int, bDt:Int): Bool {
+        function calcRange(dt:Int):Int {
+            for(iRange in 0...10) {
+                var exponent = 1.7;
+                var max = Std.int(Math.pow(iRange, exponent));
+                if (dt <= max) {
+                    return iRange;
+                }
+            }
+            return 10; // is in "infinite" large range
+        }
+        return calcRange(aDt)==calcRange(bDt);
+    }
 
     // decrements the remaining refractory period
     private function decisionmakingActionCooldown() {
