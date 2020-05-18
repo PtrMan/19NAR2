@@ -44,7 +44,7 @@ class EnvPong1And2 {
                 for(iStr in GoalSystemDebug.debugAllGoals(reasoner.executive.goalSystem2)) {
                     if (iStr.indexOf("(  )")!=-1) {
                         for(iStr2 in GoalSystemDebug.debugAllGoals(reasoner.executive.goalSystem2)) {
-                            Sys.println(iStr2);
+                            TerminalOut.out(iStr2);
                         }
 
                         throw "goal system contains invalid goal!";
@@ -53,9 +53,9 @@ class EnvPong1And2 {
             }
 
 
-            if(true) Sys.println('');
-            if(true) Sys.println('');
-            if(true) Sys.println('');
+            if(true) TerminalOut.out('');
+            if(true) TerminalOut.out('');
+            if(true) TerminalOut.out('');
 
             t++;
             if(iterations != -1 && t++ > iterations) {
@@ -102,15 +102,15 @@ class EnvPong1And2 {
             */
 
             if(batX <= ballX - virtualBatWidth) {
-                if(true) Sys.println('BALL right');
+                if(true) TerminalOut.out('BALL right');
                 reasoner.input("<{right}-->ball>. :|:");
             }
             else if(ballX + virtualBatWidth < batX) {
-                if(true) Sys.println('BALL right');
+                if(true) TerminalOut.out('BALL right');
                 reasoner.input("<{left}-->ball>. :|:");
             }
             else {
-                if(true) Sys.println('BALL center');
+                if(true) TerminalOut.out('BALL center');
                 reasoner.input("<{center}-->ball>. :|:");
             }
             reasoner.input("<good-->nar>! :|:");
@@ -135,11 +135,11 @@ class EnvPong1And2 {
             if(ballY == 0) {
                 if(Math.abs(ballX-batX) <= batWidth) {
                     reasoner.input("<good-->nar>. :|:");
-                    Sys.println("good");
+                    TerminalOut.out("good");
                     hits++;
                 }
                 else {
-                    Sys.println("bad");
+                    TerminalOut.out("bad");
                     misses++;
                 }
             }
@@ -150,30 +150,30 @@ class EnvPong1And2 {
             }
             if(opLeft.triggered) {
                 opLeft.triggered = false;
-                Sys.println("Exec: op_left");
+                TerminalOut.out("Exec: op_left");
                 batVX = -3;
             }
             if(opRight.triggered) {
                 opRight.triggered = false;
-                Sys.println("Exec: op_right");
+                TerminalOut.out("Exec: op_right");
                 batVX = 3;
             }
             /*
             if(NAR_Pong_Stop_executed) {
                 NAR_Pong_Stop_executed = false;
-                Sys.println("Exec: op_stop");
+                TerminalOut.out("Exec: op_stop");
                 batVX = 0;
             }*/
             batX=Std.int(Math.max(-batWidth*2,Math.min(szX-1+batWidth,batX+batVX*batWidth/2)));
             var ratio:Float = hits;
             ratio /= (hits + misses);
-            Sys.println('PONG  Hits=$hits misses=$misses ratio=$ratio time=$t');
+            TerminalOut.out('PONG  Hits=$hits misses=$misses ratio=$ratio time=$t');
 
             // debug all goals of goal system
             var debugGoals:Bool = false;
             if(debugGoals) {
                 for(iStr in GoalSystemDebug.debugAllGoals(reasoner.executive.goalSystem2)) {
-                    Sys.println('  $iStr');
+                    TerminalOut.out('  $iStr');
                 }
             }
             
@@ -205,11 +205,11 @@ class EnvPong1And2 {
         env.envLoop(reasoner, iterations);
         
 
-        Sys.println("GoalSystem.goals:");
+        TerminalOut.out("GoalSystem.goals:");
         // debug all goals of goal system
         if(true) {
             for(iStr in GoalSystemDebug.debugAllGoals(reasoner.executive.goalSystem2)) {
-                Sys.println('  $iStr');
+                TerminalOut.out('  $iStr');
             }
         }
     }
@@ -238,11 +238,11 @@ class EnvPong1And2 {
         env.envLoop(reasoner, iterations);
         
 
-        Sys.println("GoalSystem.goals:");
+        TerminalOut.out("GoalSystem.goals:");
         // debug all goals of goal system
         if(true) {
             for(iStr in GoalSystemDebug.debugAllGoals(reasoner.executive.goalSystem2)) {
-                Sys.println('  $iStr');
+                TerminalOut.out('  $iStr');
             }
         }
     }
