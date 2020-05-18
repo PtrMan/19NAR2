@@ -274,16 +274,16 @@ class Executive {
         this.trace[0].events = parEvents;
 
         if (false) { // debug trace
-            Sys.println('trace');
+            Dbg.dbg(true, 'trace');
             for(idx2 in 0...this.trace.length) {
                 var idx = this.trace.length-1-idx2;
-                Sys.println(' [$idx]  ${this.trace[idx].events.map(v -> TermUtils.convToStr(v))}');
+                Dbg.dbg(true, ' [$idx]  ${this.trace[idx].events.map(v -> TermUtils.convToStr(v))}');
             }
         }
 
         { // do random action
             if(Math.random() < randomActProb && queuedAct == null) { // do random action
-                if (false) Sys.println('random act');
+                Dbg.dbg(false, 'random act');
                 
                 var possibleActs = acts.filter(iAct -> iAct.act.refractoryPeriodCooldown <= 0); // only actions which are cooled down are possible as candidates
 
@@ -324,10 +324,10 @@ class Executive {
         }
 
         if (false) { // debug trace
-            Sys.println('trace after queue insert');
+            Dbg.dbg(true, 'trace after queue insert');
             for(idx2 in 0...this.trace.length) {
                 var idx = this.trace.length-1-idx2;
-                Sys.println(' [$idx]  ${this.trace[idx].events.map(v -> TermUtils.convToStr(v))}');
+                Dbg.dbg(true,' [$idx]  ${this.trace[idx].events.map(v -> TermUtils.convToStr(v))}');
             }
         }
 
@@ -392,7 +392,7 @@ class Executive {
                     
                     //COMMENTED BECAUSE OLD CODE IS USING IT AND WE DONT USE OLD CODE!   queuedAct = bestDecisionCandidate.opTerm;
 
-                    Sys.println('[d ] DescnMaking: found best decision candidate, query possible anticipations for '+ExecUtils.convCondOpToStr(bestDecisionCandidate.condOps));
+                    Dgb.dbg('DescnMaking: found best decision candidate, query possible anticipations for '+ExecUtils.convCondOpToStr(bestDecisionCandidate.condOps));
 
                     // query all impl seq's where the condOps match,
                     // we need this for anticipation like
@@ -413,7 +413,7 @@ class Executive {
             }
 
             var dt:Float = sw.retCurrentTimeDiff();
-            if(dbgDescisionMakingVerbose) Sys.println('descnMaking classical time=$dt');
+            Dbg.dbg(dbgDescisionMakingVerbose,'descnMaking classical time=$dt');
         }
 
 
@@ -492,12 +492,12 @@ class Executive {
             
             var timeBefore2 = Sys.time();
             var candidatesByGoal: Array<{pair:ImplSeq, tv:Tv, exp:Float}> = goalSystem2.retDecisionMakingCandidatesForCurrentEvents(parEvents);
-            if(dbgDescisionMakingVerbose) Sys.println('descnMaking goal system time=${Sys.time()-timeBefore2}');
+            Dbg.dbg(dbgDescisionMakingVerbose, 'descnMaking goal system time=${Sys.time()-timeBefore2}');
 
             var timeBefore3 = Sys.time();
             ///var candidatesFromForwardChainer1 = ForwardChainer.step(parEvents, 1, this);
             ///var candidatesFromForwardChainer2 = ForwardChainer.step(parEvents, 2, this);
-            if(dbgDescisionMakingVerbose) Sys.println('descnMaking goal system forward chainer time=${Sys.time()-timeBefore3}');
+            Dbg.dbg(dbgDescisionMakingVerbose, 'descnMaking goal system forward chainer time=${Sys.time()-timeBefore3}');
 
             var candidates: Array<{pair:ImplSeq, tv:Tv, exp:Float}> = candidatesByLocalChainedGoal
                 .concat(candidatesByGoal)
@@ -508,7 +508,7 @@ class Executive {
 
             var timeRequired = Sys.time()-timeBefore;
 
-            if(dbgDescisionMakingVerbose) Sys.println('descnMaking time=$timeRequired');
+            Dbg.dbg(dbgDescisionMakingVerbose, 'descnMaking time=$timeRequired');
         }
         if (bestDecisionMakingCandidate != null) {
             var bestDecisionExp:Float = Tv.calcExp(bestDecisionMakingCandidate.calcFreq(), bestDecisionMakingCandidate.calcConf());
@@ -941,7 +941,7 @@ class Executive {
     // realize action
     // /param origin origin of the action, used for anticipation , can be empty
     function execAct(actTerm:Term, origins:Array<ImplSeq>) {
-        if(dbgExecVerbose) Sys.println('[d ] exec: ACT ${TermUtils.convToStr(actTerm)}');
+        Dbg.dbg(dbgExecVerbose, '[d ] exec: ACT ${TermUtils.convToStr(actTerm)}');
         //if(dbgExecVerbose) Sys.println('[d ] exec:     origins = ${origins.map(io -> io.convToStr()}');
 
 
@@ -953,7 +953,7 @@ class Executive {
             actName = actName2;
             args = args2;
             case _:
-            if (dbgExecVerbose)  Sys.println('   ... action has invalid format, ignore');
+            Dbg.dbg(dbgExecVerbose,'   ... action has invalid format, ignore');
             return; // invalid format of act
         }
 
@@ -988,7 +988,7 @@ class Executive {
             }
             
             // add anticipation
-            Sys.println('[d ] ANTICIPATION: anticipate ${origin.convToStr()} deadline +$deadline');
+            Dbg.dbg(true, 'ANTICIPATION: anticipate ${origin.convToStr()} deadline +$deadline');
             
             anticipationsInflight.push(new InflightAnticipation(origin, cycle + deadline));
         }
@@ -1097,7 +1097,7 @@ class GoalSystem {
     }
 
     public function submitGoalByTerm(goalTerm:Term, tv:Tv, stamp:Stamp, currentTime2:Int, source:EnumSentenceSource) {
-        if(debugGoalSystem) Sys.println('[d] submitted goal by term ${TermUtils.convToStr(goalTerm)} ${tv.convToStr()}');
+        Dbg.dbg(debugGoalSystem, 'submitted goal by term ${TermUtils.convToStr(goalTerm)} ${tv.convToStr()}');
 
         var goalCondOp:CondOps = new CondOps(new Par([goalTerm]), []);
 
@@ -1111,7 +1111,7 @@ class GoalSystem {
                           // is required to keep goals up to date, old not important or outdated goals will get pushed out of memory!
         
         // debug
-        if(debugGoalSystem) Sys.println('[d] submitted goal ${ExecUtils.convCondOpToStr(goal.condOps)}! source ${source}');
+        Dbg.dbg(debugGoalSystem, 'submitted goal ${ExecUtils.convCondOpToStr(goal.condOps)}! source ${source}');
 
         // look for goal with same term and reset time and tv if found
         for(iGoal in activeGoals) {
@@ -1182,14 +1182,14 @@ class GoalSystem {
         }
 
         if (sampledGoal.condOps.ops.length == 0) {
-            if(debugGoalSystem) Sys.println('[d] goalsystem: GOAL DERIVATION');
+            Dbg.dbg(debugGoalSystem, 'goalsystem: GOAL DERIVATION');
 
             var selGoalEvent:Term = sampledGoal.condOps.cond.events[0]; // select first event of par events
-            if(debugGoalSystem) Sys.println('[d] goalsystem: sel goal = '+TermUtils.convToStr(selGoalEvent)+"!");
+            Dbg.dbg(debugGoalSystem, 'goalsystem: sel goal = '+TermUtils.convToStr(selGoalEvent)+"!");
 
             var matchingImplSeqs:Array<ImplSeq> = exec.mem.queryByPredicate(selGoalEvent);
             for(iMatchedImplSeq in matchingImplSeqs) {
-                if(debugGoalSystem) Sys.println('[d] goalsystem: matching impl seq = '+iMatchedImplSeq.convToStr());
+                Dbg.dbg(debugGoalSystem, 'goalsystem: matching impl seq = '+iMatchedImplSeq.convToStr());
             }
 
             // we need to derive goals from matching implSeqs by goal deduction
@@ -1319,6 +1319,16 @@ class GoalSystemDebug {
     }
 }
 
+class Dbg {
+    // helper to debug
+    public static function dbg(en:Bool, msg:String) {
+        if(en) {
+            Sys.println('[d] $msg');
+        }
+    }
+
+}
+
 // Q&A handler to handler answer to ^d question and to create a new goal with the unified variables
 class DeclarativeAnswerHandler implements Nar.AnswerHandler2 {
     public var goalSystem:GoalSystem;
@@ -1330,7 +1340,7 @@ class DeclarativeAnswerHandler implements Nar.AnswerHandler2 {
     }
     
     public function report(sentence:Nar.Sentence, cycles:Int):Void {
-        Sys.println('[d] decl answer handler called for ^d');
+        Dbg.dbg(true,'decl answer handler called for ^d');
 
         // unify to compute asignment of variables
         
@@ -1352,7 +1362,7 @@ class DeclarativeAnswerHandler implements Nar.AnswerHandler2 {
         var derivCondOp:CondOps = new CondOps(derivCondPar, []);
 
         { // debug
-            Sys.println('[d] derived goal ${ExecUtils.convCondOpToStr(derivCondOp)}!');
+            Dbg.dbg(true,'derived goal ${ExecUtils.convCondOpToStr(derivCondOp)}!');
         }
 
         // * create derived goal
