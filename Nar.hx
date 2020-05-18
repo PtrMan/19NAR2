@@ -112,6 +112,10 @@ class Declarative {
         questionWorkingSet = new ImportanceSampledWorkingSet(parameters);
 
         { // read parameters
+            var parametersMap:Map<String,String> = new Map<String,String>();
+            
+            // don't do this for javascript target!
+            #if (!js_es)
             if (pathToNar == null) {
                 // compute path of program, this is where the test files reside
                 pathToNar = Sys.programPath();
@@ -124,9 +128,8 @@ class Declarative {
                 }
                 pathToNar = pathToNar.substr(0, pathToNar.length-1); // eat away
             }
-
-
-            var parametersMap:Map<String,String> = Nar.XmlImport.importXmlFromFile(pathToNar + "\\"+"parameters.xml");
+            parametersMap = Nar.XmlImport.importXmlFromFile(pathToNar + "\\"+"parameters.xml");
+            #end
 
             // transfer parameters
             this.parameters.comp0 = Std.parseFloat(parametersMap.get("comp0"));
@@ -208,9 +211,9 @@ class Declarative {
         
         //var str = 'Answer:[  ?ms  ?cycl]${sentence.convToStr()}'; // report with time and cycles  // commented because we don't know the time it took
         var str = 'Answer:${cycleStr}${sentence.convToStr()}'; // report with time and cycles
-        Sys.println(str);
+        TerminalOut.out(str);
 
-        Sys.println('  from Q:${question.sentence.convToStr()}');
+        TerminalOut.out('  from Q:${question.sentence.convToStr()}');
 
 
         if (conclusionStrArr != null) { // used for debugging and unittesting
@@ -242,7 +245,7 @@ class Declarative {
             if (Config.debug_derivations)   trace("");
             if (Config.debug_derivations)   trace("");
 
-            var timeBefore = Config.enProfiler ? (Sys.time()) : 0.0; // for profiling
+            var sw4 = Config.enProfiler ? Stopwatch.createAndStart() : null; // for profiling
 
             var primaryTask:Task = null;
 
@@ -268,11 +271,9 @@ class Declarative {
             
             var primarySentence = primaryTask.sentence;
 
-            if (false) {
-                Sys.println('');
-                Sys.println('');
-                Sys.println('sel task:${primarySentence.convToStr()}');
-            }
+            Dbg.dbg(false, '');
+            Dbg.dbg(false, '');
+            Dbg.dbg(false, 'sel task:${primarySentence.convToStr()}');
 
             // Q&A
             if (primarySentence.punctation == "?") {
@@ -374,7 +375,7 @@ class Declarative {
 
             { // two premise derivation
 
-                var timeBeforeTwoPremiseDeriv:Float = Sys.time();
+                var premiseDerivSw = Stopwatch.createAndStart();
 
                 // iterate over 2nd premises
                 // we need to select 2nd premise term to select concepts
@@ -441,8 +442,7 @@ class Declarative {
                     }
                 }
 
-                var timeAfterTwoPremiseDeriv:Float = Sys.time();
-                if(false) trace('t two premise derivation=${timeAfterTwoPremiseDeriv-timeBeforeTwoPremiseDeriv}');
+                if(false) trace('t two premise derivation=${premiseDerivSw.retCurrentTimeDiff()}');
             }
 
             
@@ -475,8 +475,7 @@ class Declarative {
             }
 
             if (Config.enProfiler) { // is profiler enabled?
-                var timeDiff = Sys.time() - timeBefore;
-                Sys.println('prof tcycle=$timeDiff');
+                TerminalOut.out('prof tcycle=${sw4.retCurrentTimeDiff()}');
             }
         }
 
@@ -520,11 +519,11 @@ class Declarative {
     }
 
     public function storeTasks(conclusionTasks:Array<Task>, flags:{putIntoWorkingSet:Bool}) {
-        var tBefore:Float = Sys.time();
+        var sw = Stopwatch.createAndStart();
 
         if (Config.debug_derived) {
             for (iConclTask in conclusionTasks) {
-                Sys.println('Derived:${iConclTask.sentence.convToStr()}    depth=${iConclTask.sentence.derivationDepth}');
+                Dbg.dbg(true, 'Derived:${iConclTask.sentence.convToStr()}    depth=${iConclTask.sentence.derivationDepth}');
             }
         }
         
@@ -566,7 +565,7 @@ class Declarative {
                     if (allow) {
                         // try to find conclusion in working set and add only if it doesn't yet exist
                         // old code which was iterating
-                        var timeBefore = Sys.time();
+                        var sw = Stopwatch.createAndStart();
                         
                         /*
                         var existsSentenceInWorkingSet = false;
@@ -578,7 +577,7 @@ class Declarative {
                         }//*/
                         var existsSentenceInWorkingSet = workingSet.entitiesByTermExists(workingSetEntity);
                         
-                        //trace('check time = ${Sys.time() - timeBefore}');
+                        //trace('check time = ${sw.blabla()}');
 
                         if (!existsSentenceInWorkingSet) {
                             workingSet.insert(workingSetEntity, parameters);
@@ -596,8 +595,7 @@ class Declarative {
             mem.updateConceptsForJudgement(iConclusionTask.sentence);
         }
 
-        var tAfter:Float = Sys.time();
-        if(Config.debug_instrumentation)  trace('t store=${tAfter-tBefore}');
+        if(Config.debug_instrumentation)  trace('t store=${sw.retCurrentTimeDiff()}');
         if(Config.debug_instrumentation)  trace('  tsum insert=${workingSet.timeInsertAccu}');
     }
 
@@ -609,10 +607,10 @@ class Declarative {
             }
         }
 
-        Sys.println("Summary: ");
-        Sys.println('   #concepts= $numberOfConcepts');
-        Sys.println('   #workingset.entities= ${workingSet.retCount()}');
-        Sys.println('   #questionWorkingset.entities= ${questionWorkingSet.entities.length}');
+        TerminalOut.out("Summary: ");
+        TerminalOut.out('   #concepts= $numberOfConcepts');
+        TerminalOut.out('   #workingset.entities= ${workingSet.retCount()}');
+        TerminalOut.out('   #questionWorkingset.entities= ${questionWorkingSet.entities.length}');
     }
 
     public function debugJudgements() {
@@ -626,7 +624,7 @@ class Declarative {
         }
 
         for (iJudgementStr in allJudgements.keys()) {
-            Sys.println(iJudgementStr);
+            Dbg.dbg(true,iJudgementStr);
         }
     }
 
@@ -894,6 +892,16 @@ class Declarative {
     }
     
     public var answerListener:AnswerListener = null; // answer listener which is invoked when ever a new answer is derived
+}
+
+// helper to directly output stuff to console
+class TerminalOut {
+    public static function out(msg:String) {
+        // don't do this for javascript target!
+        #if (!js_es)
+        Sys.println(msg);
+        #end
+    }
 }
 
 class DeclarativeNode {
@@ -1332,7 +1340,7 @@ class WorkingSet extends BaseWorkingSet {
 
     // insert sorted by total score
     public function insert(entity:WorkingSetEntity, parameters:Parameters) {
-        var timeBefore = Sys.time();
+        var sw = Stopwatch.createAndStart();
         
         entitiesByTermInsertIfNotExistBySentence(entity);
 
@@ -1441,8 +1449,7 @@ class WorkingSet extends BaseWorkingSet {
         
         //entities = entities.slice(0, Config.mem_TasksMax); // keep under AIKR
         
-        var time = Sys.time() - timeBefore;
-        timeInsertAccu += time;
+        timeInsertAccu += sw.retCurrentTimeDiff();
     }
 
     public function retFirstItem(): WorkingSetEntity {
@@ -1831,7 +1838,14 @@ class Unifier {
 
 class XmlImport {
     public static function importXmlFromFile(path:String): Map<String, String> {
-        var content=sys.io.File.getContent(path);
+        var content = "";
+
+        // don't do this for javascript target!
+        #if (js_es)
+        #else
+        content=sys.io.File.getContent(path);
+        #end
+        
         return importXml(content);
     }
 

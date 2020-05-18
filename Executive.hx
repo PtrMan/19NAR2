@@ -420,7 +420,7 @@ class Executive {
         // select best decision making candidate
         // NOTE< old more complicated and slightly wrong decision making is disabled for now! >
         if(false) { 
-            var timeBefore = Sys.time();
+            var sw2 = Stopwatch.createAndStart();
             
             var candidates:Array<ImplSeq> = [];// candidates for decision making in this step
             // * compute candidates for decision making in this step
@@ -490,14 +490,14 @@ class Executive {
             //commented because it is to slow
             //candidatesByLocalChainedGoal = filterCandidatesByGoal(candidates); // chain local pair -> matching goal in goal system
             
-            var timeBefore2 = Sys.time();
+            var sw3 = Stopwatch.createAndStart();
             var candidatesByGoal: Array<{pair:ImplSeq, tv:Tv, exp:Float}> = goalSystem2.retDecisionMakingCandidatesForCurrentEvents(parEvents);
-            Dbg.dbg(dbgDescisionMakingVerbose, 'descnMaking goal system time=${Sys.time()-timeBefore2}');
+            Dbg.dbg(dbgDescisionMakingVerbose, 'descnMaking goal system time=${sw3.retCurrentTimeDiff()}');
 
-            var timeBefore3 = Sys.time();
+            //var timeBefore3 = Sys.time();
             ///var candidatesFromForwardChainer1 = ForwardChainer.step(parEvents, 1, this);
             ///var candidatesFromForwardChainer2 = ForwardChainer.step(parEvents, 2, this);
-            Dbg.dbg(dbgDescisionMakingVerbose, 'descnMaking goal system forward chainer time=${Sys.time()-timeBefore3}');
+            //Dbg.dbg(dbgDescisionMakingVerbose, 'descnMaking goal system forward chainer time=${Sys.time()-timeBefore3}');
 
             var candidates: Array<{pair:ImplSeq, tv:Tv, exp:Float}> = candidatesByLocalChainedGoal
                 .concat(candidatesByGoal)
@@ -506,9 +506,7 @@ class Executive {
                 ;
             bestDecisionMakingCandidate = selBestAct(candidates);
 
-            var timeRequired = Sys.time()-timeBefore;
-
-            Dbg.dbg(dbgDescisionMakingVerbose, 'descnMaking time=$timeRequired');
+            Dbg.dbg(dbgDescisionMakingVerbose, 'descnMaking time=${sw2.retCurrentTimeDiff()}');
         }
         if (bestDecisionMakingCandidate != null) {
             var bestDecisionExp:Float = Tv.calcExp(bestDecisionMakingCandidate.calcFreq(), bestDecisionMakingCandidate.calcConf());
@@ -1323,7 +1321,11 @@ class Dbg {
     // helper to debug
     public static function dbg(en:Bool, msg:String) {
         if(en) {
+            // don't do this for javascript target!
+            #if (js_es)
+            #else
             Sys.println('[d] $msg');
+            #end
         }
     }
 
