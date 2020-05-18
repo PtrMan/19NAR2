@@ -963,18 +963,28 @@ class Executive {
         act.exec(args);
 
         for(iOrigin in origins) {
-            anticipationGenerate(iOrigin);
+            anticipationGenerate(iOrigin, false);
         }
     }
 
     // generate a anticipation
     // /param origin can be null, origin of the anticipation, ex: (a &/ ^opX) =/> b
-    public function anticipationGenerate(origin:ImplSeq) {
+    public function anticipationGenerate(origin:ImplSeq, addIfExisting:Bool) {
         if (origin != null) {
             var deadline:Int = anticipationDeadline;
             if (deadlineAlgorithm == "dt2plus") { // is our deadline algorithm dt*2 + deadlineSlack , simular to the one done in 'OpenNARS for Research'?
                 var deadlineSlack:Int = 5;    
                 deadline = origin.dtEffect*2 + deadlineSlack;
+            }
+
+            if (!addIfExisting) {
+                // check if anticipation is already present
+                for (iaif in anticipationsInflight) {
+                    if (ImplSeq.checkSameByTerm(iaif.origin, origin)) {
+                        return; // don't add anticipation with same origin
+                    }
+                }
+
             }
             
             // add anticipation
