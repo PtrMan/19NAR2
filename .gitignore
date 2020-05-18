@@ -1,7 +1,9 @@
 out*/
 out*
+*.js
 
 *.log
 
 TODO.txt
 REF.txt
+
