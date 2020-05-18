@@ -894,16 +894,6 @@ class Declarative {
     public var answerListener:AnswerListener = null; // answer listener which is invoked when ever a new answer is derived
 }
 
-// helper to directly output stuff to console
-class TerminalOut {
-    public static function out(msg:String) {
-        // don't do this for javascript target!
-        #if (!js_es)
-        Sys.println(msg);
-        #end
-    }
-}
-
 class DeclarativeNode {
     public var name:Term; // name of the concept
 
