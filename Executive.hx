@@ -392,7 +392,7 @@ class Executive {
                     
                     //COMMENTED BECAUSE OLD CODE IS USING IT AND WE DONT USE OLD CODE!   queuedAct = bestDecisionCandidate.opTerm;
 
-                    Dgb.dbg('DescnMaking: found best decision candidate, query possible anticipations for '+ExecUtils.convCondOpToStr(bestDecisionCandidate.condOps));
+                    Dbg.dbg(true, 'DescnMaking: found best decision candidate, query possible anticipations for '+ExecUtils.convCondOpToStr(bestDecisionCandidate.condOps));
 
                     // query all impl seq's where the condOps match,
                     // we need this for anticipation like
