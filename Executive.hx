@@ -765,7 +765,15 @@ class Executive {
                 Par.checkSame(iPair.condops[0].cond, new Par(conds)) // TODOOPTIMIZE< is not necessary >
             ) {
                 if (Par.checkSame(iPair.effect, new Par(effects))) {
-                    existsEvidence = true;
+
+                    var isInChunk = enExponentialIntervals ? false : true;
+                    if (enExponentialIntervals) {
+                        isInChunk = exponentialIntervals_checkSameChunk(dtEffect, iPair.dtEffect);
+                    }
+
+                    if (isInChunk) {
+                        existsEvidence = true;
+                    }
                 }
             }
         }
@@ -852,7 +860,14 @@ class Executive {
                 }
 
                 if (isSame) {
-                    existsEvidence = true;
+                    var isInChunk = enExponentialIntervals ? false : true;
+                    if (enExponentialIntervals) {
+                        isInChunk = exponentialIntervals_checkSameChunk(dtEffect, iPair.dtEffect);
+                    }
+
+                    if (isInChunk) {
+                        existsEvidence = true;
+                    }
                 }
             }
         }
