@@ -748,10 +748,10 @@ class Executive {
                         isInChunk = exponentialIntervals_checkSameChunk(dtEffect, iPair.dtEffect);
                     }
 
-                    if(isInChunk) { // only account for evidence if it is in the same chunk
-                        iPair.evidenceCnt++;
+                    if(isInChunk) { // only account for evidence if it is in the same chunk                        
                         iPair.evidencePositive++;
                     }
+                    iPair.evidenceCnt++;
                 }
             }
         }
@@ -764,16 +764,10 @@ class Executive {
                 (isConcurrentImpl ? true : TermUtils.equal(iPair.condops[0].ops[0], iActionTerm)) &&
                 Par.checkSame(iPair.condops[0].cond, new Par(conds)) // TODOOPTIMIZE< is not necessary >
             ) {
-                if (Par.checkSame(iPair.effect, new Par(effects))) {
-
-                    var isInChunk = enExponentialIntervals ? false : true;
-                    if (enExponentialIntervals) {
-                        isInChunk = exponentialIntervals_checkSameChunk(dtEffect, iPair.dtEffect);
-                    }
-
-                    if (isInChunk) {
-                        existsEvidence = true;
-                    }
+                switch (checkImplSeqIsSame(iPair.effect, iPair.dtEffect, new Par(effects), dtEffect)) {
+                    case EnumEffectRange.INSAMERANGE: existsEvidence = true;
+                    case EnumEffectRange.NOTINSAMERANGE: existsEvidence = true;
+                    case EnumEffectRange.NOTSAME: false;
                 }
             }
         }
@@ -795,7 +789,23 @@ class Executive {
         }
     }
 
+    // checks if the impl seq is the same and in the same interval 
+    //
+    // public to allow for unittesting
+    public function checkImplSeqIsSame(a:Par, aDt:Int, b:Par, bDt:Int): EnumEffectRange {
+        if (Par.checkSame(a, b)) {
+            var isInChunk = enExponentialIntervals ? false : true;
+            if (enExponentialIntervals) {
+                isInChunk = exponentialIntervals_checkSameChunk(aDt, bDt);
+            }
 
+            if (isInChunk) {
+                return EnumEffectRange.INSAMERANGE;
+            }
+            return EnumEffectRange.NOTINSAMERANGE;
+        }
+        return EnumEffectRange.NOTSAME; // is not 
+    }
 
 
     // adds new evidence
@@ -831,9 +841,11 @@ class Executive {
                     isInChunk = exponentialIntervals_checkSameChunk(dtEffect, iPair.dtEffect);
                 }
 
-                if(isSame && isInChunk) { // only account for evidence if it is in the same chunk
+                if(isSame) { // only account for evidence if it is in the same chunk
                     iPair.evidenceCnt++;
-                    iPair.evidencePositive++;
+                    if(isInChunk) {
+                        iPair.evidencePositive++;
+                    }
                 }
             }
         }
@@ -1046,7 +1058,12 @@ class Executive {
     public var stampCounter:Int = 1; // counter for the creation of new stamps
 }
 
-
+// enum for queryy if effect is the same and in the same range
+enum EnumEffectRange {
+    INSAMERANGE;
+    NOTINSAMERANGE;
+    NOTSAME; // effect is not the same
+}
 
 
 // the used goal system
