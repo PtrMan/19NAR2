@@ -964,6 +964,20 @@ class Executive {
         return bestCandidate;
     }
 
+    public function debugJudgements() {
+        var allJudgements:Map<String, Bool> = new Map<String, Bool>();
+
+        for (iProcNode in mem.proceduralNodes) {
+            for (iImplSeq in iProcNode.implSeqs) {
+                allJudgements.set(iImplSeq.convToStr(), true);
+            }
+        }
+
+        for (iJudgementStr in allJudgements.keys()) {
+            Dbg.dbg(true,iJudgementStr);
+        }
+    }
+
     // helper to create stamp
     public function createStamp():Stamp {
         return new Stamp([Int64.make(0, stampCounter++)], new StructuralOriginsStamp([]));

@@ -47,6 +47,9 @@ class Interactive {
         else if (inputLine == "!dj") { // debug all judgements
             reasoner.declarative.debugJudgements();
         }
+        else if (inputLine == "!edj") { // executive  debug all judgements
+            reasoner.executive.debugJudgements();
+        }
         else if (inputLine == "!pe") { // profiler enable
             Nar.Config.enProfiler = true;
         }
