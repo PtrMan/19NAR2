@@ -257,8 +257,9 @@ class Executive {
         if (parEvents.length > 1) {
             // TODO< sample ba random if there are to many events >
             for(idxA in 0...parEvents.length) for(idxB in 0...parEvents.length) {
-                addEvidence([parEvents[idxA]], 0, [parEvents[idxB]], createStamp(), null, true);
-                addEvidence([parEvents[idxB]], 0, [parEvents[idxA]], createStamp(), null, true);
+                var stamp = createStamp();
+                addEvidence([parEvents[idxA]], 0, [parEvents[idxB]], stamp, null, true);
+                addEvidence([parEvents[idxB]], 0, [parEvents[idxA]], stamp, null, true);
             }
         }
 
@@ -722,94 +723,15 @@ class Executive {
     // the basic idea is to divide the time-intervals before the pred of a impl seq into exponential sized "chunks" and account for the evidence for each chunk seperatlyy
     public var enExponentialIntervals:Bool = true; // config
 
-    // TODO< replace with addEvidence2() >
     // adds new evidence
     // /param iActionTerm is the action term which is used for checking and, can be null if isConcurrentImpl is true
     private function addEvidence(conds:Array<Term>, dtEffect:Int, effects:Array<Term>, stamp:Stamp, iActionTerm:Term, isConcurrentImpl) {
-        
-        if (Par.checkIntersect(new Par(conds), new Par(effects))) {
-            return; // exclude (&/, a, ^b) =/> a
-        }
-
-        for(iPair in mem.queryPairsByCond(conds)) { // search for existing evidence and try to revise
-            ////trace('cs ${Par.checkSubset(iPair.cond, new Par(conds))} ${iPair.cond.events.map(v ->v.content)} ${new Par(conds).events.map(v->v.content)}');
-            
-            if (
-                iPair.isConcurrentImpl == isConcurrentImpl &&
-                //iPair.act.length == 1 &&
-                (isConcurrentImpl ? true : TermUtils.equal(iPair.condops[0].ops[0], iActionTerm)) &&
-                Par.checkSubset(iPair.condops[0].cond, new Par(conds)) // TODOOPTIMIZE< is not necessary >
-            ) {
-                // iPair.evidenceCnt++; // commented here because neg evidence should only come from neg-confirm, because we assume a open-world
-
-                if (Par.checkSubset(iPair.effect, new Par(effects))) {
-                    var isInChunk = enExponentialIntervals ? false : true;
-                    if (enExponentialIntervals) {
-                        isInChunk = exponentialIntervals_checkSameChunk(dtEffect, iPair.dtEffect);
-                    }
-
-                    if(isInChunk) { // only account for evidence if it is in the same chunk                        
-                        iPair.evidencePositive++;
-                    }
-                    iPair.evidenceCnt++;
-                }
-            }
-        }
-
-        var existsEvidence = false; // does exact evidence exist?
-        for(iPair in mem.queryPairsByCond(conds)) { // search for exact evidence
-            if (
-                iPair.isConcurrentImpl == isConcurrentImpl &&
-                //iPair.act.length == 1 &&
-                (isConcurrentImpl ? true : TermUtils.equal(iPair.condops[0].ops[0], iActionTerm)) &&
-                Par.checkSame(iPair.condops[0].cond, new Par(conds)) // TODOOPTIMIZE< is not necessary >
-            ) {
-                switch (checkImplSeqIsSame(iPair.effect, iPair.dtEffect, new Par(effects), dtEffect)) {
-                    case EnumEffectRange.INSAMERANGE: existsEvidence = true;
-                    case EnumEffectRange.NOTINSAMERANGE: existsEvidence = true;
-                    case EnumEffectRange.NOTSAME: false;
-                }
-            }
-        }
-
-        if (!existsEvidence) { // create new evidence if it doesn't yet exist
-            
-            // store ImplSeq
-            var createdPair:ImplSeq = new ImplSeq(stamp);
-
-            var ops = iActionTerm != null ? [iActionTerm] : [];
-            createdPair.condops = [new CondOps(new Par(conds), ops)];
-            createdPair.dtEffect = dtEffect;
-            createdPair.effect = new Par(effects);
-            createdPair.isConcurrentImpl = isConcurrentImpl;
-
-            if(dbgEvidence) trace('create new evidence ${createdPair.convToStr()}');
-
-            mem.addPair(createdPair); ///pairs.push(createdPair);
-        }
+        addEvidence2([new CondOps(new Par(conds), [])], dtEffect, effects, stamp, isConcurrentImpl, 1.0);
     }
-
-    // checks if the impl seq is the same and in the same interval 
-    //
-    // public to allow for unittesting
-    public function checkImplSeqIsSame(a:Par, aDt:Int, b:Par, bDt:Int): EnumEffectRange {
-        if (Par.checkSame(a, b)) {
-            var isInChunk = enExponentialIntervals ? false : true;
-            if (enExponentialIntervals) {
-                isInChunk = exponentialIntervals_checkSameChunk(aDt, bDt);
-            }
-
-            if (isInChunk) {
-                return EnumEffectRange.INSAMERANGE;
-            }
-            return EnumEffectRange.NOTINSAMERANGE;
-        }
-        return EnumEffectRange.NOTSAME; // is not 
-    }
-
 
     // adds new evidence
     // /param iActionTerm is the action term which is used for checking and, can be null if isConcurrentImpl is true
+    // /param horizon horizon for conf computation
     private function addEvidence2(condOps:Array<CondOps>, dtEffect:Int, effects:Array<Term>, stamp:Stamp, isConcurrentImpl, horizon:Float) {
         for (iCondOps in condOps) {
             if (Par.checkIntersect(iCondOps.cond, new Par(effects))) {
@@ -842,8 +764,8 @@ class Executive {
                 }
 
                 if(isSame) { // only account for evidence if it is in the same chunk
-                    iPair.evidenceCnt++;
                     if(isInChunk) {
+                        iPair.evidenceCnt++;
                         iPair.evidencePositive++;
                     }
                 }
