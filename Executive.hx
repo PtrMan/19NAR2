@@ -748,13 +748,30 @@ class Executive {
             ) {
                 var isSame = true;                
                 for (iCondOpsIdx in 0...condOps.length) {
-                    if (
-                        (isConcurrentImpl && condOps[iCondOpsIdx].ops.length > 0 ? true : TermUtils.equal(iPair.condops[iCondOpsIdx].ops[0], condOps[iCondOpsIdx].ops[0])) &&
-                        Par.checkSubset(iPair.condops[iCondOpsIdx].cond, condOps[iCondOpsIdx].cond) // TODOOPTIMIZE< is not necessary >
-                    ) {}
-                    else {
-                        isSame = false;
-                        break; // optimization
+
+                    //Sys.println(iPair.condops[iCondOpsIdx].ops.length);
+                    //Sys.println(condOps[iCondOpsIdx].ops.length);
+
+                    //Sys.println(iPair.condops[iCondOpsIdx].ops[0]);
+                    //Sys.println(condOps[iCondOpsIdx].ops[0]);
+
+                    // concurrent case
+                    if (isConcurrentImpl) {
+                        if (!Par.checkSubset(iPair.condops[iCondOpsIdx].cond, condOps[iCondOpsIdx].cond)) { // TODOOPTIMIZE< is not necessary >)                        
+                            isSame = false;
+                            break; // optimization
+                        }
+                    }
+                    else { // sequential case
+                        /* commented because wrong and because this case is to complicated and not necessary
+                        else if (!isConcurrentImpl) {
+                            if( iPair.condops[iCondOpsIdx].ops.length > 0 &&
+                            condOps[iCondOpsIdx].ops.length > 0 && 
+                            TermUtils.equal(iPair.condops[iCondOpsIdx].ops[0], condOps[iCondOpsIdx].ops[0])) &&
+                        Par.checkSubset(iPair.condops[iCondOpsIdx].cond, condOps[iCondOpsIdx].cond)) // TODOOPTIMIZE< is not necessary >
+                            {}
+                        }
+                        */
                     }
                 }
 
@@ -783,13 +800,30 @@ class Executive {
 
                 var isSame = true;                
                 for (iCondOpsIdx in 0...condOps.length) {
-                    if (
-                        (isConcurrentImpl && condOps[iCondOpsIdx].ops.length > 0 ? true : TermUtils.equal(iPair.condops[iCondOpsIdx].ops[0], condOps[iCondOpsIdx].ops[0])) &&
-                        Par.checkSame(iPair.condops[iCondOpsIdx].cond, condOps[iCondOpsIdx].cond) 
-                    ) {}
-                    else {
-                        isSame = false;
-                        break; // optimization
+
+                    //Sys.println(iPair.condops[iCondOpsIdx].ops.length);
+                    //Sys.println(condOps[iCondOpsIdx].ops.length);
+
+                    //Sys.println(iPair.condops[iCondOpsIdx].ops[0]);
+                    //Sys.println(condOps[iCondOpsIdx].ops[0]);
+
+                    // concurrent case
+                    if (isConcurrentImpl) {
+                        if (!Par.checkSubset(iPair.condops[iCondOpsIdx].cond, condOps[iCondOpsIdx].cond)) { // TODOOPTIMIZE< is not necessary >)                        
+                            isSame = false;
+                            break; // optimization
+                        }
+                    }
+                    else { // sequential case
+                        /* commented because wrong and because this case is to complicated and not necessary
+                        else if (!isConcurrentImpl) {
+                            if( iPair.condops[iCondOpsIdx].ops.length > 0 &&
+                            condOps[iCondOpsIdx].ops.length > 0 && 
+                            TermUtils.equal(iPair.condops[iCondOpsIdx].ops[0], condOps[iCondOpsIdx].ops[0])) &&
+                        Par.checkSubset(iPair.condops[iCondOpsIdx].cond, condOps[iCondOpsIdx].cond)) // TODOOPTIMIZE< is not necessary >
+                            {}
+                        }
+                        */
                     }
                 }
 
