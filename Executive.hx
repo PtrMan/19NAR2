@@ -52,7 +52,7 @@ class ProceduralMemory {
             // only add if it doesn't exist already
             // * try to find it
             for (iImplSeq in selNode.implSeqs) {
-                if (ImplSeq.checkSameByTerm(iImplSeq, implSeq)) {
+                if (ImplSeq.checkSameByTerm(iImplSeq, implSeq) && iImplSeq.dtEffect == implSeq.dtEffect) { // is only the same if te term and timing is the same!
                     return; // found it -> no need to add
                 }
             }
@@ -148,8 +148,7 @@ class Executive {
     public var acts:Array<{mass:Float, act:Act}> = []; // list of all actions
     
     public function new() {
-        var traceLength:Int = 10; // the trace
-        for(i in 0...traceLength) {
+        for(i in 0...traceMaxLength) {
             trace.push(new Par([]));
         }
     }
@@ -157,7 +156,9 @@ class Executive {
     var queuedAct: Term = null;
     var queuedActOrigins: Array<ImplSeq> = []; // origins of the queued action if it was done by the executive
 
-    var trace:Array<Par> = [];
+    public var trace:Array<Par> = [];
+
+    public var traceMaxLength = 20; // max length of trace in events/timesteps (depends on implementation)
 
     public var randomActProb:Float = 0.0; // config - propability to do random action
 
@@ -739,6 +740,8 @@ class Executive {
     // /param iActionTerm is the action term which is used for checking and, can be null if isConcurrentImpl is true
     // /param horizon horizon for conf computation
     private function addEvidence2(condOps:Array<CondOps>, dtEffect:Int, effects:Array<Term>, stamp:Stamp, isConcurrentImpl, horizon:Float) {
+        trace('add evidence dt $dtEffect');
+        
         for (iCondOps in condOps) {
             if (Par.checkIntersect(iCondOps.cond, new Par(effects))) {
                 return; // exclude (&/, a, ^b) =/> a
@@ -859,7 +862,7 @@ class Executive {
 
             if(dbgEvidence) trace('create new evidence ${createdPair.convToStr()}');
 
-            mem.addPair(createdPair); ///pairs.push(createdPair);
+            mem.addPair(createdPair);
         }
     }
 
