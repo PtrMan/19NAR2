@@ -22,7 +22,7 @@ class ExpProcAnti0 {
 
 
         testEvidence2();
-        //testEvidence3();        
+        testEvidence3();
     }
 
     // test very simple anticipation
@@ -154,8 +154,6 @@ class ExpProcAnti0 {
 
         // debug all the things
         reasoner.executive.dbgEvidence = true;
-        reasoner.executive.dbgAnticipationVerbose = true;
-        reasoner.executive.dbgDescisionMakingVerbose = true;
         reasoner.executive.dbgExecVerbose = true;
     
 
@@ -223,8 +221,6 @@ class ExpProcAnti0 {
 
         // debug all the things
         reasoner.executive.dbgEvidence = true;
-        reasoner.executive.dbgAnticipationVerbose = true;
-        reasoner.executive.dbgDescisionMakingVerbose = true;
         reasoner.executive.dbgExecVerbose = true;
     
 
@@ -281,25 +277,10 @@ class ExpProcAnti0 {
 
         var hasInterval10 = false;
         for(iStr in reasoner.executive.retJudgements()) {
-            if(iStr == "([< a --> A >] &/ [< ( {SELF} * a0 ) --> ^a >] &/ +10) =/> [< b --> B >] {1 0.5} // cnt=1") {
+            if(iStr == "([< a --> A >] &/ [< ( {SELF} * a0 ) --> ^a >] &/ +10) =/> [< b --> B >] {1 0.66666666666666663} // cnt=2") {
                 hasInterval10=true;
             }
         }
         if(!hasInterval10) throw "interval 10 is not correct!";
-    }
-}
-
-
-// op for testing if op was called
-// used for self-tests, unittests, etc.
-class CountOp extends Act {
-    public var counter:Int = 0;
-
-    public function new(name:String) {
-        super(name);
-    }
-
-    public override function exec(args:Array<Term>) {
-        counter++;
     }
 }
