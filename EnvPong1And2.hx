@@ -13,7 +13,7 @@ import Executive;
 // pong2 and pong1 ONA conform implementation as implemented in ONA
 class EnvPong1And2 {
     public static function main() {
-        runPong1(10000);
+        runPong1(15000);
     }
 
     public var szX:Int = 50;
@@ -221,6 +221,7 @@ class EnvPong1And2 {
         reasoner.executive.deadlineAlgorithm = "dt2plus"; // natural environment
 
         reasoner.executive.dbgAnticipationVerbose = true;
+        reasoner.executive.goalSystem2.debugGoalSystem = true;
         
         var env:EnvPong1And2 = new EnvPong1And2();
         env.batWidth = 4;
