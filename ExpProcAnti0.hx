@@ -19,6 +19,10 @@ class ExpProcAnti0 {
 
         testAnticipation0("const");
         testAnticipation0("dt2plus");
+
+
+        testEvidence2();
+        //testEvidence3();        
     }
 
     // test very simple anticipation
@@ -135,6 +139,153 @@ class ExpProcAnti0 {
         if (!found) {
             throw "Frequency is wrong! (evidence is not correctly add up)";
         }
+    }
+
+
+
+
+
+    
+    // test storage of evidence with different intervals
+    public static function testEvidence2() {
+        var reasoner:Nar = new Nar(null);
+        reasoner.executive.randomActProb = 0.0; // disable random motor babbling
+        reasoner.executive.decisionThreshold = 0.4; // enable these decisions
+
+        // debug all the things
+        reasoner.executive.dbgEvidence = true;
+        reasoner.executive.dbgAnticipationVerbose = true;
+        reasoner.executive.dbgDescisionMakingVerbose = true;
+        reasoner.executive.dbgExecVerbose = true;
+    
+
+        reasoner.executive.acts.push({mass:1.0, act:new SwitchOp("^a")});
+
+        reasoner.input("<a-->A>. :|:");
+        reasoner.executive.step();
+        reasoner.input("<({SELF} * a0) --> ^a>! :|:");
+        reasoner.executive.step();
+        reasoner.input("<b-->B>. :|:");
+        reasoner.executive.step();
+
+        // flush out
+        for(i in 0...100) {
+            reasoner.executive.step();
+        }
+
+        reasoner.input("<a-->A>. :|:");
+        reasoner.executive.step();
+        reasoner.input("<({SELF} * a0) --> ^a>! :|:");
+        reasoner.executive.step();
+        reasoner.executive.step();
+        reasoner.executive.step();
+        reasoner.executive.step();
+        reasoner.executive.step();
+        reasoner.executive.step();
+        reasoner.executive.step();
+        reasoner.executive.step();
+        reasoner.executive.step();
+        reasoner.executive.step();
+        reasoner.input("<b-->B>. :|:");
+        reasoner.executive.step();
+        
+        // flush out
+        for(i in 0...100) {
+            reasoner.executive.step();
+        }
+
+
+        reasoner.executive.debugJudgements(); // print all learned judgements
+
+        var hasInterval1 = false;
+        for(iStr in reasoner.executive.retJudgements()) {
+            if(iStr == "([< a --> A >] &/ [< ( {SELF} * a0 ) --> ^a >] &/ +1) =/> [< b --> B >] {1 0.5} // cnt=1") {
+                hasInterval1=true;
+            }
+        }
+        if(!hasInterval1) throw "interval 1 is not correct!";
+
+        var hasInterval10 = false;
+        for(iStr in reasoner.executive.retJudgements()) {
+            if(iStr == "([< a --> A >] &/ [< ( {SELF} * a0 ) --> ^a >] &/ +10) =/> [< b --> B >] {1 0.5} // cnt=1") {
+                hasInterval10=true;
+            }
+        }
+        if(!hasInterval10) throw "interval 10 is not correct!";
+    }
+
+
+    // test storage of evidence with different intervals
+    public static function testEvidence3() {
+        var reasoner:Nar = new Nar(null);
+        reasoner.executive.randomActProb = 0.0; // disable random motor babbling
+        reasoner.executive.decisionThreshold = 0.4; // enable these decisions
+
+        // debug all the things
+        reasoner.executive.dbgEvidence = true;
+        reasoner.executive.dbgAnticipationVerbose = true;
+        reasoner.executive.dbgDescisionMakingVerbose = true;
+        reasoner.executive.dbgExecVerbose = true;
+    
+
+        reasoner.executive.acts.push({mass:1.0, act:new SwitchOp("^a")});
+
+        reasoner.input("<a-->A>. :|:");
+        reasoner.executive.step();
+        reasoner.input("<({SELF} * a0) --> ^a>! :|:");
+        reasoner.executive.step();
+        reasoner.input("<b-->B>. :|:");
+        reasoner.executive.step();
+
+        // flush out
+        for(i in 0...100) {
+            reasoner.executive.step();
+        }
+
+        for(it in 0...2) {
+            reasoner.input("<a-->A>. :|:");
+            reasoner.executive.step();
+            reasoner.input("<({SELF} * a0) --> ^a>! :|:");
+            reasoner.executive.step();
+            reasoner.executive.step();
+            reasoner.executive.step();
+            reasoner.executive.step();
+            reasoner.executive.step();
+            reasoner.executive.step();
+            reasoner.executive.step();
+            reasoner.executive.step();
+            reasoner.executive.step();
+            reasoner.executive.step();
+            reasoner.input("<b-->B>. :|:");
+            reasoner.executive.step();
+            
+            // flush out
+            for(i in 0...100) {
+                reasoner.executive.step();
+            }
+        }
+        
+
+        
+
+
+        reasoner.executive.debugJudgements(); // print all learned judgements
+
+        var hasInterval1 = false;
+        for(iStr in reasoner.executive.retJudgements()) {
+            if(iStr == "([< a --> A >] &/ [< ( {SELF} * a0 ) --> ^a >] &/ +1) =/> [< b --> B >] {1 0.5} // cnt=1") {
+                hasInterval1=true;
+            }
+        }
+        if(!hasInterval1) throw "interval 1 is not correct!";
+
+        var hasInterval10 = false;
+        for(iStr in reasoner.executive.retJudgements()) {
+            if(iStr == "([< a --> A >] &/ [< ( {SELF} * a0 ) --> ^a >] &/ +10) =/> [< b --> B >] {1 0.5} // cnt=1") {
+                hasInterval10=true;
+            }
+        }
+        if(!hasInterval10) throw "interval 10 is not correct!";
     }
 }
 

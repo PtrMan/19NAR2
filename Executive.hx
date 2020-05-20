@@ -1009,7 +1009,9 @@ class Executive {
         return bestCandidate;
     }
 
-    public function debugJudgements() {
+    public function retJudgements(): Array<String> {
+        var res=[];
+
         var allJudgements:Map<String, Bool> = new Map<String, Bool>();
 
         for (iProcNode in mem.proceduralNodes) {
@@ -1019,6 +1021,14 @@ class Executive {
         }
 
         for (iJudgementStr in allJudgements.keys()) {
+            res.push(iJudgementStr);
+        }
+
+        return res;
+    }
+
+    public function debugJudgements() {
+        for (iJudgementStr in retJudgements()) {
             Dbg.dbg(true,iJudgementStr);
         }
     }
