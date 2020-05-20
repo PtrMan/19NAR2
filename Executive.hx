@@ -88,14 +88,19 @@ class ProceduralMemory {
             return []; // should never happen!
         }
 
-        var res = [];
+        var resMap:Map<String, ImplSeq> = new Map<String, ImplSeq>(); // we need a map to make sure that we add each result just once
 
         // * query of all parallel events
         if (proceduralNodes.exists(TermUtils.convToStr(parEvents[0]))) { // we can query parallel events by first event
             var selNode = proceduralNodes.get(TermUtils.convToStr(parEvents[0]));
             // select all where first event matches 
-            res = res.concat(
-                selNode.implSeqs.filter(iImplSeq -> Par.checkSame(iImplSeq.condops[0].cond, new Par(parEvents))));
+            var resCandidates =
+                selNode.implSeqs.filter(iImplSeq -> Par.checkSame(iImplSeq.condops[0].cond, new Par(parEvents)));
+            for(iCandidate in resCandidates) {
+                if(!resMap.exists(iCandidate.convToStr())) {
+                    resMap.set(iCandidate.convToStr(), iCandidate);
+                }
+            }
         }
 
         // * query for each single event
@@ -103,11 +108,20 @@ class ProceduralMemory {
             var selNode = proceduralNodes.get(TermUtils.convToStr(parEvents[0]));
             if (selNode != null) {
                 // select all where first event matches 
-                res = res.concat(
-                    selNode.implSeqs.filter(iImplSeq -> Par.checkSame(iImplSeq.condops[0].cond, new Par([iSelEvent]))));
+                var resCandidates =
+                    selNode.implSeqs.filter(iImplSeq -> Par.checkSame(iImplSeq.condops[0].cond, new Par([iSelEvent])));
+                for(iCandidate in resCandidates) {
+                    if(!resMap.exists(iCandidate.convToStr())) {
+                        resMap.set(iCandidate.convToStr(), iCandidate);
+                    }
+                }
             }
         }
 
+        var res = [];
+        for(i in resMap.keyValueIterator()) {
+            res.push(i.value);
+        }
         return res;
     }
 
