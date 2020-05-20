@@ -726,7 +726,7 @@ class Executive {
     // adds new evidence
     // /param iActionTerm is the action term which is used for checking and, can be null if isConcurrentImpl is true
     private function addEvidence(conds:Array<Term>, dtEffect:Int, effects:Array<Term>, stamp:Stamp, iActionTerm:Term, isConcurrentImpl) {
-        addEvidence2([new CondOps(new Par(conds), [])], dtEffect, effects, stamp, isConcurrentImpl, 1.0);
+        addEvidence2([new CondOps(new Par(conds), [iActionTerm])], dtEffect, effects, stamp, isConcurrentImpl, 1.0);
     }
 
     // adds new evidence
@@ -881,6 +881,8 @@ class Executive {
 
     // emits neg-confirm if anticipation didn't occur
     private function anticipationMaintainNegAnticipations() {
+        Dbg.dbg(true, 'ANTICIPATION cnt = ${anticipationsInflight.length}');
+        
         // checks if anticipations didn't occur till the deadline
         // emits a neg-confirm if this is the case
 

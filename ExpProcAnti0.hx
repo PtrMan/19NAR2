@@ -9,10 +9,14 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 */
 
 import Executive;
+import StandardOps;
+
 
 // supposed to be a simple experiment for the procedural functionality
 class ExpProcAnti0 {
     public static function main() {
+        testEvidence0();
+
         testAnticipation0("const");
         testAnticipation0("dt2plus");
     }
@@ -25,6 +29,7 @@ class ExpProcAnti0 {
         var op = new CountOp("^x");
         reasoner.executive.acts.push({mass:1.0, act:op});
 
+        reasoner.executive.decisionThreshold = 0.4; // set it low so it can make a descision
         reasoner.executive.dbgAnticipationVerbose = true;
 
         // add goal
@@ -70,6 +75,66 @@ class ExpProcAnti0 {
         }
 
         Sys.println('done');
+    }
+
+    
+    // test anticipation neg-confirm and revision
+    public static function testEvidence0() {
+        var reasoner:Nar = new Nar(null);
+        reasoner.executive.randomActProb = 0.0; // disable random motor babbling
+        reasoner.executive.decisionThreshold = 0.4; // enable these decisions
+
+        // debug all the things
+        reasoner.executive.dbgEvidence = true;
+        reasoner.executive.dbgAnticipationVerbose = true;
+        reasoner.executive.dbgDescisionMakingVerbose = true;
+        reasoner.executive.dbgExecVerbose = true;
+    
+
+        reasoner.executive.acts.push({mass:1.0, act:new SwitchOp("^a")});
+
+        reasoner.input("<b-->B>! :|:"); // add goal so it tries to exec op
+
+        reasoner.input("<a-->A>. :|:");
+        reasoner.executive.step();
+        reasoner.input("<({SELF} * a0) --> ^a>! :|:");
+        reasoner.executive.step();
+        reasoner.input("<b-->B>. :|:");
+        reasoner.executive.step();
+
+        // flush out
+        for(i in 0...100) {
+            reasoner.executive.step();
+        }
+
+        reasoner.input("<a-->A>. :|:");
+        reasoner.executive.step();
+        reasoner.executive.randomActProb = 1.0;        // force execution of op
+        //reasoner.input("<({SELF} * a0) --> ^a>! :|:");
+        reasoner.executive.step();
+        reasoner.executive.randomActProb = 0.0;
+        
+        // flush out
+        for(i in 0...100) {
+            reasoner.executive.step();
+        }
+
+
+        reasoner.executive.debugJudgements(); // print all learned judgements
+
+        // assert that freq = 0.5!
+        var found = false;
+        for(i in reasoner.executive.mem.proceduralNodes.keyValueIterator()) {
+            for(iImpl in i.value.implSeqs) {
+                if (Math.abs(iImpl.calcFreq() - 0.5) < 0.01 ) {
+                    found = true;
+                }
+            }
+        }
+
+        if (!found) {
+            throw "Frequency is wrong! (evidence is not correctly add up)";
+        }
     }
 }
 
