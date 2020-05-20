@@ -252,16 +252,22 @@ class Executive {
             goalSystem2.submitEvent(iEvent);
         }
 
-        // * add evidence of parallel events
-        //   builds a =|> b  b =|> a  from parEvents=[a, b]
-        if (parEvents.length > 1) {
-            // TODO< sample ba random if there are to many events >
-            for(idxA in 0...parEvents.length) for(idxB in 0...parEvents.length) {
-                var stamp = createStamp();
-                addEvidence([parEvents[idxA]], 0, [parEvents[idxB]], stamp, null, true);
-                addEvidence([parEvents[idxB]], 0, [parEvents[idxA]], stamp, null, true);
+        var buildParConjunctions = false; // build parallel conjunction?
+                                          // disabled because it's unnecessary
+
+        if (buildParConjunctions) {
+            // * add evidence of parallel events
+            //   builds a =|> b  b =|> a  from parEvents=[a, b]
+            if (parEvents.length > 1) {
+                // TODO< sample ba random if there are to many events >
+                for(idxA in 0...parEvents.length) for(idxB in 0...parEvents.length) {
+                    var stamp = createStamp();
+                    addEvidence([parEvents[idxA]], 0, [parEvents[idxB]], stamp, null, true);
+                    addEvidence([parEvents[idxB]], 0, [parEvents[idxA]], stamp, null, true);
+                }
             }
         }
+
 
         // * try to confirm anticipations
         anticipationTryConfirm(parEvents);
