@@ -1115,6 +1115,11 @@ class GoalSystem {
             if( iGoal.condOps.ops.length == 0 ) { // must have no ops
                 if (iGoal.condOps.cond.events.length == 1) { // must be a single event which is the goal
                     if (TermUtils.equal(iGoal.condOps.cond.events[0], effects[0])) { // is the term the same? // TODO< check for subset of par >
+                        var realizedThreshold:Float = 0.9;
+                        if (iGoal.calcRealized() > realizedThreshold) {
+                            continue; // don't realize already realized goals
+                        }
+                        
                         if (bestGoal == null) {
                             bestGoal = iGoal;
                         }
@@ -1224,6 +1229,11 @@ class GoalSystem {
         if (sampledGoal == null) {
             return;
         }
+
+        //var realizedThreshold:Float = 0.9;
+        //if (sampledGoal.calcRealized() > realizedThreshold) {
+        //    return; // don't realize already realized goals
+        //}
 
         if (sampledGoal.condOps.ops.length == 0) {
             Dbg.dbg(debugGoalSystem, 'goalsystem: GOAL DERIVATION');
@@ -1438,6 +1448,23 @@ class ActiveGoal2 {
         this.desire = desire;
         this.stamp = stamp;
         this.creationTime = creationTime;
+    }
+
+    /*Goal:
+         If the expectation of its desire-value is e, and the system has a matching belief  with  expectation e′, h=|e−e′|.
+         If there is no matching belief, h=|e−0.5|.
+         It measures the extent the desired statement is already realized.
+     */
+    public function calcRealized():Float {
+        var hasMatchingBelief = false;
+
+        if (!hasMatchingBelief) {
+            return 1.0-desire.exp(); // adapted formula which makes more sense
+        }
+        else {
+            // TODO< implement matching belief case >
+            throw "NOT IMPLEMENTED!";
+        }
     }
 
     public function convToStr():String {
