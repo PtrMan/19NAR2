@@ -18,7 +18,7 @@ class ProceduralMemory {
     public function new() {}
 
     // TODO< rename to addImplSeq() >
-    public function addPair(implSeq:ImplSeq) {
+    public function addPair(implSeq:ImplSeq,exec:Executive) {
         // enumerate all terms where we have to try to add the ImplSeq
         var containedTerms:Array<Term> = [];
         {
@@ -52,8 +52,18 @@ class ProceduralMemory {
             // only add if it doesn't exist already
             // * try to find it
             for (iImplSeq in selNode.implSeqs) {
-                if (ImplSeq.checkSameByTerm(iImplSeq, implSeq) && iImplSeq.dtEffect == implSeq.dtEffect) { // is only the same if te term and timing is the same!
-                    return; // found it -> no need to add
+                if (ImplSeq.checkSameByTerm(iImplSeq, implSeq)) { // is only the same if te term and timing is the same!
+                    if (exec.enExponentialIntervals) {
+                        var isInChunk = Executive.exponentialIntervals_checkSameChunk(iImplSeq.dtEffect, implSeq.dtEffect);
+                        if(isInChunk) {
+                            return; // found it -> no need to add
+                        }
+                    }
+                    else {
+                        if(iImplSeq.dtEffect == implSeq.dtEffect) {
+                            return; // found it -> no need to add
+                        }
+                    }
                 }
             }
 
@@ -251,7 +261,8 @@ class Executive {
             var implSeq = new ImplSeq(createStamp());
             implSeq.effect = new Par([pred]);
             implSeq.condops = [new CondOps(new Par([seq0]), [op1])];
-            mem.addPair(implSeq);
+            // TODO< we need to revise correctly! >
+            mem.addPair(implSeq,this);
 
             case _:
             trace('Executive.inputJugdgement() expected (term &/ op) =/> x. !');
@@ -754,8 +765,6 @@ class Executive {
     // /param iActionTerm is the action term which is used for checking and, can be null if isConcurrentImpl is true
     // /param horizon horizon for conf computation
     private function addEvidence2(condOps:Array<CondOps>, dtEffect:Int, effects:Array<Term>, stamp:Stamp, isConcurrentImpl, horizon:Float) {
-        trace('add evidence dt $dtEffect');
-        
         for (iCondOps in condOps) {
             if (Par.checkIntersect(iCondOps.cond, new Par(effects))) {
                 return; // exclude (&/, a, ^b) =/> a
@@ -876,7 +885,7 @@ class Executive {
 
             if(dbgEvidence) trace('create new evidence ${createdPair.convToStr()}');
 
-            mem.addPair(createdPair);
+            mem.addPair(createdPair,this);
         }
     }
 
