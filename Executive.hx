@@ -1093,6 +1093,10 @@ class GoalSystem {
 
     public var goaltableSize:Int = 30;
 
+    public var realizedThreshold:Float = 0.9*0.5; // setting - threshold to realize a goal
+
+    public var enGoalDetachment:Bool = false; // do we enable goal detachment?, disabled because current version has control problems
+
     public function new() {}
 
     // filter goals by first event
@@ -1115,7 +1119,6 @@ class GoalSystem {
             if( iGoal.condOps.ops.length == 0 ) { // must have no ops
                 if (iGoal.condOps.cond.events.length == 1) { // must be a single event which is the goal
                     if (TermUtils.equal(iGoal.condOps.cond.events[0], effects[0])) { // is the term the same? // TODO< check for subset of par >
-                        var realizedThreshold:Float = 0.9;
                         if (iGoal.calcRealized() > realizedThreshold) {
                             continue; // don't realize already realized goals
                         }
@@ -1265,7 +1268,7 @@ class GoalSystem {
         }
         else { // case with ops
             {
-                if (sampledGoal.condOps.cond.events.length > 0) { // must have cond events!
+                if (sampledGoal.condOps.cond.events.length > 0 && enGoalDetachment) { // must have cond events!
                     // (a &/ ^x)!
                     // |- DesireDed (deduction)   (structural deduction)
                     // a!
@@ -1353,7 +1356,7 @@ class GoalSystem {
         // scan all goals and decrement desire if it matches
         for(iGoal in activeGoals) {
             if (iGoal.condOps.ops.length == 0 && Par.checkSame(iGoal.condOps.cond, new Par([term]))) { // does term match?
-                iGoal.desire = new Tv(0.0, 0.998); // we fullfilled the goal when the event happened
+                iGoal.beliefTv = new Tv(1.0, 0.998); // we have a belief for the goal when it happened
             }
         }
     }
@@ -1443,6 +1446,8 @@ class ActiveGoal2 {
 
     public var desire:Tv = new Tv(1.0, 0.998); // how much do we want to realize the goal?
 
+    public var beliefTv:Tv = null; // belief which has the same term
+
     public function new(condOps, desire, stamp, creationTime) {
         this.condOps = condOps;
         this.desire = desire;
@@ -1456,15 +1461,8 @@ class ActiveGoal2 {
          It measures the extent the desired statement is already realized.
      */
     public function calcRealized():Float {
-        var hasMatchingBelief = false;
-
-        if (!hasMatchingBelief) {
-            return 1.0-desire.exp(); // adapted formula which makes more sense
-        }
-        else {
-            // TODO< implement matching belief case >
-            throw "NOT IMPLEMENTED!";
-        }
+        var beliefExp:Float = beliefTv == null ? beliefTv.exp() : 0.5; // expectation of the belief
+        return Math.abs(desire.exp() - beliefExp);
     }
 
     public function convToStr():String {
