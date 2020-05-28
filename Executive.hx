@@ -165,32 +165,91 @@ class ProceduralNode {
 }
 
 
+class Trace {
+    public var trace:Array<TraceItem> = [];
+
+    public var traceMaxLength = 20; // max length of trace in events/timesteps (depends on implementation)
+    
+    public function new() {}
+
+    public function append(v:TraceItem) {
+        trace.push(v);
+        if(trace.length > traceMaxLength) {
+            trace = trace.slice(1);
+        }
+    }
+
+    // sample one sequence from the trace
+    // doesn't filter for valid sequences!
+    public function sample():Array<TraceItem> {
+        var seqLen = 3; // length of sequence
+
+        if (this.trace.length < seqLen) {
+            return []; // not enough
+        }
+
+        var openIndices=[for (i in 0...this.trace.length) i];
+        var pickedIndices = [];
+        for(it in 0...seqLen-1) {
+            var pickedIdxIdx = Std.random(openIndices.length-1);
+            var pickedIdx = openIndices[pickedIdxIdx];
+            openIndices.remove(pickedIdx);
+            pickedIndices.push(pickedIdx);
+        }
+        // add last index to force to add last event
+        // we can do this because we call sample() every timestep
+        pickedIndices.push(trace.length-1);
+
+        var res = pickedIndices.map(idx -> this.trace[idx]);
+        res.sort((a, b) -> a.t - b.t); // necessary because indices may not be in order!
+        
+        // debug
+        //trace('Trace.sample() returned');
+        //for(iv in res) {
+        //    trace('  ${iv.t}');
+        //}
+
+        return res;
+    }
+}
+
+// item in a trace
+class TraceItem {
+    public var t:Int; // absolute time of event
+
+    public var events:Array<Term>; // events which happened at that time
+
+    public function new(events:Array<Term>, t:Int) {
+        this.events = events;
+        this.t = t;
+    }
+}
+
+
+
 class Executive {
     
     //commented because it is in memory    public var pairs:Array<Pair> = []; // all known pairs
 
     public var acts:Array<{mass:Float, act:Act}> = []; // list of all actions
     
-    public function new() {
-        for(i in 0...traceMaxLength) {
-            trace.push(new Par([]));
-        }
-    }
+    public function new() {}
 
     var queuedAct: Term = null;
     var queuedActOrigins: Array<ImplSeq> = []; // origins of the queued action if it was done by the executive
 
-    public var trace:Array<Par> = [];
+    public var trace2:Trace = new Trace();
 
-    public var traceMaxLength = 20; // max length of trace in events/timesteps (depends on implementation)
+    //public var trace:Array<Par> = [];
+    //public var traceMaxLength = 20; // max length of trace in events/timesteps (depends on implementation)
+    //public var horizon5seq:Float = 8.0; // config - horizon for 5seq
+
 
     public var randomActProb:Float = 0.0; // config - propability to do random action
 
     public var decisionThreshold:Float = 0.6; // config
 
     public var anticipationDeadline = 20; // config - anticipation deadline in cycles
-
-    public var horizon5seq:Float = 8.0; // config - horizon for 5seq
 
 
     public var cycle:Int = 0; // global cycle timer
@@ -270,6 +329,8 @@ class Executive {
         }
     }
 
+    public var msgsOfDebug:Array<String> = []; // collected debug messages
+
     public var parEvents:Array<Term> = []; // current parallel events, is used to accumulate events which happen in one frame/instant
 
     public function step() {
@@ -298,21 +359,19 @@ class Executive {
         // * try to confirm anticipations
         anticipationTryConfirm(parEvents);
 
-        // * advance time by one step
-        for(idx2 in 1...this.trace.length) {
-            var idx = this.trace.length-1-idx2;
-            this.trace[idx+1] = this.trace[idx];
+        // * store events to trace
+        if (parEvents.length > 0) {
+            trace2.append(new TraceItem(parEvents, cycle));
         }
-        this.trace[0] = new Par([]);
-        this.trace[0].events = parEvents;
 
-        if (false) { // debug trace
-            Dbg.dbg(true, 'trace');
-            for(idx2 in 0...this.trace.length) {
-                var idx = this.trace.length-1-idx2;
-                Dbg.dbg(true, ' [$idx]  ${this.trace[idx].events.map(v -> TermUtils.convToStr(v))}');
-            }
-        }
+        // commented because this code is outdated because trace got refactored
+        //if (false) { // debug trace
+        //    Dbg.dbg(true, 'trace');
+        //    for(idx2 in 0...this.trace.length) {
+        //        var idx = this.trace.length-1-idx2;
+        //        Dbg.dbg(true, ' [$idx]  ${this.trace[idx].events.map(v -> TermUtils.convToStr(v))}');
+        //    }
+        //}
 
         { // do random action
             if(Math.random() < randomActProb && queuedAct == null) { // do random action
@@ -353,16 +412,32 @@ class Executive {
             execAct(queuedAct, queuedActOrigins);
 
             // record to trace
-            this.trace[0].events.push(queuedAct);
-        }
+            var add = false; // add new event time to trace?
+            if (trace2.trace.length > 0) {
+                add = trace2.trace[trace2.trace.length-1].t != cycle; // were events recorded in a different cycle?
+            }
+            else {
+                add = true;
+            }
 
-        if (false) { // debug trace
-            Dbg.dbg(true, 'trace after queue insert');
-            for(idx2 in 0...this.trace.length) {
-                var idx = this.trace.length-1-idx2;
-                Dbg.dbg(true,' [$idx]  ${this.trace[idx].events.map(v -> TermUtils.convToStr(v))}');
+            if (add) {
+                trace2.append(new TraceItem([queuedAct], cycle));
+            }
+            else {
+                // we need to add it to the last trace item
+                // assert(trace2.trace[trace2.trace.length-1].t == cycle)
+                trace2.trace[trace2.trace.length-1].events.push(queuedAct);
             }
         }
+        
+        // commented because this code is outdated because trace got refactored
+        //if (false) { // debug trace
+        //    Dbg.dbg(true, 'trace after queue insert');
+        //    for(idx2 in 0...this.trace.length) {
+        //        var idx = this.trace.length-1-idx2;
+        //        Dbg.dbg(true,' [$idx]  ${this.trace[idx].events.map(v -> TermUtils.convToStr(v))}');
+        //    }
+        //}
 
         
         
@@ -451,96 +526,7 @@ class Executive {
 
 
         // select best decision making candidate
-        // NOTE< old more complicated and slightly wrong decision making is disabled for now! >
-        if(false) { 
-            var sw2 = Stopwatch.createAndStart();
-            
-            var candidates:Array<ImplSeq> = [];// candidates for decision making in this step
-            // * compute candidates for decision making in this step
-            candidates = mem.queryPairsByCond(parEvents)
-                .filter(iPair -> iPair.effect.events.filter(iEvent -> goalSystem2.isGoalByTerm(iEvent)).length > 0) // does it have a eternal goal as a effect?
-                .filter(v -> !v.isConcurrentImpl); /////pairs.filter(v -> Par.checkSubset(new Par(parEvents), v.cond));
-            
-            // (&/, a, ^op) =/> b  where b!
-            var candidatesByLocalChainedGoal: Array<{pair:ImplSeq, tv:Tv, exp:Float}> = [
-                for (iPair in candidates) {pair:iPair, tv:new Tv(iPair.calcFreq(), iPair.calcConf()),  exp:Tv.calcExp(iPair.calcFreq(), iPair.calcConf())}
-            ];
-
-            // * compute two op decision making candidates
-            // ex: (&/, a, ^x, b, ^y) =/> c
-            var enable5Seq = true; // are seq impl with 5 elements enabled? - costs a bit of performance
-            var canditates5SeqByLocalChainedGoal: Array<{pair:ImplSeq, tv:Tv, exp:Float}> = [];
-            if(enable5Seq) {
-                
-
-                if (containsAnyNonaction(parEvents)) { // did candidate b just happen
-                    // scan for ^x
-                    var op0TraceIdx = -1; // -1 : not used
-                    for(iOp0TraceIdxCandidate in 1...this.trace.length-1) {
-                        if (containsAction(this.trace[iOp0TraceIdxCandidate].events)) {
-                            op0TraceIdx = iOp0TraceIdxCandidate;
-                            break;
-                        }
-                    }
-
-                    if(op0TraceIdx != -1) { // is valid?
-                        // scan for a
-                        var cond0TraceIdx = -1;
-                        for(iTraceIdx in op0TraceIdx+1...this.trace.length) {
-                            if (containsAction(this.trace[iTraceIdx].events)) {
-                                break; // break because we dont handle seq of multiple actions yet
-                            }
-                            if (containsAnyNonaction(this.trace[iTraceIdx].events)) {
-                                cond0TraceIdx = iTraceIdx; // found it
-                                break;
-                            }
-                        }
-
-                        if (cond0TraceIdx != -1) {
-                            // we are here if we found a candidate of a potential match in the trace
-                            //
-                            // now we need to check if we find a seq with these conditions in the database
-
-                            var seq5potentialCond0 = this.trace[cond0TraceIdx].events;
-                            var seq5potentialOp0 = this.trace[op0TraceIdx].events.filter(v -> tryDecomposeOpCall(v) != null)[0];
-                            var seq5potentialCond1 = this.trace[0].events.filter(v -> !(tryDecomposeOpCall(v) != null));
-                            var seq5potentialCandidates:Array<ImplSeq> = mem.queryPairsByCond(seq5potentialCond0);                            
-                            seq5potentialCandidates = seq5potentialCandidates.filter(iPair -> iPair.effect.events.filter(iEvent -> goalSystem2.isGoalByTerm(iEvent)).length > 0); // does it have a eternal goal as a effect?
-                            seq5potentialCandidates = seq5potentialCandidates.filter(iPair -> !iPair.isConcurrentImpl && iPair.condops.length == 2);
-                            seq5potentialCandidates = seq5potentialCandidates.filter(iPair -> iPair.condops[0].ops.length == 1 && TermUtils.equal(iPair.condops[0].ops[0], seq5potentialOp0)); // op of condops[0] must match up
-                            seq5potentialCandidates = seq5potentialCandidates.filter(iPair -> Par.checkIntersect(iPair.condops[1].cond, new Par(seq5potentialCond1))); // condition must match up with observed one
-
-                            // they are candidates for decision making if they match up!
-                            canditates5SeqByLocalChainedGoal = [
-                                for (iPair in seq5potentialCandidates) {pair:iPair, tv:new Tv(iPair.calcFreq(), iPair.calcConf()),  exp:Tv.calcExp(iPair.calcFreq(), iPair.calcConf())}
-                            ];
-                        }
-                    }
-                }
-
-            }
-            
-            //commented because it is to slow
-            //candidatesByLocalChainedGoal = filterCandidatesByGoal(candidates); // chain local pair -> matching goal in goal system
-            
-            var sw3 = Stopwatch.createAndStart();
-            var candidatesByGoal: Array<{pair:ImplSeq, tv:Tv, exp:Float}> = goalSystem2.retDecisionMakingCandidatesForCurrentEvents(parEvents);
-            Dbg.dbg(dbgDescisionMakingVerbose, 'descnMaking goal system time=${sw3.retCurrentTimeDiff()}');
-
-            //var timeBefore3 = Sys.time();
-            ///var candidatesFromForwardChainer1 = ForwardChainer.step(parEvents, 1, this);
-            ///var candidatesFromForwardChainer2 = ForwardChainer.step(parEvents, 2, this);
-            //Dbg.dbg(dbgDescisionMakingVerbose, 'descnMaking goal system forward chainer time=${Sys.time()-timeBefore3}');
-
-            var candidates: Array<{pair:ImplSeq, tv:Tv, exp:Float}> = candidatesByLocalChainedGoal
-                .concat(candidatesByGoal)
-                ///.concat(candidatesFromForwardChainer1)
-                ///.concat(candidatesFromForwardChainer2)
-                ;
-            bestDecisionMakingCandidate = selBestAct(candidates);
-
-            Dbg.dbg(dbgDescisionMakingVerbose, 'descnMaking time=${sw2.retCurrentTimeDiff()}');
-        }
+        
         if (bestDecisionMakingCandidate != null) {
             var bestDecisionExp:Float = Tv.calcExp(bestDecisionMakingCandidate.calcFreq(), bestDecisionMakingCandidate.calcConf());
             
@@ -571,53 +557,35 @@ class Executive {
 
         // * store sequences if possible
         {
-            if (
-                this.trace[0].events.length > 0 // most recent trace element must contain a event to get chained
-            ) {
+            var traceSamples:Int = 3; // how many samples are drawn from the trace in every step to build impl seq?
 
-                // is any event of the most recent events a goal?
-                var hasMostRecentEventGoal = parEvents.filter(iEvent -> goalSystem2.isGoalByTerm(iEvent)).length > 0;
+            for(iSample in 0...traceSamples) {
+                var implSeqCandidate:Array<TraceItem> = trace2.sample();
+                if (implSeqCandidate.length == 0) {
+                    continue; // is not valid
+                }
 
+                // case for len=3
+                if (implSeqCandidate.length == 3) {
+                    var first = implSeqCandidate[0];
+                    var mid = implSeqCandidate[1];
+                    var last = implSeqCandidate[2];
 
-                // function to scan through condition candidates up to "bounding" op-event
-                // and to build (&/, a, ^b) =/> c
-                //
-                // /param scanAllConditions scan for all conditions and don't stop at the first?
-                //        this is only advised for very important effects
-                function scanBoundingEvntAndAddImplSeq(traceIdxOfOpEvent:Int, scanAllConditions:Bool) {
-                    for(iConditionCandidateIdx in traceIdxOfOpEvent+1...this.trace.length) { // iterate over indices in trace for condition of impl seq we want to build
+                    // is any event of the most recent events a goal?
+                    var hasMostRecentEventGoal = last.events.filter(iEvent -> goalSystem2.isGoalByTerm(iEvent)).length > 0;
+                    if (hasMostRecentEventGoal) { // must have last event as a goal
                         
-                        // "break" sequence by another op
-                        // because we only build (&/, a, ^b) =/> c, not some impl seq with two or more ops
-                        if (containsAction(this.trace[iConditionCandidateIdx].events)) {
-                            break;
-                        }
-
-                        if (!containsAnyNonaction(this.trace[iConditionCandidateIdx].events)) {
-                            continue;
-                        }
-
-
-                        // build impl seq(s)
-                        // because it has at least one (&/, events, ^action) =/> effect term
-                
-                        var nonactionsOf2:Array<Term> = this.trace[iConditionCandidateIdx].events.filter(v -> !(tryDecomposeOpCall(v) != null));
-                        var actionsOf1:Array<Term> = this.trace[traceIdxOfOpEvent].events.filter(v -> tryDecomposeOpCall(v) != null);
-                        var nonactionsOf0:Array<Term> = this.trace[0].events.filter(v -> !(tryDecomposeOpCall(v) != null));
+                        var nonactionsOf2:Array<Term> = first.events.filter(v -> !(tryDecomposeOpCall(v) != null));
+                        var actionsOf1:Array<Term> = mid.events.filter(v -> tryDecomposeOpCall(v) != null);
+                        var nonactionsOf0:Array<Term> = last.events.filter(v -> !(tryDecomposeOpCall(v) != null));
                         
-                        var dtEffect:Int = traceIdxOfOpEvent-0; // compute dt
+                        var dtEffect:Int = last.t-mid.t; // compute dt
 
-                        {
+                        if (nonactionsOf0.length > 0 && actionsOf1.length > 0 && nonactionsOf2.length > 0) {
                             for(iActionTerm in actionsOf1) { // iterate over all actions done at that time
-                                if (dbgEvidence) {                            
-                                    var stamp:Stamp = createStamp();
-                                    var createdPair:ImplSeq = new ImplSeq(stamp);
-                                    createdPair.condops = [new CondOps(new Par(nonactionsOf2), actionsOf1)];
-                                    createdPair.dtEffect = dtEffect;
-                                    createdPair.effect = new Par(nonactionsOf0);
-                                    trace('evidence  ${createdPair.convToStr()}');
-                                }
                                 
+                                msgsOfDebug.push('sampled');
+
 
                                 var stamp:Stamp = createStamp();
 
@@ -643,76 +611,7 @@ class Executive {
                                         }
                                     }
                                 }
-                            }
-                        }
-
-
-                        if (!scanAllConditions) {
-                            break; // we break because else we may overwhelm the system with pointless derivations
-                        }
-                    }
-                }
-
-                // we need to build sequences of observations,
-                // but we also have to be careful not to build to many
-                //
-                // so we need to scan the trace for a op which "connects" the event(s) before the op to the last event(s)
-
-                
-                for(idxOp1 in 1...this.trace.length-1) {
-                    if (containsAction(this.trace[idxOp1].events)) {
-                        var traceIdxOfOpEvent = idxOp1;
-
-                        scanBoundingEvntAndAddImplSeq(traceIdxOfOpEvent, hasMostRecentEventGoal);
-
-                        function fn5() {
-                            // search for 2nd op for building (&/, a, ^x, b, ^y) =/> c
-                            
-                            for(idxOp2 in idxOp1+1...this.trace.length-1) {
-                                if (containsAction(this.trace[idxOp2].events)) {
-
-                                    // search for event which was not action
-                                    for(idxNop2 in idxOp2+1...this.trace.length) {
-                                        if (containsAnyNonaction(this.trace[idxNop2].events)) {
-
-                                            // we found a (&/, a, ^x, b, ^y) =/> c   candidate
-
-                                            // scan for b candidates, add all as knowlede
-                                            for(nonOp1Idx in idxOp1+1...idxOp2) {
-                                                if (containsAnyNonaction(this.trace[nonOp1Idx].events)) {
-                                                    
-                                                    
-                                                    var nonOpsOf2:Array<Term> = this.trace[idxNop2].events.filter(v -> !(tryDecomposeOpCall(v) != null)); // a
-                                                    var opsOf2:Array<Term> = this.trace[idxOp2].events.filter(v -> tryDecomposeOpCall(v) != null); // ^x
-                                                    var nonOpsOf1:Array<Term> = this.trace[nonOp1Idx].events.filter(v -> !(tryDecomposeOpCall(v) != null)); // b
-                                                    var opsOf1:Array<Term> = this.trace[idxOp1].events.filter(v -> tryDecomposeOpCall(v) != null); // ^y
-                                                    var nonOpsOf0:Array<Term> = this.trace[0].events.filter(v -> !(tryDecomposeOpCall(v) != null)); // c
-
-                                                    // try to add to knowledge
-                                                    {
-                                                        // TODO< add different combinations of event, par event, op, etc >
-
-                                                        var condOps:Array<CondOps> = [new CondOps(new Par(nonOpsOf2), [opsOf2[0]]), new CondOps(new Par(nonOpsOf1), [opsOf1[0]])];
-                                                        var dtEffect:Int = idxOp1-0; // compute dt
-                                                        addEvidence2(condOps, dtEffect, nonOpsOf0, createStamp(), false, horizon5seq);
-                                                    }
-                                                }
-                                            }
-
-                                            return; // break up search
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        
-                        fn5();
-                        
-
-                        // we care about all possible impl seq if the most recent events contain goal
-                        if (!hasMostRecentEventGoal) {
-                            break; 
+                            }    
                         }
                     }
                 }
