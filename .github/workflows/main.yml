@@ -21,7 +21,9 @@ jobs:
         haxe-version: 4.0.5
 
     - name: Run TestNal NAL file based test
-      run: haxe --run TestNal
+      run: |
+           cd /home/runner/work/19NAR2/19NAR2
+           haxe --run TestNal
 
     - name: Run ExpProcAnti0 decision making test
       run: haxe --run ExpProcAnti0
