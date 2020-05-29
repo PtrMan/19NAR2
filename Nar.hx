@@ -128,7 +128,7 @@ class Declarative {
                 }
                 pathToNar = pathToNar.substr(0, pathToNar.length-1); // eat away
             }
-            parametersMap = Nar.XmlImport.importXmlFromFile(pathToNar + "\\"+"parameters.xml");
+            parametersMap = Nar.XmlImport.importXmlFromFile(pathToNar + (Sys.systemName() == "Windows" ? "\\" : "/")+"parameters.xml");
             #end
 
             // transfer parameters
