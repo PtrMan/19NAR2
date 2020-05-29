@@ -233,7 +233,9 @@ class Executive {
 
     public var acts:Array<{mass:Float, act:Act}> = []; // list of all actions
     
-    public function new() {}
+    public function new() {
+        depthFirstPlanner.exec = this; // wire executive to planner
+    }
 
     var queuedAct: Term = null;
     var queuedActOrigins: Array<ImplSeq> = []; // origins of the queued action if it was done by the executive
@@ -281,10 +283,12 @@ class Executive {
     }
     */
 
+    public var enDepthFirstPlanner:Bool = false; // enable depth first planner? - flag necessary because it is experimental and leads currently to contradictary goals in natural environments such as pong1 and pong2
+    public var depthFirstPlanner:DepthFirstPlanner = new DepthFirstPlanner(); // COMPONENT - planner which is used to search for depth first goals
     
     // used to submit a goal by input
     public function submitGoalByTerm(goalTerm:Term, tv:Tv) {
-        goalSystem2.submitGoalByTerm(goalTerm, tv, createStamp(), cycle, EnumSentenceSource.INPUT);
+        goalSystem2.submitGoalByTerm(this, goalTerm, tv, createStamp(), cycle, EnumSentenceSource.INPUT);
     }
 
 
@@ -334,6 +338,10 @@ class Executive {
     public var parEvents:Array<Term> = []; // current parallel events, is used to accumulate events which happen in one frame/instant
 
     public function step() {
+        if (enDepthFirstPlanner) {
+            depthFirstPlanner.step(); // give time to depth first planner
+        }
+
         // * "neutralize" fullfilled goals
         for (iEvent in parEvents) {
             goalSystem2.submitEvent(iEvent);
@@ -1047,17 +1055,21 @@ class GoalSystem {
         return [];
     }
 
-    public function submitGoalByTerm(goalTerm:Term, tv:Tv, stamp:Stamp, currentTime2:Int, source:EnumSentenceSource) {
+    public function submitGoalByTerm(executive:Executive, goalTerm:Term, tv:Tv, stamp:Stamp, currentTime2:Int, source:EnumSentenceSource) {
         Dbg.dbg(debugGoalSystem, 'submitted goal by term ${TermUtils.convToStr(goalTerm)} ${tv.convToStr()}');
 
         var goalCondOp:CondOps = new CondOps(new Par([goalTerm]), []);
 
         var goal:ActiveGoal2 = new ActiveGoal2(goalCondOp, tv, stamp, currentTime);
-        submitGoal2(goal, source);
+        submitGoal2(executive, goal, source);
     }
 
     // used to submit a new goal
-    public function submitGoal2(goal:ActiveGoal2, source:EnumSentenceSource) {
+    public function submitGoal2(executive:Executive, goal:ActiveGoal2, source:EnumSentenceSource) {
+        { // submit goal to depth first planner
+            executive.depthFirstPlanner.submitGoal(goal, 1.0);
+        }
+        
         var store = true; // do we want to store the goal additionally?
                           // is required to keep goals up to date, old not important or outdated goals will get pushed out of memory!
         
@@ -1122,7 +1134,7 @@ class GoalSystem {
         if (sampledGoal == null) {
             return;
         }
-        processGoal(sampledGoal, exec.decl);
+        processGoal(sampledGoal, exec.decl, exec);
     }
 
     // derives new goals
@@ -1162,7 +1174,7 @@ class GoalSystem {
                 
                 // TODO< we need to deal with multiple condops! >
                 var goal:ActiveGoal2 = new ActiveGoal2(iImplSeq.condops[0], tvConcl, stampConcl, sampledGoal.creationTime);
-                submitGoal2(goal, EnumSentenceSource.DERIVED);
+                submitGoal2(exec, goal, EnumSentenceSource.DERIVED);
             }
         }
         else { // case with ops
@@ -1175,7 +1187,7 @@ class GoalSystem {
                     var desireConcl = Tv.structDeduction(sampledGoal.desire);
                     
                     var goal:ActiveGoal2 = new ActiveGoal2(condOpsConcl, desireConcl, sampledGoal.stamp, sampledGoal.creationTime);
-                    submitGoal2(goal, EnumSentenceSource.DERIVED);
+                    submitGoal2(exec, goal, EnumSentenceSource.DERIVED);
                 }
             }
         }
@@ -1209,7 +1221,7 @@ class GoalSystem {
 
 
     // called when a goal was selected and when it should get realized
-    public function processGoal(selGoal:ActiveGoal2, decl:Nar.Declarative) {
+    public function processGoal(selGoal:ActiveGoal2, decl:Nar.Declarative, exec:Executive) {
         // handling for ^d declarative special op
         // is used to query declarative knowledge for procedural inference
         if (!selGoal.qaWasQuestedAlready) {
@@ -1221,7 +1233,7 @@ class GoalSystem {
                     var questionTerm:Term = opNameAndArgs.args[1];
     
                     // ask question and register answer handler for it
-                    var handler = new DeclarativeAnswerHandler(selGoal, this);
+                    var handler = new DeclarativeAnswerHandler(exec, selGoal, this);
                     decl.question(questionTerm, handler);
                     
                     selGoal.qaWasQuestedAlready = true; // we had now asked a question to handle this goal
@@ -1291,10 +1303,12 @@ class Dbg {
 
 // Q&A handler to handler answer to ^d question and to create a new goal with the unified variables
 class DeclarativeAnswerHandler implements Nar.AnswerHandler2 {
+    public var exec:Executive;
     public var goalSystem:GoalSystem;
     public var goal:ActiveGoal2; // goal for which the question was derived to handle the ^d pseudo-op
 
-    public function new(goal:ActiveGoal2, goalSystem:GoalSystem) {
+    public function new(exec:Executive, goal:ActiveGoal2, goalSystem:GoalSystem) {
+        this.exec = exec;
         this.goal = goal;
         this.goalSystem = goalSystem;
     }
@@ -1329,7 +1343,7 @@ class DeclarativeAnswerHandler implements Nar.AnswerHandler2 {
         var derivedGoal:ActiveGoal2 = new ActiveGoal2(derivCondOp, goal.desire, goal.stamp, goalSystem.currentTime);
 
         // * register goal
-        goalSystem.submitGoal2(derivedGoal, EnumSentenceSource.DERIVED);
+        goalSystem.submitGoal2(exec, derivedGoal, EnumSentenceSource.DERIVED);
     }
 }
 
