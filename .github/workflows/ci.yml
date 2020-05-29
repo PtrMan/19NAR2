@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+    - name: checkout
+      uses: actions/checkout@v2
+    
+    - name: install haxe
+      uses: krdlab/setup-haxe@v1
+      with:
+        haxe-version: 4.0.5
+
+    - name: Run ExpProcAnti0 decision making test
+      run: haxe --run ExpProcAnti0
