@@ -19,7 +19,7 @@ class TestNal {
 
         for (iNalFileName in nalTestFileNames) {
             // loads narsese from file
-            var nalFileContent = File.getContent(path+"\\"+iNalFileName);
+            var nalFileContent = Sys.systemName() == "Windows" ? File.getContent(path+"\\"+iNalFileName) : File.getContent(path+"/"+iNalFileName);
             var nalLines = nalFileContent.split("\r\n");
 
             var res = runNarAndEvalutate(nalLines, path);
@@ -35,12 +35,16 @@ class TestNal {
     }
 
     public static function main() {
+        var os = Sys.systemName();
+
         // compute path of program, this is where the test files reside
         var path:String = Sys.programPath();
         // eat away till we hit "\", remove it too
         while(path.length > 0) {
-            // TODO< check if running on windows or linux and decide based on it ! >
-            if(path.charAt(path.length-1) == "\\" || path.charAt(path.length-1) == "/") {
+            if(os=="Windows" && path.charAt(path.length-1) == "\\") {
+                break;
+            }
+            else if(os=="Linux" && path.charAt(path.length-1) == "/") {
                 break;
             }
             path = path.substr(0, path.length-1); // eat away
