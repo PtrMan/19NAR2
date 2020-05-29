@@ -39,7 +39,8 @@ class TestNal {
         var path:String = Sys.programPath();
         // eat away till we hit "\", remove it too
         while(path.length > 0) {
-            if(path.charAt(path.length-1) == "\\") {
+            // TODO< check if running on windows or linux and decide based on it ! >
+            if(path.charAt(path.length-1) == "\\" || path.charAt(path.length-1) == "/") {
                 break;
             }
             path = path.substr(0, path.length-1); // eat away
