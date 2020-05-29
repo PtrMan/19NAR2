@@ -60,7 +60,7 @@ class TestNal {
         var expectedWithLowestCyclesNarsese:Map<String, Int> = new Map<String, Int>();
 
         var reasoner = new Nar(pathToNar);
-        reasoner.declarative.answerHandler = new TestAnswerHandler(expectedWithTvNarsese, expectedWithLowestCyclesNarsese); // install Q&A handler
+        reasoner.declarative.answerListener = new TestAnswerListener(expectedWithTvNarsese, expectedWithLowestCyclesNarsese); // install Q&A listener
 
         reasoner.declarative.conclusionStrArr = []; // enable output logging
 
@@ -116,7 +116,7 @@ class TestNal {
     }
 }
 
-class TestAnswerHandler implements Nar.AnswerHandler {
+class TestAnswerListener implements Nar.AnswerListener {
     public var expectedWithTvNarsese:Map<String, Bool>;
     public var expectedWithLowestCyclesNarsese:Map<String, Int>;
 
