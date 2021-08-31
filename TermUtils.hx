@@ -71,7 +71,7 @@ class TermUtils {
     public static function convToStr(term:Term) {
         return switch (term) {
             case ImgWild: "_";
-            case Name(name,label0): label0 ? name : name+":";
+            case Name(name,label0): label0 ? name+":" : name;
             case Compound(type,content):
             var narseseContent = content.map(function(i) {return convToStr(i);}).join(' $type ');
             '( $narseseContent )';
