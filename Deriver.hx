@@ -27,8 +27,8 @@ class Deriver {
         trace("start");
 
         
-        var x = Term.Cop("-->", Term.Name("a"), Term.Name("b"));
-        var y = Term.Cop("-->", Term.Name("b"), Term.Name("c"));
+        var x = Term.Cop("-->", Term.Name("a", false), Term.Name("b", false));
+        var y = Term.Cop("-->", Term.Name("b", false), Term.Name("c", false));
 
         var conclusions = [];
         inferenceCode(x, ".", new Tv(1.0, 0.9), y, ".", new Tv(1.0, 0.9), null, conclusions, 1);

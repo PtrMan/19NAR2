@@ -295,7 +295,7 @@ class Executive {
     public function submitEventGoal(term:Term, tv:Tv) {
         function isOp(term:Term) {
             return switch (term) {
-                case Term.Cop("-->", Term.Prod(_), Term.Name(name)) if (name.length > 0 && name.charAt(0) == "^"): true;
+                case Term.Cop("-->", Term.Prod(_), Term.Name(name,_)) if (name.length > 0 && name.charAt(0) == "^"): true;
                 case _: false;
             }
         }
@@ -312,7 +312,7 @@ class Executive {
     public function submitEternalJudgement(term:Term, tv:Tv) {
         function isOp(term:Term) {
             return switch (term) {
-                case Term.Cop("-->", Term.Prod(_), Term.Name(name)) if (name.length > 0 && name.charAt(0) == "^"): true;
+                case Term.Cop("-->", Term.Prod(_), Term.Name(name,_)) if (name.length > 0 && name.charAt(0) == "^"): true;
                 case _: false;
             }
         }
@@ -398,7 +398,7 @@ class Executive {
                 for(idx in 0...possibleActs.length) {
                     // build queued act with the name and SELF arguments
                     var actName:String = possibleActs[idx].act.name;
-                    var actTerm:Term = Cop("-->", Prod([Set("{", [Name("SELF")])]), Name(actName));
+                    var actTerm:Term = Cop("-->", Prod([Set("{", [Name("SELF",false)])]), Name(actName,false));
 
                     queuedAct = actTerm; // queue action as next action
                     queuedActOrigins = []; // has no origin because it was done by random
@@ -543,7 +543,7 @@ class Executive {
             // helper function to return name
             function retName(t:Term):String {
                 return switch(t) {
-                    case Term.Cop("-->", _ , Name(n)): n;
+                    case Term.Cop("-->", _ , Name(n,_)): n;
                     default: throw "Invalid name!";
                 }
             }
@@ -651,7 +651,7 @@ class Executive {
     // returns null if it is not a operation call
     public static function tryDecomposeOpCall(term:Term):{name:String, args:Array<Term>} {
         switch term {
-            case Term.Cop("-->", Term.Prod(args), Term.Name(name)) if (name.length > 0 && name.charAt(0) == '^'):
+            case Term.Cop("-->", Term.Prod(args), Term.Name(name,_)) if (name.length > 0 && name.charAt(0) == '^'):
             return {name:name, args:args};
             case _:
             return null;
@@ -871,7 +871,7 @@ class Executive {
         var args:Array<Term> = null; // arguments
         var actName:String = null;
         switch actTerm {
-            case Cop("-->", Prod(args2), Name(actName2)):
+            case Cop("-->", Prod(args2), Name(actName2,_)):
             actName = actName2;
             args = args2;
             case _:

@@ -22,7 +22,7 @@ class TermUtils {
     // clones only the first "level" of a term, used to "break" references to stay under AIKR
     public static function cloneShallow(term:Term):Term {
         return switch (term) {
-            case Name(name): Name(name);
+            case Name(name,label0): Name(name,label0);
             case Compound(type, content): Compound(type, content);
             case Cop(copula, subj, pred): Cop(copula, subj, pred);
             case Prod(content): Prod(content);
@@ -37,7 +37,7 @@ class TermUtils {
     // enumerate all concept name terms recursivly
     public static function enumTerms(term:Term):Array<Term> {
         return [term].concat(switch (term) {
-            case Name(name): [];
+            case Name(name,_): [];
             case Compound(_, content):
             var res = [];
             for (iContent in content) {
@@ -71,7 +71,7 @@ class TermUtils {
     public static function convToStr(term:Term) {
         return switch (term) {
             case ImgWild: "_";
-            case Name(name): name;
+            case Name(name,label0): label0 ? name : name+":";
             case Compound(type,content):
             var narseseContent = content.map(function(i) {return convToStr(i);}).join(' $type ');
             '( $narseseContent )';
@@ -100,10 +100,10 @@ class TermUtils {
                 case _:
                 return false;
             }
-            case Name(nameA):
+            case Name(nameA,label0A):
             switch(b) {
-                case Name(nameB):
-                return nameA == nameB;
+                case Name(nameB,label0B):
+                return nameA == nameB && label0A == label0B;
                 case _:
                 return false;
             }
@@ -308,7 +308,7 @@ class TermUtils {
         }
         
         return switch term {
-            case Name(n): 1;
+            case Name(n,_): 1;
             case ImgWild: 0;
             case Compound(type,content):
             var c = calcComplexityOfArr(content);

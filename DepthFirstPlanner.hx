@@ -87,7 +87,7 @@ class DepthFirstPlanner {
         planner.exec = reasoner.executive; // wire up
 
         {
-            var goalTerm = Term.Cop("-->", Term.Name("b"), Term.Name("B"));
+            var goalTerm = Term.Cop("-->", Term.Name("b",false), Term.Name("B",false));
             var tv:Tv = new Tv(1.0, 0.98);
             var stamp = planner.exec.createStamp();
             var currentTime = 0; // TODO< real time >

@@ -2631,7 +2631,7 @@ class ProtoLexer {
             if(ParserConfig.debugParser) trace("CALL statementSetCopula()");
 
             var parser2 = cast(parser, NarseseParser);
-            parser2.stack.push(Name(currentToken.contentString)); // WORKAROUND< push as name >
+            parser2.stack.push(Name(currentToken.contentString,false)); // WORKAROUND< push as name >
         }
 
         function statementEnd(parser : Parser<EnumOperationType>, currentToken : Token<EnumOperationType>) {
@@ -2646,7 +2646,7 @@ class ProtoLexer {
 
             var copulaStr = "";
             switch (copulaTerm) {
-                case Name(name):
+                case Name(name,_):
                 copulaStr = name;
                 default:
                 throw "Expected Name!"; // internal error
@@ -2680,7 +2680,7 @@ class ProtoLexer {
             if(ParserConfig.debugParser) trace("CALL identifierStore()");
 
             var parser2 = cast(parser, NarseseParser);
-            parser2.stack.push(Name(currentToken.contentString)); // push the identifier as a Name term to the stack
+            parser2.stack.push(Name(currentToken.contentString, false /* doesn't have to label0 */)); // push the identifier as a Name term to the stack
         }
 
         // store variable
@@ -2711,7 +2711,7 @@ class ProtoLexer {
 
         function roundBraceBegin(parser : Parser<EnumOperationType>, currentToken : Token<EnumOperationType>) {
             var parser2 = cast(parser, NarseseParser);
-            parser2.stack.push(Name("(")); // HACK< simply push the content as a name >
+            parser2.stack.push(Name("(", false)); // HACK< simply push the content as a name >
                                            // TODO< we need a better solution here which is safe against bugs >
         }
 
@@ -2736,7 +2736,7 @@ class ProtoLexer {
                 while (!found) {
                     var iStack: Term = parser2.stack[stackIdx]; // iterator value of stack
                     switch (iStack) {
-                        case Name("("): // found "(" which is the beginning of the round brace
+                        case Name("(", _): // found "(" which is the beginning of the round brace
                         found = true;
                         case _:
                         braceContentStack.push(iStack);
@@ -2772,15 +2772,15 @@ class ProtoLexer {
 
             // type of product, can be null if it is not known or "PROD" if it is a product
             var type = switch (braceContent[1]) {
-                case Name("*"): // is product
+                case Name("*",_): // is product
                 "*";
-                case Name("&"):
+                case Name("&",_):
                 "&";
-                case Name("|"):
+                case Name("|",_):
                 "|";
-                case Name("-"):
+                case Name("-",_):
                 "-";
-                case Name("&/"):
+                case Name("&/",_):
                 trace('here ');
                 "&/";
                 case _:
@@ -2796,7 +2796,7 @@ class ProtoLexer {
             var idx = 1;
             while (idx < braceContent.length) {
                 switch (braceContent[idx]) {
-                    case Name(type2) if (type2 == type):
+                    case Name(type2,_) if (type2 == type):
                     case _:
                     throw "Parsing failed: product elements must be seperated with * !";
                 }
@@ -2808,7 +2808,7 @@ class ProtoLexer {
             idx = 0;
             while (idx < braceContent.length) {
                 switch (braceContent[idx]) {
-                    case Name(type2) if (type2 == "*" || type2 == "&" || type2 == "|" || type2 == "-" || type2 == "&/"):
+                    case Name(type2,_) if (type2 == "*" || type2 == "&" || type2 == "|" || type2 == "-" || type2 == "&/"):
                     throw 'Parsing failed: product elements must not be $type2 !';
                     case _:
                     productContent.push(braceContent[idx]);
@@ -2841,8 +2841,8 @@ class ProtoLexer {
 
         function tokenStore(parser : Parser<EnumOperationType>, currentToken : Token<EnumOperationType>) {
             var parser2 = cast(parser, NarseseParser);
-            parser2.stack.push(Name(currentToken.contentString)); // HACK< simply push the content as a name >
-                                                                  // TODO< we need a better solution here which is safe against bugs >
+            parser2.stack.push(Name(currentToken.contentString, false /* doesn't have to label0 */)); // HACK< simply push the content as a name >
+                                                                                                      // TODO< we need a better solution here which is safe against bugs >
         }
 
         function braceSetEnd(parser : Parser<EnumOperationType>, currentToken : Token<EnumOperationType>) {
@@ -2856,7 +2856,7 @@ class ProtoLexer {
             while (!found) {
                 var iStack: Term = parser2.stack[stackIdx]; // iterator value of stack
                 switch (iStack) {
-                    case Name("{"): // found "{" which is the beginning of the round brace
+                    case Name("{",_): // found "{" which is the beginning of the round brace
                     found = true;
                     case _:
                     braceContentStack.push(iStack);
@@ -2881,7 +2881,7 @@ class ProtoLexer {
             while (!found) {
                 var iStack: Term = parser2.stack[stackIdx]; // iterator value of stack
                 switch (iStack) {
-                    case Name("["): // found "{" which is the beginning of the round brace
+                    case Name("[",_): // found "{" which is the beginning of the round brace
                     found = true;
                     case _:
                     braceContentStack.push(iStack);
